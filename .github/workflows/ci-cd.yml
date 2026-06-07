@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   validate:
-    name: ${{ github.event_name == 'pull_request' && 'Validate' || github.ref_name == 'develop' && 'Validate before preview release' || 'Validate before stable release' }}
+    name: Validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
