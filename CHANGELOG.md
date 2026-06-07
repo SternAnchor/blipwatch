@@ -1,3 +1,9 @@
+## [1.1.0-develop.17](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.16...v1.1.0-develop.17) (2026-06-07)
+
+### Bug Fixes
+
+* namespace api routes under api ([36e39fe](https://github.com/SternAnchor/blipwatch/commit/36e39feb2239125377a6f871c8fc04fbe6abb51f)), closes [#64](https://github.com/SternAnchor/blipwatch/issues/64)
+
 ## [1.1.0-develop.16](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.15...v1.1.0-develop.16) (2026-06-07)
 
 ### Bug Fixes
