@@ -31,12 +31,16 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
         const result = decoder.decode(packet);
         if (result.ok) {
           renderer.applySpoke(result.spoke);
+          replayBuffer.captureFrame({
+            metadata: renderer.getLatestMetadata(),
+            png: renderer.getLatestPng()
+          });
         }
       });
       await receiver.start();
       logger.debug(`decoder ready: ${decoder.name}`);
       logger.debug(`renderer ready: ${renderer.imageSize}px`);
-      logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s`);
+      logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s interval=${replayBuffer.frameIntervalMs}ms`);
     },
     async stop(): Promise<void> {
       await receiver.stop();
