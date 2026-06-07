@@ -180,6 +180,33 @@ Capture checklist for future decoder work:
 - Short pcap file with timestamps preserved.
 - Debug log excerpt from the same capture window.
 
+### Replay Saved UDP Payloads
+
+For decoder development, save sanitized UDP payloads in a newline-delimited replay file. Each non-empty line can be either raw hexadecimal:
+
+```text
+425753310101000a03e80004004080ff
+```
+
+or JSON with a payload and delay before sending that packet:
+
+```json
+{"payloadHex":"42 57 53 31 01 01 00 14 03 e8 00 02 40 ff","delayMs":25}
+```
+
+Lines beginning with `#` are ignored. The replay format stores UDP payload bytes only; it does not preserve Ethernet/IP/UDP headers from a pcap.
+
+Start BlipWatch in one terminal, then replay packets into its UDP receiver:
+
+```bash
+REPLAY_PACKET_FILE=captures/halo-sample.ndjson \
+REPLAY_RADAR_HOST=127.0.0.1 \
+REPLAY_RADAR_PORT=6678 \
+npm run replay:packets
+```
+
+Use this format for small sanitized fixtures. Keep raw pcaps private until they have been reviewed for vessel, marina, and network details.
+
 ## Configuration
 
 BlipWatch is configured through environment variables.
