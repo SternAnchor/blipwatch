@@ -1,9 +1,11 @@
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
+import type { AddressInfo } from "node:net";
 
 import { PNG } from "pngjs";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  closeHttpServer,
   configureHttpServerLimits,
   createHttpApi,
   type HttpApi,
@@ -178,5 +180,35 @@ describe("HTTP API", () => {
     expect(httpServer.headersTimeout).toBe(HTTP_SERVER_LIMITS.headersTimeoutMs);
     expect(httpServer.keepAliveTimeout).toBe(HTTP_SERVER_LIMITS.keepAliveTimeoutMs);
     expect(httpServer.maxRequestsPerSocket).toBe(HTTP_SERVER_LIMITS.maxRequestsPerSocket);
+  });
+
+  it("force closes lingering HTTP connections after the shutdown grace period", async () => {
+    let markRequestReceived: () => void = () => {};
+    const requestReceived = new Promise<void>((resolve) => {
+      markRequestReceived = resolve;
+    });
+    const httpServer = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/plain" });
+      response.write("partial");
+      markRequestReceived();
+    });
+    const closeAllConnections = vi.spyOn(httpServer, "closeAllConnections");
+
+    await new Promise<void>((resolve) => {
+      httpServer.listen(0, "127.0.0.1", resolve);
+    });
+    const port = (httpServer.address() as AddressInfo).port;
+    const clientRequest = request({ host: "127.0.0.1", port });
+    clientRequest.on("error", () => {});
+    clientRequest.on("response", (response) => {
+      response.resume();
+    });
+    clientRequest.end();
+
+    await requestReceived;
+    await closeHttpServer(httpServer, 1);
+
+    expect(closeAllConnections).toHaveBeenCalledOnce();
+    expect(httpServer.listening).toBe(false);
   });
 });

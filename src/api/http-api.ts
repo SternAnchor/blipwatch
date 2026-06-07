@@ -27,6 +27,8 @@ export const HTTP_SERVER_LIMITS = {
   requestTimeoutMs: 30_000
 } as const;
 
+export const HTTP_SERVER_SHUTDOWN_GRACE_MS = 5_000;
+
 export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
 
@@ -119,16 +121,7 @@ export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpAp
         return;
       }
 
-      await new Promise<void>((resolve, reject) => {
-        server?.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          resolve();
-        });
-      });
+      await closeHttpServer(server);
       logger.debug("HTTP API stopped");
       server = undefined;
     }
@@ -140,6 +133,27 @@ export const configureHttpServerLimits = (server: Server): void => {
   server.headersTimeout = HTTP_SERVER_LIMITS.headersTimeoutMs;
   server.keepAliveTimeout = HTTP_SERVER_LIMITS.keepAliveTimeoutMs;
   server.maxRequestsPerSocket = HTTP_SERVER_LIMITS.maxRequestsPerSocket;
+};
+
+export const closeHttpServer = async (
+  server: Server,
+  graceMs = HTTP_SERVER_SHUTDOWN_GRACE_MS
+): Promise<void> => {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      server.closeAllConnections();
+    }, graceMs);
+
+    server.close((error) => {
+      clearTimeout(timeout);
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
 };
 
 const sendJson = (response: ServerResponse, statusCode: number, body: unknown): void => {
