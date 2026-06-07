@@ -27,13 +27,13 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.debug(`loaded config: ${JSON.stringify(redactConfig(config))}`);
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
-      receiver.start();
+      await receiver.start();
       logger.debug(`decoder ready: ${decoder.name}`);
       logger.debug(`renderer ready: ${renderer.imageSize}px`);
       logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s`);
     },
     async stop(): Promise<void> {
-      receiver.stop();
+      await receiver.stop();
       await httpApi.stop();
       logger.info("BlipWatch stopped");
     }
