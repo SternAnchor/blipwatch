@@ -77,5 +77,22 @@ describe("runtime data path", () => {
     const frames = await fetch(`${baseUrl}/radar/replay/frames`);
     const framesBody = (await frames.json()) as { frames: Array<{ capturedAt: string }> };
     expect(framesBody.frames).toHaveLength(1);
+
+    const status = await fetch(`${baseUrl}/radar/status`);
+    await expect(status.json()).resolves.toMatchObject({
+      decoder: {
+        packetsDecoded: 1,
+        packetsRejected: 0
+      },
+      receiver: {
+        packetsReceived: 1,
+        running: true
+      },
+      renderer: {
+        imageAvailable: true,
+        renderState: "ready",
+        spokeCount: 1
+      }
+    });
   });
 });

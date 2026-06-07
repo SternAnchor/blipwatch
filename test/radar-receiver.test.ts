@@ -37,10 +37,25 @@ describe("createRadarReceiver", () => {
     const logger = createLogger({ level: "debug", sink });
     receiver = createRadarReceiver({ config: baseConfig, logger });
 
+    expect(receiver.getStatus()).toMatchObject({
+      boundInterface: null,
+      lastPacketAt: null,
+      lastSourceAddress: null,
+      packetsReceived: 0,
+      running: false,
+      udpPort: null
+    });
+
     await receiver.start();
     const address = receiver.address();
     expect(address?.address).toBe("127.0.0.1");
     expect(address?.port).toBeGreaterThan(0);
+    expect(receiver.getStatus()).toMatchObject({
+      boundInterface: "127.0.0.1",
+      packetsReceived: 0,
+      running: true,
+      udpPort: address?.port
+    });
 
     const expectedData = Buffer.from([0xde, 0xad, 0xbe, 0xef]);
     const packetPromise = waitForPacket(receiver);
@@ -51,6 +66,12 @@ describe("createRadarReceiver", () => {
     expect(packet.data).toEqual(expectedData);
     expect(packet.remote.address).toBe("127.0.0.1");
     expect(packet.receivedAt).toBeInstanceOf(Date);
+    expect(receiver.getStatus()).toMatchObject({
+      lastPacketAt: packet.receivedAt.toISOString(),
+      lastSourceAddress: `${packet.remote.address}:${packet.remote.port}`,
+      packetsReceived: 1,
+      running: true
+    });
     expect(messages.some((message) => message.includes("radar packet received count=1 bytes=4"))).toBe(true);
   });
 

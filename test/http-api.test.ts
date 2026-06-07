@@ -14,6 +14,7 @@ import {
 import type { BlipWatchConfig } from "../src/config/config.js";
 import { createLogger } from "../src/logging/logger.js";
 import type { RadarImageRenderer } from "../src/radar/renderer.js";
+import type { RadarStatus } from "../src/radar/status.js";
 import type { ReplayBuffer } from "../src/replay/replay-buffer.js";
 import { createMemorySink } from "./support/logger.js";
 
@@ -88,12 +89,37 @@ const createReplayBuffer = (): ReplayBuffer => ({
   retentionSeconds: 300
 });
 
+const radarStatus = (): RadarStatus => ({
+  decoder: {
+    lastDecodedSpokeAt: capturedAt,
+    packetsDecoded: 7,
+    packetsRejected: 2
+  },
+  receiver: {
+    boundInterface: "127.0.0.1",
+    lastPacketAt: capturedAt,
+    lastSourceAddress: "192.0.2.10:6678",
+    packetsReceived: 9,
+    running: true,
+    udpPort: 6678
+  },
+  renderer: {
+    imageAvailable: true,
+    imageSize: 32,
+    lastRenderedImageAt: capturedAt,
+    lastSpokeAt: capturedAt,
+    renderState: "ready",
+    spokeCount: 7
+  }
+});
+
 const startApi = async (): Promise<string> => {
   const { sink } = createMemorySink();
   api = createHttpApi({
     config,
     logger: createLogger({ level: "debug", sink }),
     renderer: createRenderer(),
+    radarStatus,
     replayBuffer: createReplayBuffer()
   });
   await api.start();
@@ -126,6 +152,26 @@ describe("HTTP API", () => {
       maxIntensity: 255,
       renderState: "ready",
       spokeCount: 1
+    });
+
+    const status = await fetch(`${baseUrl}/radar/status`);
+    expect(status.status).toBe(200);
+    await expect(status.json()).resolves.toMatchObject({
+      decoder: {
+        packetsDecoded: 7,
+        packetsRejected: 2
+      },
+      receiver: {
+        lastSourceAddress: "192.0.2.10:6678",
+        packetsReceived: 9,
+        running: true,
+        udpPort: 6678
+      },
+      renderer: {
+        imageAvailable: true,
+        renderState: "ready",
+        spokeCount: 7
+      }
     });
 
     const latestPng = await fetch(`${baseUrl}/radar/latest.png`);

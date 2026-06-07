@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
+import type { RadarReceiverStatus } from "./status.js";
 
 export interface RadarPacket {
   readonly data: Buffer;
@@ -13,6 +14,7 @@ export interface RadarPacket {
 
 export interface RadarReceiver {
   address(): AddressInfo | undefined;
+  getStatus(): RadarReceiverStatus;
   onPacket(listener: (packet: RadarPacket) => void): () => void;
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -26,6 +28,8 @@ export interface RadarReceiverOptions {
 export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): RadarReceiver => {
   const events = new EventEmitter();
   let socket: Socket | undefined;
+  let lastPacketAt: Date | undefined;
+  let lastSourceAddress: string | undefined;
   let packetCount = 0;
 
   return {
@@ -36,6 +40,17 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
       }
 
       return currentAddress;
+    },
+    getStatus(): RadarReceiverStatus {
+      const currentAddress = this.address();
+      return {
+        boundInterface: currentAddress?.address ?? (socket ? config.radarInterface : null),
+        lastPacketAt: lastPacketAt?.toISOString() ?? null,
+        lastSourceAddress: lastSourceAddress ?? null,
+        packetsReceived: packetCount,
+        running: socket !== undefined,
+        udpPort: currentAddress?.port ?? (socket ? config.radarUdpPort : null)
+      };
     },
     onPacket(listener: (packet: RadarPacket) => void): () => void {
       events.on("packet", listener);
@@ -53,12 +68,14 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
 
       socket.on("message", (data, remote) => {
         packetCount += 1;
+        lastPacketAt = new Date();
+        lastSourceAddress = `${remote.address}:${remote.port}`;
         logger.debug(
           `radar packet received count=${packetCount} bytes=${data.byteLength} from=${remote.address}:${remote.port}`
         );
         events.emit("packet", {
           data: Buffer.from(data),
-          receivedAt: new Date(),
+          receivedAt: lastPacketAt,
           remote
         });
       });

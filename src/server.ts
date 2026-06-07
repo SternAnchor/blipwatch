@@ -4,6 +4,7 @@ import { createLogger, type Logger } from "./logging/logger.js";
 import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver } from "./radar/receiver.js";
+import type { RadarStatus } from "./radar/status.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
 
 export interface BlipWatchServer {
@@ -25,7 +26,29 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const decoder = createRadarDecoder({ logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
-  const httpApi = createHttpApi({ config, logger, renderer, replayBuffer });
+  let packetsDecoded = 0;
+  let packetsRejected = 0;
+  let lastDecodedSpokeAt: Date | undefined;
+  const getRadarStatus = (): RadarStatus => {
+    const rendererMetadata = renderer.getLatestMetadata();
+    return {
+      decoder: {
+        lastDecodedSpokeAt: lastDecodedSpokeAt?.toISOString() ?? null,
+        packetsDecoded,
+        packetsRejected
+      },
+      receiver: receiver.getStatus(),
+      renderer: {
+        imageAvailable: rendererMetadata.renderState === "ready",
+        imageSize: rendererMetadata.imageSize,
+        lastRenderedImageAt: rendererMetadata.lastFrameAt,
+        lastSpokeAt: rendererMetadata.lastSpokeAt,
+        renderState: rendererMetadata.renderState,
+        spokeCount: rendererMetadata.spokeCount
+      }
+    };
+  };
+  const httpApi = createHttpApi({ config, logger, renderer, radarStatus: getRadarStatus, replayBuffer });
 
   return {
     addresses(): BlipWatchServerAddresses {
@@ -42,12 +65,17 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       receiver.onPacket((packet) => {
         const result = decoder.decode(packet);
         if (result.ok) {
+          packetsDecoded += 1;
+          lastDecodedSpokeAt = result.spoke.receivedAt;
           renderer.applySpoke(result.spoke);
           replayBuffer.captureFrame({
             metadata: renderer.getLatestMetadata(),
             png: renderer.getLatestPng()
           });
+          return;
         }
+
+        packetsRejected += 1;
       });
       await receiver.start();
       logger.debug(`decoder ready: ${decoder.name}`);

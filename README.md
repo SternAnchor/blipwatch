@@ -243,6 +243,38 @@ Returns latest render metadata.
 
 When no radar data has arrived, `renderState` is `empty` and timestamps are `null`.
 
+### `GET /radar/status`
+
+Returns hardware-focused receiver, decoder, and renderer diagnostics.
+
+```json
+{
+  "receiver": {
+    "running": true,
+    "packetsReceived": 1,
+    "lastPacketAt": "2026-06-07T00:00:00.000Z",
+    "lastSourceAddress": "192.0.2.10:6678",
+    "boundInterface": "0.0.0.0",
+    "udpPort": 6678
+  },
+  "decoder": {
+    "packetsDecoded": 1,
+    "packetsRejected": 0,
+    "lastDecodedSpokeAt": "2026-06-07T00:00:00.000Z"
+  },
+  "renderer": {
+    "imageAvailable": true,
+    "imageSize": 1024,
+    "lastRenderedImageAt": "2026-06-07T00:00:00.000Z",
+    "lastSpokeAt": "2026-06-07T00:00:00.000Z",
+    "renderState": "ready",
+    "spokeCount": 1
+  }
+}
+```
+
+This endpoint is intended for Phase 2 hardware testing and troubleshooting. It helps confirm whether BlipWatch is receiving UDP packets, decoding radar spokes, and rendering current imagery.
+
 ### `GET /radar/replay`
 
 Returns replay buffer metadata.

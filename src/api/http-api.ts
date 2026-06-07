@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
+import type { RadarStatus } from "../radar/status.js";
 import type { ReplayBuffer } from "../replay/replay-buffer.js";
 
 export interface HttpApi {
@@ -17,6 +18,7 @@ interface HttpApiOptions {
   readonly config: BlipWatchConfig;
   readonly logger: Logger;
   readonly renderer: RadarImageRenderer;
+  readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
 }
 
@@ -29,7 +31,7 @@ export const HTTP_SERVER_LIMITS = {
 
 export const HTTP_SERVER_SHUTDOWN_GRACE_MS = 5_000;
 
-export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpApiOptions): HttpApi => {
+export const createHttpApi = ({ config, logger, renderer, radarStatus, replayBuffer }: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
 
   return {
@@ -71,6 +73,11 @@ export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpAp
 
         if (url.pathname === "/radar/latest.json") {
           sendJson(response, 200, renderer.getLatestMetadata());
+          return;
+        }
+
+        if (url.pathname === "/radar/status") {
+          sendJson(response, 200, radarStatus());
           return;
         }
 
