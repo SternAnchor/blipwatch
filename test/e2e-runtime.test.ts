@@ -67,21 +67,21 @@ describe("runtime data path", () => {
     );
 
     await waitFor(async () => {
-      const response = await fetch(`${baseUrl}/radar/latest.json`);
+      const response = await fetch(`${baseUrl}/api/radar/latest.json`);
       const body = (await response.json()) as { spokeCount: number };
       return body.spokeCount === 1;
     });
 
-    const latestPng = await fetch(`${baseUrl}/radar/latest.png`);
+    const latestPng = await fetch(`${baseUrl}/api/radar/latest.png`);
     const image = PNG.sync.read(Buffer.from(await latestPng.arrayBuffer()));
     expect(image.width).toBe(32);
     expect(image.height).toBe(32);
 
-    const frames = await fetch(`${baseUrl}/radar/replay/frames`);
+    const frames = await fetch(`${baseUrl}/api/radar/replay/frames`);
     const framesBody = (await frames.json()) as { frames: Array<{ capturedAt: string }> };
     expect(framesBody.frames).toHaveLength(1);
 
-    const status = await fetch(`${baseUrl}/radar/status`);
+    const status = await fetch(`${baseUrl}/api/radar/status`);
     await expect(status.json()).resolves.toMatchObject({
       decoder: {
         packetsDecoded: 1,
@@ -108,19 +108,19 @@ describe("runtime data path", () => {
     await sendUdpPacket(radarPort, createNavicoHaloFramePacket());
 
     await waitFor(async () => {
-      const response = await fetch(`${baseUrl}/radar/status`);
+      const response = await fetch(`${baseUrl}/api/radar/status`);
       const body = (await response.json()) as { decoder: { packetsDecoded: number } };
       return body.decoder.packetsDecoded === 1;
     });
 
-    const latestJson = await fetch(`${baseUrl}/radar/latest.json`);
+    const latestJson = await fetch(`${baseUrl}/api/radar/latest.json`);
     await expect(latestJson.json()).resolves.toMatchObject({
       maxIntensity: 255,
       renderState: "ready",
       spokeCount: 1
     });
 
-    const latestPng = await fetch(`${baseUrl}/radar/latest.png`);
+    const latestPng = await fetch(`${baseUrl}/api/radar/latest.png`);
     expect(latestPng.status).toBe(200);
     expect(latestPng.headers.get("content-type")).toBe("image/png");
   });

@@ -232,7 +232,7 @@ const getRadarStatusDiagnostics = ({
 
   if (renderer.imageAvailable) {
     return {
-      nextActions: ["Open /radar/latest.png or /radar/latest.json to inspect current rendered imagery."],
+      nextActions: ["Open /api/radar/latest.png or /api/radar/latest.json to inspect current rendered imagery."],
       phase: "receiving-and-rendering",
       summary: "Radar spokes are decoding and rendering."
     };
@@ -240,7 +240,7 @@ const getRadarStatusDiagnostics = ({
 
   if (decoder.packetsDecoded > 0) {
     return {
-      nextActions: ["Capture /radar/status and /radar/latest.json from the same test window."],
+      nextActions: ["Capture /api/radar/status and /api/radar/latest.json from the same test window."],
       phase: "decoded-but-not-rendered",
       summary: "Radar spokes decoded, but no rendered image is available yet."
     };

@@ -32,6 +32,7 @@ export const HTTP_SERVER_LIMITS = {
 } as const;
 
 export const HTTP_SERVER_SHUTDOWN_GRACE_MS = 5_000;
+const API_PREFIX = "/api";
 
 export const createHttpApi = ({
   config,
@@ -60,12 +61,12 @@ export const createHttpApi = ({
 
         const url = new URL(request.url ?? "/", "http://localhost");
 
-        if (request.method === "POST" && url.pathname === "/radar/control/standby") {
+        if (request.method === "POST" && url.pathname === apiPath("/radar/control/standby")) {
           void handleRadarControlRequest(response, radarControl, "standby");
           return;
         }
 
-        if (request.method === "POST" && url.pathname === "/radar/control/transmit") {
+        if (request.method === "POST" && url.pathname === apiPath("/radar/control/transmit")) {
           void handleRadarControlRequest(response, radarControl, "transmit");
           return;
         }
@@ -80,7 +81,7 @@ export const createHttpApi = ({
           return;
         }
 
-        if (url.pathname === "/health") {
+        if (url.pathname === apiPath("/health")) {
           sendJson(response, 200, {
             ok: true,
             replay: replayBuffer.getMetadata(),
@@ -90,32 +91,32 @@ export const createHttpApi = ({
           return;
         }
 
-        if (url.pathname === "/radar/latest.png") {
+        if (url.pathname === apiPath("/radar/latest.png")) {
           sendPng(response, renderer.getLatestPng());
           return;
         }
 
-        if (url.pathname === "/radar/latest.json") {
+        if (url.pathname === apiPath("/radar/latest.json")) {
           sendJson(response, 200, renderer.getLatestMetadata());
           return;
         }
 
-        if (url.pathname === "/radar/status") {
+        if (url.pathname === apiPath("/radar/status")) {
           sendJson(response, 200, radarStatus());
           return;
         }
 
-        if (url.pathname === "/radar/replay") {
+        if (url.pathname === apiPath("/radar/replay")) {
           sendJson(response, 200, replayBuffer.getMetadata());
           return;
         }
 
-        if (url.pathname === "/radar/replay/frames") {
+        if (url.pathname === apiPath("/radar/replay/frames")) {
           sendJson(response, 200, { frames: replayBuffer.listFrames() });
           return;
         }
 
-        if (url.pathname === "/radar/replay/frame") {
+        if (url.pathname === apiPath("/radar/replay/frame")) {
           const at = url.searchParams.get("at");
           if (!at) {
             sendJson(response, 400, { error: "missing_at", message: "Query parameter `at` is required." });
@@ -191,6 +192,8 @@ const sendJson = (response: ServerResponse, statusCode: number, body: unknown): 
   response.writeHead(statusCode, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(body));
 };
+
+const apiPath = (path: string): string => `${API_PREFIX}${path}`;
 
 const sendHtml = (response: ServerResponse, body: string): void => {
   response.writeHead(200, {
@@ -493,10 +496,10 @@ const renderDashboardHtml = (): string => `<!doctype html>
             <h1 id="radar-title">BlipWatch</h1>
             <div class="subtle" id="last-updated">Waiting for status...</div>
           </div>
-          <a href="/radar/latest.png">PNG</a>
+          <a href="/api/radar/latest.png">PNG</a>
         </div>
         <div class="radar-frame">
-          <img id="radar-image" alt="Latest radar image" src="/radar/latest.png">
+          <img id="radar-image" alt="Latest radar image" src="/api/radar/latest.png">
         </div>
       </section>
 
@@ -504,7 +507,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         <section class="status-panel" aria-labelledby="status-title">
           <div class="panel-header">
             <h2 id="status-title">Radar Status</h2>
-            <a href="/radar/status">JSON</a>
+            <a href="/api/radar/status">JSON</a>
           </div>
           <div class="status-body">
             <div class="phase" id="phase">
@@ -586,7 +589,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         standbyButton.disabled = true;
         transmitButton.disabled = true;
         try {
-          const response = await fetch("/radar/control/" + desiredState, { method: "POST" });
+          const response = await fetch("/api/radar/control/" + desiredState, { method: "POST" });
           if (!response.ok) {
             const body = await response.json().catch(() => ({}));
             throw new Error(body.message ?? "Radar control request failed");
@@ -603,7 +606,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       const refresh = async () => {
         try {
-          const response = await fetch("/radar/status", { cache: "no-store" });
+          const response = await fetch("/api/radar/status", { cache: "no-store" });
           const status = await response.json();
           const diagnostic = status.diagnostics ?? {};
           const currentPhase = diagnostic.phase ?? "unknown";
@@ -646,7 +649,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           }));
           rawStatus.textContent = JSON.stringify(status, null, 2);
           lastUpdated.textContent = "Updated " + new Date().toLocaleTimeString();
-          image.src = "/radar/latest.png?ts=" + Date.now();
+          image.src = "/api/radar/latest.png?ts=" + Date.now();
         } catch (error) {
           phase.className = "phase error";
           setText(phaseName, "status-error");
