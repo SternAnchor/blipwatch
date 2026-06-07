@@ -1,3 +1,9 @@
+## [1.1.0-develop.10](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.9...v1.1.0-develop.10) (2026-06-07)
+
+### Features
+
+* auto-select radar network interface ([89422d9](https://github.com/SternAnchor/blipwatch/commit/89422d9a799fc85856abf54102c65159e89a7d7f)), closes [#57](https://github.com/SternAnchor/blipwatch/issues/57)
+
 ## [1.1.0-develop.9](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.8...v1.1.0-develop.9) (2026-06-07)
 
 ### Features
