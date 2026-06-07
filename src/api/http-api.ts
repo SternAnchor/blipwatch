@@ -168,6 +168,7 @@ const sendPng = (
 ): void => {
   response.writeHead(200, {
     "cache-control": "no-store",
+    "content-length": body.byteLength.toString(),
     "content-type": "image/png",
     ...headers
   });

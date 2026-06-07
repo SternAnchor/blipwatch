@@ -131,6 +131,7 @@ describe("HTTP API", () => {
     const latestPng = await fetch(`${baseUrl}/radar/latest.png`);
     expect(latestPng.status).toBe(200);
     expect(latestPng.headers.get("cache-control")).toBe("no-store");
+    expect(latestPng.headers.get("content-length")).toBe(png.byteLength.toString());
     expect(latestPng.headers.get("content-type")).toBe("image/png");
     const latestImage = PNG.sync.read(Buffer.from(await latestPng.arrayBuffer()));
     expect(latestImage.width).toBe(32);
@@ -147,6 +148,7 @@ describe("HTTP API", () => {
     const replayFrame = await fetch(`${baseUrl}/radar/replay/frame?at=${encodeURIComponent(capturedAt)}`);
     expect(replayFrame.status).toBe(200);
     expect(replayFrame.headers.get("cache-control")).toBe("no-store");
+    expect(replayFrame.headers.get("content-length")).toBe(png.byteLength.toString());
     expect(replayFrame.headers.get("content-type")).toBe("image/png");
     expect(replayFrame.headers.get("x-blipwatch-frame-at")).toBe(capturedAt);
   });
