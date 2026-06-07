@@ -490,7 +490,13 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(fields.packets, status.receiver?.packetsReceived);
           setText(fields.decoded, status.decoder?.packetsDecoded);
           setText(fields.rendered, status.renderer?.spokeCount);
-          setText(fields.interface, status.receiver?.boundInterface ?? status.discovery?.boundInterface);
+          setText(
+            fields.interface,
+            status.receiver?.multicastInterface ??
+              status.discovery?.multicastInterface ??
+              status.receiver?.boundInterface ??
+              status.discovery?.boundInterface
+          );
           setText(fields.imageGroup, (status.receiver?.multicastGroups ?? []).join(", ") || "-");
           setText(fields.reportGroup, status.discovery?.multicastGroup);
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {

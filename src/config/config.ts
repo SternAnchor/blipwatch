@@ -135,8 +135,12 @@ const parseNonEmptyString = (value: string | undefined, name: string, defaultVal
 };
 
 const parseMulticastGroups = (value: string | undefined): readonly string[] => {
-  if (value === undefined || value.trim().length === 0) {
+  if (value === undefined) {
     return DEFAULTS.radarMulticastGroups;
+  }
+
+  if (value.trim().length === 0) {
+    return [];
   }
 
   return value.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {

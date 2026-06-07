@@ -109,6 +109,7 @@ const radarStatus = (): RadarStatus => ({
     enabled: true,
     lastReportAt: capturedAt,
     lastReportSource: "192.0.2.11:6878",
+    multicastInterface: "127.0.0.1",
     multicastGroup: "236.6.7.5",
     radar: {
       command: "0xc4",
@@ -132,6 +133,7 @@ const radarStatus = (): RadarStatus => ({
     boundInterface: "127.0.0.1",
     lastPacketAt: capturedAt,
     lastSourceAddress: "192.0.2.10:6678",
+    multicastInterface: "127.0.0.1",
     multicastGroups: ["239.2.1.1"],
     packetsReceived: 9,
     running: true,

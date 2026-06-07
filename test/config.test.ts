@@ -23,6 +23,10 @@ describe("loadConfig", () => {
     expect(loadConfig({ LOG_LEVEL: "debug" }).logLevel).toBe("debug");
   });
 
+  it("allows image multicast groups to be disabled explicitly", () => {
+    expect(loadConfig({ RADAR_MULTICAST_GROUPS: "" }).radarMulticastGroups).toEqual([]);
+  });
+
   it("uses valid environment overrides", () => {
     expect(
       loadConfig({

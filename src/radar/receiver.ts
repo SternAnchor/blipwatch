@@ -47,6 +47,7 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         boundInterface: currentAddress?.address ?? (socket ? config.radarInterface : null),
         lastPacketAt: lastPacketAt?.toISOString() ?? null,
         lastSourceAddress: lastSourceAddress ?? null,
+        multicastInterface: getMulticastInterface(config) ?? null,
         multicastGroups: config.radarMulticastGroups,
         packetsReceived: packetCount,
         running: socket !== undefined,
@@ -93,7 +94,8 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         }
 
         activeSocket.once("error", reject);
-        activeSocket.bind(config.radarUdpPort, config.radarInterface, () => {
+        const bindAddress = getBindAddress(config);
+        activeSocket.bind(config.radarUdpPort, bindAddress, () => {
           activeSocket.off("error", reject);
           try {
             joinConfiguredMulticastGroups(activeSocket, config, logger);
@@ -102,7 +104,9 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
             return;
           }
 
-          logger.info(`radar receiver listening on ${config.radarInterface}:${config.radarUdpPort}`);
+          logger.info(
+            `radar receiver listening on ${bindAddress}:${config.radarUdpPort} multicastInterface=${getMulticastInterface(config) ?? "default"}`
+          );
           logger.debug("radar receiver packet diagnostics enabled");
           resolve();
         });
@@ -132,8 +136,16 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
 
 const joinConfiguredMulticastGroups = (socket: Socket, config: BlipWatchConfig, logger: Logger): void => {
   for (const group of config.radarMulticastGroups) {
-    const multicastInterface = config.radarInterface === "0.0.0.0" ? undefined : config.radarInterface;
+    const multicastInterface = getMulticastInterface(config);
     socket.addMembership(group, multicastInterface);
-    logger.info(`radar receiver joined multicast group ${group}`);
+    logger.info(`radar receiver joined multicast group ${group} interface=${multicastInterface ?? "default"}`);
   }
+};
+
+const getBindAddress = (config: BlipWatchConfig): string => {
+  return config.radarMulticastGroups.length > 0 ? "0.0.0.0" : config.radarInterface;
+};
+
+const getMulticastInterface = (config: BlipWatchConfig): string | undefined => {
+  return config.radarInterface === "0.0.0.0" ? undefined : config.radarInterface;
 };

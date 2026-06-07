@@ -354,7 +354,8 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastReportAt": "2026-06-07T00:00:00.000Z",
     "lastReportSource": "192.0.2.11:6878",
     "multicastGroup": "236.6.7.5",
-    "boundInterface": "192.168.15.188",
+    "boundInterface": "0.0.0.0",
+    "multicastInterface": "192.168.15.188",
     "udpPort": 6878,
     "radar": {
       "reportType": "0x01",
@@ -377,7 +378,8 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastPacketAt": "2026-06-07T00:00:00.000Z",
     "lastSourceAddress": "192.0.2.10:6678",
     "multicastGroups": ["236.6.7.8"],
-    "boundInterface": "192.168.15.188",
+    "boundInterface": "0.0.0.0",
+    "multicastInterface": "192.168.15.188",
     "udpPort": 6678
   },
   "decoder": {

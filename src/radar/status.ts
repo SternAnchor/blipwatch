@@ -2,6 +2,7 @@ export interface RadarReceiverStatus {
   readonly boundInterface: string | null;
   readonly lastPacketAt: string | null;
   readonly lastSourceAddress: string | null;
+  readonly multicastInterface: string | null;
   readonly multicastGroups: readonly string[];
   readonly packetsReceived: number;
   readonly running: boolean;
@@ -34,6 +35,7 @@ export interface RadarDiscoveryStatus {
   readonly enabled: boolean;
   readonly lastReportAt: string | null;
   readonly lastReportSource: string | null;
+  readonly multicastInterface: string | null;
   readonly multicastGroup: string;
   readonly radar: RadarDiscoveryRadar | null;
   readonly reportsReceived: number;

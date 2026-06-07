@@ -47,6 +47,7 @@ export const createRadarDiscovery = ({ config, logger }: RadarDiscoveryOptions):
         enabled: config.radarDiscoveryEnabled,
         lastReportAt: lastReportAt?.toISOString() ?? null,
         lastReportSource: lastReportSource ?? null,
+        multicastInterface: getMulticastInterface(config) ?? null,
         multicastGroup: config.radarReportMulticastGroup,
         radar: radar ?? null,
         reportsReceived,
@@ -97,10 +98,11 @@ export const createRadarDiscovery = ({ config, logger }: RadarDiscoveryOptions):
         }
 
         activeSocket.once("error", reject);
-        activeSocket.bind(config.radarReportUdpPort, config.radarInterface, () => {
+        const bindAddress = "0.0.0.0";
+        activeSocket.bind(config.radarReportUdpPort, bindAddress, () => {
           activeSocket.off("error", reject);
           try {
-            const multicastInterface = config.radarInterface === "0.0.0.0" ? undefined : config.radarInterface;
+            const multicastInterface = getMulticastInterface(config);
             activeSocket.addMembership(config.radarReportMulticastGroup, multicastInterface);
           } catch (error) {
             reject(error instanceof Error ? error : new Error(String(error)));
@@ -108,7 +110,7 @@ export const createRadarDiscovery = ({ config, logger }: RadarDiscoveryOptions):
           }
 
           logger.info(
-            `radar discovery listening on ${config.radarInterface}:${config.radarReportUdpPort} group=${config.radarReportMulticastGroup}`
+            `radar discovery listening on ${bindAddress}:${config.radarReportUdpPort} group=${config.radarReportMulticastGroup} multicastInterface=${getMulticastInterface(config) ?? "default"}`
           );
           resolve();
         });
@@ -133,6 +135,10 @@ export const createRadarDiscovery = ({ config, logger }: RadarDiscoveryOptions):
       });
     }
   };
+};
+
+const getMulticastInterface = (config: BlipWatchConfig): string | undefined => {
+  return config.radarInterface === "0.0.0.0" ? undefined : config.radarInterface;
 };
 
 interface ParseNavicoReportOptions {
