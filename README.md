@@ -81,6 +81,102 @@ npm run simulate:radar
 
 The simulator logs JSON events for start, packet send, and finish. The placeholder packet format is for local development only and is not the real HALO wire format.
 
+## Phase 2 HALO Hardware Testing
+
+Phase 2 focuses on laptop-based testing against real Navico/B&G/Simrad HALO radar hardware. Start with a macOS, Linux, or Windows laptop connected to the same Ethernet/IP network as the radar. Raspberry Pi and Docker appliance deployment remain useful later, but the first hardware goal is direct laptop execution and packet visibility.
+
+Keep the safety notice in mind during all testing. BlipWatch is experimental diagnostic software, not a certified navigation or collision-avoidance display.
+
+### Connect a Laptop
+
+1. Connect the laptop to the radar Ethernet network or to the same switch as the HALO radar.
+2. Disable VPNs or firewall rules that may block local UDP traffic while testing.
+3. Identify the local interface address assigned on the radar network.
+4. Run BlipWatch with that interface or `0.0.0.0` while protocol details are still being discovered.
+5. Open `http://localhost:8080/radar/latest.png` and `http://localhost:8080/health`.
+
+Useful interface discovery commands:
+
+```bash
+# macOS
+networksetup -listallhardwareports
+ifconfig
+
+# Linux
+ip addr
+ip route
+
+# Windows PowerShell
+Get-NetAdapter
+Get-NetIPAddress
+```
+
+### Run With Hardware Diagnostics
+
+Use debug logging during hardware testing:
+
+```bash
+PORT=8080 \
+RADAR_INTERFACE=0.0.0.0 \
+RADAR_UDP_PORT=6678 \
+IMAGE_SIZE=1024 \
+LOG_LEVEL=debug \
+npm start
+```
+
+Or from source during development:
+
+```bash
+PORT=8080 \
+RADAR_INTERFACE=0.0.0.0 \
+RADAR_UDP_PORT=6678 \
+IMAGE_SIZE=1024 \
+LOG_LEVEL=debug \
+npm run dev
+```
+
+Debug logs should help identify UDP bind status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
+
+### Capture Radar Traffic
+
+Packet captures are the most useful artifact when hardware is available but decoder work needs to continue later. Save captures in a private location first, then sanitize or trim them before committing fixtures.
+
+Use `tcpdump` on macOS or Linux:
+
+```bash
+sudo tcpdump -i <interface> -n udp -w halo-capture.pcap
+```
+
+To focus on the current default receive port:
+
+```bash
+sudo tcpdump -i <interface> -n udp port 6678 -w halo-6678.pcap
+```
+
+Use Wireshark when a visual packet view is easier:
+
+1. Select the radar-network interface.
+2. Capture with display filter `udp`.
+3. Note source IPs, destination IPs, UDP ports, multicast addresses, packet sizes, and packet rates.
+4. Save a short capture around radar startup, standby/transmit changes, and visible target returns.
+
+Current protocol notes:
+
+- `RADAR_UDP_PORT=6678` is the current default receive port from Phase 1.
+- Real HALO multicast groups, control ports, and spoke packet layout are still being confirmed.
+- The `BWS1` simulator packet format is not a real HALO packet format.
+- Keep explicit notes for observed packet sizes, repeated headers, counters, angle-like fields, and intensity-like payload regions.
+
+Capture checklist for future decoder work:
+
+- Laptop OS and version.
+- HALO model, firmware version if available, and transmit/standby state.
+- Laptop interface name and IP address.
+- Radar source IP address and UDP source/destination ports.
+- Whether traffic is broadcast, multicast, or unicast.
+- Short pcap file with timestamps preserved.
+- Debug log excerpt from the same capture window.
+
 ## Configuration
 
 BlipWatch is configured through environment variables.
