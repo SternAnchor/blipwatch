@@ -1,3 +1,9 @@
+## [1.0.1-develop.2](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.1...v1.0.1-develop.2) (2026-06-07)
+
+### Bug Fixes
+
+* add HTTP server connection limits ([6010ea5](https://github.com/SternAnchor/blipwatch/commit/6010ea51a2eca4eada34719be93e79f8c6f79726)), closes [#34](https://github.com/SternAnchor/blipwatch/issues/34)
+
 ## [1.0.1-develop.1](https://github.com/SternAnchor/blipwatch/compare/v1.0.0...v1.0.1-develop.1) (2026-06-07)
 
 ### Performance Improvements
