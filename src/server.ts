@@ -8,8 +8,14 @@ import { createReplayBuffer } from "./replay/replay-buffer.js";
 
 export interface BlipWatchServer {
   readonly logger: Logger;
+  addresses(): BlipWatchServerAddresses;
   start(): Promise<void>;
   stop(): Promise<void>;
+}
+
+export interface BlipWatchServerAddresses {
+  readonly httpPort: number | undefined;
+  readonly radarPort: number | undefined;
 }
 
 export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): BlipWatchServer => {
@@ -22,6 +28,12 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const httpApi = createHttpApi({ config, logger, renderer, replayBuffer });
 
   return {
+    addresses(): BlipWatchServerAddresses {
+      return {
+        httpPort: httpApi.address()?.port,
+        radarPort: receiver.address()?.port
+      };
+    },
     logger,
     async start(): Promise<void> {
       logger.debug(`loaded config: ${JSON.stringify(redactConfig(config))}`);
