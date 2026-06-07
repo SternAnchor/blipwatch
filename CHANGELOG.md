@@ -1,3 +1,9 @@
+## [1.0.1-develop.1](https://github.com/SternAnchor/blipwatch/compare/v1.0.0...v1.0.1-develop.1) (2026-06-07)
+
+### Performance Improvements
+
+* cache radar renderer PNG output ([9407537](https://github.com/SternAnchor/blipwatch/commit/940753757a287bfb5503b55ca5a00e7d2c460c40)), closes [#33](https://github.com/SternAnchor/blipwatch/issues/33)
+
 ## 1.0.0 (2026-06-07)
 
 ### Features
