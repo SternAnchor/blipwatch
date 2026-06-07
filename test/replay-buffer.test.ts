@@ -101,6 +101,18 @@ describe("createReplayBuffer", () => {
     ]);
   });
 
+  it("evicts multiple expired frames in one trim pass", () => {
+    const { sink } = createMemorySink();
+    const replay = createReplayBuffer({ config, logger: createLogger({ level: "debug", sink }) });
+
+    replay.captureFrame(frame("2026-06-07T00:00:00.000Z", 1));
+    replay.captureFrame(frame("2026-06-07T00:00:01.000Z", 2));
+    replay.captureFrame(frame("2026-06-07T00:00:02.000Z", 3));
+    replay.captureFrame(frame("2026-06-07T00:00:06.000Z", 4));
+
+    expect(replay.listFrames().map((item) => item.capturedAt)).toEqual(["2026-06-07T00:00:06.000Z"]);
+  });
+
   it("returns the closest frame for timestamp lookup", () => {
     const { sink } = createMemorySink();
     const replay = createReplayBuffer({ config, logger: createLogger({ level: "debug", sink }) });
