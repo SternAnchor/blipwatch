@@ -1,3 +1,9 @@
+## [1.1.0-develop.5](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.4...v1.1.0-develop.5) (2026-06-07)
+
+### Features
+
+* add HALO packet classification scaffold ([cf2a88a](https://github.com/SternAnchor/blipwatch/commit/cf2a88a0c761da0951383e8b5cab66679faebbf2)), closes [#50](https://github.com/SternAnchor/blipwatch/issues/50)
+
 ## [1.1.0-develop.4](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.3...v1.1.0-develop.4) (2026-06-07)
 
 ### Features
