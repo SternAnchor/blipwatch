@@ -92,4 +92,26 @@ describe("createRadarImageRenderer", () => {
     expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
     expect(messages.some((message) => message.includes("radar spoke rendered angle=90"))).toBe(true);
   });
+
+  it("caches encoded PNG output until the rendered image changes", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+
+    const emptyPng = renderer.getLatestPng();
+    expect(renderer.getLatestPng()).toBe(emptyPng);
+
+    renderer.applySpoke({
+      angleDegrees: 180,
+      intensities: Uint8Array.from([0, 128, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 3,
+      type: "spoke"
+    });
+
+    const renderedPng = renderer.getLatestPng();
+    expect(renderedPng).not.toBe(emptyPng);
+    expect(renderer.getLatestPng()).toBe(renderedPng);
+  });
 });
