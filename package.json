@@ -3,6 +3,10 @@
   "version": "0.0.0-development",
   "description": "Server-based interface for HALO-based radars.",
   "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SternAnchor/blipwatch.git"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,10 +22,14 @@
     "debug": "LOG_LEVEL=debug tsx watch src/index.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
+    "release": "semantic-release",
     "simulate:radar": "tsx src/sim/radar-simulator.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -30,10 +38,20 @@
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
     "@eslint/js": "^9.39.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.8",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.1",
     "@types/node": "^24.10.1",
     "@types/pngjs": "^6.0.5",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
     "eslint": "^9.39.1",
+    "semantic-release": "^25.0.3",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.48.1",
