@@ -1,3 +1,9 @@
+## [1.0.1-develop.3](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.2...v1.0.1-develop.3) (2026-06-07)
+
+### Performance Improvements
+
+* optimize replay buffer trimming ([41d5c90](https://github.com/SternAnchor/blipwatch/commit/41d5c909a28ebe1ec9e303f787761a2b8b03dc38)), closes [#35](https://github.com/SternAnchor/blipwatch/issues/35)
+
 ## [1.0.1-develop.2](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.1...v1.0.1-develop.2) (2026-06-07)
 
 ### Bug Fixes
