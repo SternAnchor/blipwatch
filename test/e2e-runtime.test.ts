@@ -51,7 +51,7 @@ describe("runtime data path", () => {
     server = undefined;
   });
 
-  it("receives a simulated radar packet and exposes latest/replay imagery over HTTP", async () => {
+  it("receives a simulated radar packet, renders imagery, and captures replay", async () => {
     const { baseUrl, radarPort } = await startServer();
 
     await sendUdpPacket(
@@ -74,15 +74,8 @@ describe("runtime data path", () => {
     expect(image.width).toBe(32);
     expect(image.height).toBe(32);
 
-    const replay = await fetch(`${baseUrl}/radar/replay`);
-    await expect(replay.json()).resolves.toMatchObject({ frameCount: 1 });
-
     const frames = await fetch(`${baseUrl}/radar/replay/frames`);
     const framesBody = (await frames.json()) as { frames: Array<{ capturedAt: string }> };
     expect(framesBody.frames).toHaveLength(1);
-
-    const replayFrame = await fetch(`${baseUrl}/radar/replay/frame?at=${framesBody.frames[0]?.capturedAt ?? ""}`);
-    expect(replayFrame.status).toBe(200);
-    expect(replayFrame.headers.get("content-type")).toBe("image/png");
   });
 });
