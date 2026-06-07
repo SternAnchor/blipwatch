@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigurationError, loadConfig } from "../src/config/config.js";
 
 describe("loadConfig", () => {
-  it("uses v0.01 defaults", () => {
+  it("uses 1.0.0 defaults", () => {
     expect(loadConfig({})).toEqual({
       imageSize: 1024,
       logLevel: "info",
