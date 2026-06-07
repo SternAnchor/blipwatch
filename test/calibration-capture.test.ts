@@ -165,6 +165,26 @@ describe("createCalibrationCapture", () => {
       }
     });
   });
+
+  it("creates the output directory and captures immediately on startup", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "blipwatch-calibration-start-"));
+    temporaryDirectories.push(directory);
+    await rm(directory, { force: true, recursive: true });
+    const { sink } = createMemorySink();
+    const capture = createCalibrationCapture({
+      config: config(directory),
+      logger: createLogger({ level: "debug", sink }),
+      radarStatus,
+      renderer,
+      replayBuffer
+    });
+
+    await capture.start();
+    capture.stop();
+
+    const bundles = await readdir(directory);
+    expect(bundles).toHaveLength(1);
+  });
 });
 
 const readJson = async (path: string): Promise<unknown> => {

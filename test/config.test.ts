@@ -38,6 +38,12 @@ describe("loadConfig", () => {
     expect(loadConfig({ RADAR_MULTICAST_GROUPS: "" }).radarMulticastGroups).toEqual([]);
   });
 
+  it("accepts the short calibration capture directory alias", () => {
+    expect(loadConfig({ CALIBRATION_CAPTURE_DIR: "tmp/calibration" }).calibrationCaptureDirectory).toBe(
+      "tmp/calibration"
+    );
+  });
+
   it("uses valid environment overrides", () => {
     expect(
       loadConfig({

@@ -62,7 +62,7 @@ export class ConfigurationError extends Error {
 
 export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   calibrationCaptureDirectory: parseNonEmptyString(
-    env.CALIBRATION_CAPTURE_DIRECTORY,
+    env.CALIBRATION_CAPTURE_DIRECTORY ?? env.CALIBRATION_CAPTURE_DIR,
     "CALIBRATION_CAPTURE_DIRECTORY",
     DEFAULTS.calibrationCaptureDirectory
   ),

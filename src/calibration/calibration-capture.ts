@@ -100,6 +100,7 @@ export const createCalibrationCapture = ({
       logger.info(
         `calibration capture enabled directory=${config.calibrationCaptureDirectory} intervalMs=${config.calibrationCaptureIntervalMs}`
       );
+      await captureNow();
       interval = setInterval(() => {
         void captureNow().catch((error) => {
           logger.error("calibration capture failed", error);
