@@ -1,6 +1,9 @@
+import { createServer } from "node:http";
+
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { configureHttpServerLimits, HTTP_SERVER_LIMITS } from "../src/api/http-api.js";
 import { createPlaceholderSpokePacket } from "../src/sim/placeholder-fixture.js";
 import { createBlipWatchServer, type BlipWatchServer } from "../src/server.js";
 import { sendUdpPacket } from "./support/udp.js";
@@ -107,5 +110,16 @@ describe("HTTP API", () => {
     const unavailable = await fetch(`${baseUrl}/radar/replay/frame?at=2026-06-07T00%3A00%3A00.000Z`);
     expect(unavailable.status).toBe(404);
     await expect(unavailable.json()).resolves.toMatchObject({ error: "frame_not_found" });
+  });
+
+  it("configures defensive HTTP connection limits", () => {
+    const httpServer = createServer();
+
+    configureHttpServerLimits(httpServer);
+
+    expect(httpServer.requestTimeout).toBe(HTTP_SERVER_LIMITS.requestTimeoutMs);
+    expect(httpServer.headersTimeout).toBe(HTTP_SERVER_LIMITS.headersTimeoutMs);
+    expect(httpServer.keepAliveTimeout).toBe(HTTP_SERVER_LIMITS.keepAliveTimeoutMs);
+    expect(httpServer.maxRequestsPerSocket).toBe(HTTP_SERVER_LIMITS.maxRequestsPerSocket);
   });
 });

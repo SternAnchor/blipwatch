@@ -20,6 +20,13 @@ interface HttpApiOptions {
   readonly replayBuffer: ReplayBuffer;
 }
 
+export const HTTP_SERVER_LIMITS = {
+  headersTimeoutMs: 10_000,
+  keepAliveTimeoutMs: 5_000,
+  maxRequestsPerSocket: 100,
+  requestTimeoutMs: 30_000
+} as const;
+
 export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
 
@@ -96,6 +103,7 @@ export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpAp
 
         sendJson(response, 404, { error: "not_found" });
       });
+      configureHttpServerLimits(server);
 
       await new Promise<void>((resolve, reject) => {
         server?.once("error", reject);
@@ -125,6 +133,13 @@ export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpAp
       server = undefined;
     }
   };
+};
+
+export const configureHttpServerLimits = (server: Server): void => {
+  server.requestTimeout = HTTP_SERVER_LIMITS.requestTimeoutMs;
+  server.headersTimeout = HTTP_SERVER_LIMITS.headersTimeoutMs;
+  server.keepAliveTimeout = HTTP_SERVER_LIMITS.keepAliveTimeoutMs;
+  server.maxRequestsPerSocket = HTTP_SERVER_LIMITS.maxRequestsPerSocket;
 };
 
 const sendJson = (response: ServerResponse, statusCode: number, body: unknown): void => {
