@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createPlaceholderSpokePacket } from "../src/sim/placeholder-fixture.js";
 import { createBlipWatchServer, type BlipWatchServer } from "../src/server.js";
+import { createNavicoHaloFramePacket } from "./support/halo-frame.js";
 import { sendUdpPacket } from "./support/udp.js";
 
 let server: BlipWatchServer | undefined;
@@ -94,5 +95,28 @@ describe("runtime data path", () => {
         spokeCount: 1
       }
     });
+  });
+
+  it("decodes and renders a Navico/HALO frame-shaped UDP packet", async () => {
+    const { baseUrl, radarPort } = await startServer();
+
+    await sendUdpPacket(radarPort, createNavicoHaloFramePacket());
+
+    await waitFor(async () => {
+      const response = await fetch(`${baseUrl}/radar/status`);
+      const body = (await response.json()) as { decoder: { packetsDecoded: number } };
+      return body.decoder.packetsDecoded === 1;
+    });
+
+    const latestJson = await fetch(`${baseUrl}/radar/latest.json`);
+    await expect(latestJson.json()).resolves.toMatchObject({
+      maxIntensity: 255,
+      renderState: "ready",
+      spokeCount: 1
+    });
+
+    const latestPng = await fetch(`${baseUrl}/radar/latest.png`);
+    expect(latestPng.status).toBe(200);
+    expect(latestPng.headers.get("content-type")).toBe("image/png");
   });
 });

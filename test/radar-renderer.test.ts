@@ -95,4 +95,29 @@ describe("createRadarImageRenderer", () => {
     expect(renderedPng).not.toBe(emptyPng);
     expect(renderer.getLatestPng()).toBe(renderedPng);
   });
+
+  it("renders high-density HALO spokes without exceeding image bounds", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+    const intensities = new Uint8Array(1024);
+    intensities[1023] = 255;
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities,
+      maxIntensity: 255,
+      rangeMeters: 2000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: intensities.length,
+      type: "spoke"
+    });
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
+    expect(renderer.getLatestMetadata()).toMatchObject({
+      maxIntensity: 255,
+      renderState: "ready",
+      spokeCount: 1
+    });
+  });
 });

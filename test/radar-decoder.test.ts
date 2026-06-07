@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createLogger } from "../src/logging/logger.js";
 import { createRadarDecoder } from "../src/radar/decoder.js";
 import { createPlaceholderSpokePacket } from "../src/sim/placeholder-fixture.js";
+import { createNavicoHaloFramePacket } from "./support/halo-frame.js";
 import { createMemorySink } from "./support/logger.js";
 
 describe("createRadarDecoder", () => {
@@ -98,19 +99,3 @@ describe("createRadarDecoder", () => {
     expect(messages.some((message) => message.includes("kind=navico-halo-frame"))).toBe(true);
   });
 });
-
-const createNavicoHaloFramePacket = (): Buffer => {
-  const frame = Buffer.alloc(8 + 536);
-  const lineOffset = 8;
-  frame.writeUInt8(0x18, lineOffset);
-  frame.writeUInt8(0x02, lineOffset + 1);
-  frame.writeUInt16LE(0, lineOffset + 2);
-  frame.writeUInt16LE(0x0020, lineOffset + 6);
-  frame.writeUInt16LE(1024, lineOffset + 8);
-  frame.writeUInt16LE(0xffff, lineOffset + 10);
-  frame.writeUInt16LE(32000, lineOffset + 12);
-  frame[lineOffset + 24] = 0xf0;
-  frame[lineOffset + 25] = 0xe1;
-
-  return frame;
-};
