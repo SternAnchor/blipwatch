@@ -1,3 +1,9 @@
+## [1.1.0-develop.4](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.3...v1.1.0-develop.4) (2026-06-07)
+
+### Features
+
+* add offline packet replay tooling ([45f6694](https://github.com/SternAnchor/blipwatch/commit/45f669470d1f718659f83e37d0111cac5c183b06)), closes [#49](https://github.com/SternAnchor/blipwatch/issues/49)
+
 ## [1.1.0-develop.3](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.2...v1.1.0-develop.3) (2026-06-07)
 
 ### Features
