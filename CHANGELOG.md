@@ -1,3 +1,9 @@
+## [1.1.0-develop.9](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.8...v1.1.0-develop.9) (2026-06-07)
+
+### Features
+
+* add radar dashboard at root ([937e24b](https://github.com/SternAnchor/blipwatch/commit/937e24b091b3d54b28cc6b8c62e0ba0f980c72ef)), closes [#56](https://github.com/SternAnchor/blipwatch/issues/56)
+
 ## [1.1.0-develop.8](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.7...v1.1.0-develop.8) (2026-06-07)
 
 ### Bug Fixes
