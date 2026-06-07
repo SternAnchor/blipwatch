@@ -113,6 +113,9 @@ const radarStatus = (): RadarStatus => ({
     lastError: null,
     lastRequestAt: capturedAt,
     mode: "transmit",
+    observedState: "standby",
+    observedStateAt: capturedAt,
+    observedStateSource: "report",
     running: true,
     stayAliveIntervalMs: 1000,
     wakeTarget: "236.6.7.5:6878"
@@ -210,6 +213,7 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("/radar/latest.png");
     expect(dashboardBody).toContain("Interface");
     expect(dashboardBody).toContain("Control");
+    expect(dashboardBody).toContain("Radar State");
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
 
@@ -243,6 +247,8 @@ describe("HTTP API", () => {
         desiredState: "transmit",
         enabled: true,
         mode: "transmit",
+        observedState: "standby",
+        observedStateSource: "report",
         running: true
       },
       discovery: {

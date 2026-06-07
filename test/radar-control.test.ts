@@ -27,6 +27,12 @@ const config: BlipWatchConfig = {
   replayRetentionSeconds: 300
 };
 
+const wait = async (ms: number): Promise<void> => {
+  await new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+};
+
 describe("Navico radar control commands", () => {
   it("keeps the documented wake, transmit, and stay-alive byte sequences stable", () => {
     expect(navicoControlCommands.wake.toString("hex")).toBe("01b1");
@@ -50,13 +56,21 @@ describe("Navico radar control commands", () => {
         source: "discovered"
       }),
       config,
-      logger: createLogger({ level: "debug", sink })
+      logger: createLogger({ level: "debug", sink }),
+      observedStateProvider: () => ({
+        observedAt: "2026-06-07T00:00:00.000Z",
+        source: "report",
+        state: "transmit"
+      })
     });
 
     expect(control.getStatus()).toMatchObject({
       commandTarget: "236.6.8.99:6517",
       commandTargetSource: "discovered",
-      desiredState: "standby"
+      desiredState: "standby",
+      observedState: "transmit",
+      observedStateAt: "2026-06-07T00:00:00.000Z",
+      observedStateSource: "report"
     });
   });
 
@@ -74,5 +88,85 @@ describe("Navico radar control commands", () => {
       desiredState: "transmit",
       mode: "transmit"
     });
+  });
+
+  it("respects externally observed standby by pausing transmit stay-alive", async () => {
+    const { sink } = createMemorySink();
+    let observedState: "standby" | "transmit" = "transmit";
+    const control = createRadarControl({
+      config: {
+        ...config,
+        radarControlEnabled: true,
+        radarControlFallbackHost: "127.0.0.1",
+        radarControlHost: "127.0.0.1",
+        radarControlMode: "transmit",
+        radarControlPort: 56516,
+        radarControlStayAliveIntervalMs: 10,
+        radarControlWakeHost: "127.0.0.1",
+        radarControlWakePort: 56878
+      },
+      logger: createLogger({ level: "debug", sink }),
+      observedStateProvider: () => ({
+        observedAt: "2026-06-07T00:00:00.000Z",
+        source: "report",
+        state: observedState
+      }),
+      observedStateRequestGraceMs: 0
+    });
+
+    try {
+      await control.start();
+      expect(control.getStatus()).toMatchObject({
+        desiredState: "transmit",
+        observedState: "transmit"
+      });
+
+      observedState = "standby";
+      await wait(30);
+
+      expect(control.getStatus()).toMatchObject({
+        desiredState: "standby",
+        observedState: "standby"
+      });
+    } finally {
+      await control.stop();
+    }
+  });
+
+  it("does not treat initial inferred standby as an external standby override before transmit is observed", async () => {
+    const { sink } = createMemorySink();
+    const control = createRadarControl({
+      config: {
+        ...config,
+        radarControlEnabled: true,
+        radarControlFallbackHost: "127.0.0.1",
+        radarControlHost: "127.0.0.1",
+        radarControlMode: "transmit",
+        radarControlPort: 56517,
+        radarControlStayAliveIntervalMs: 10,
+        radarControlWakeHost: "127.0.0.1",
+        radarControlWakePort: 56879
+      },
+      logger: createLogger({ level: "debug", sink }),
+      observedStateProvider: () => ({
+        observedAt: "2026-06-07T00:00:00.000Z",
+        source: "inferred",
+        state: "standby"
+      }),
+      observedStateRequestGraceMs: 0
+    });
+
+    try {
+      await control.start();
+      await wait(30);
+
+      expect(control.getStatus()).toMatchObject({
+        desiredState: "transmit",
+        observedState: "standby",
+        observedStateSource: "inferred"
+      });
+    } finally {
+      await control.stop();
+    }
   });
 });

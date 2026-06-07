@@ -1,13 +1,13 @@
 import { createHttpApi } from "./api/http-api.js";
 import { ConfigurationError, loadConfig } from "./config/config.js";
 import { createLogger, type Logger } from "./logging/logger.js";
-import { createRadarControl } from "./radar/control.js";
+import { createRadarControl, type RadarControlObservedState } from "./radar/control.js";
 import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarDiscovery } from "./radar/discovery.js";
 import { resolveRadarInterface } from "./radar/network-interface.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver } from "./radar/receiver.js";
-import type { RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
+import type { RadarOperatingState, RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
 
 export interface BlipWatchServer {
@@ -54,7 +54,8 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       };
     },
     config,
-    logger
+    logger,
+    observedStateProvider: () => getObservedRadarOperatingState(discovery.getStatus(), receiver.getStatus())
   });
   const decoder = createRadarDecoder({ logger });
   const discovery = createRadarDiscovery({ config, logger });
@@ -139,6 +140,56 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.info("BlipWatch stopped");
     }
   };
+};
+
+const RADAR_TRAFFIC_ACTIVE_WINDOW_MS = 3_000;
+
+const getObservedRadarOperatingState = (
+  discovery: RadarStatus["discovery"],
+  receiver: RadarStatus["receiver"]
+): RadarControlObservedState => {
+  const reportState = normalizeRadarOperatingState(discovery.radar?.statusName);
+  if (reportState) {
+    return {
+      observedAt: discovery.radar?.lastSeenAt ?? discovery.lastReportAt,
+      source: "report",
+      state: reportState
+    };
+  }
+
+  if (receiver.lastPacketAt && Date.now() - new Date(receiver.lastPacketAt).getTime() <= RADAR_TRAFFIC_ACTIVE_WINDOW_MS) {
+    return {
+      observedAt: receiver.lastPacketAt,
+      source: "traffic",
+      state: "transmit"
+    };
+  }
+
+  if (discovery.radar) {
+    return {
+      observedAt: discovery.radar.lastSeenAt,
+      source: "inferred",
+      state: "standby"
+    };
+  }
+
+  return {
+    observedAt: null,
+    source: null,
+    state: null
+  };
+};
+
+const normalizeRadarOperatingState = (statusName: string | null | undefined): RadarOperatingState | null => {
+  if (statusName === "standby" || statusName === "transmit" || statusName === "waking-up") {
+    return statusName;
+  }
+
+  if (statusName === "unknown") {
+    return "unknown";
+  }
+
+  return null;
 };
 
 export { ConfigurationError };

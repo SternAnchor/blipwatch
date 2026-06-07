@@ -2,7 +2,7 @@ import { createSocket, type Socket } from "node:dgram";
 
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
-import type { RadarControlStatus } from "./status.js";
+import type { RadarControlStatus, RadarOperatingState, RadarOperatingStateSource } from "./status.js";
 
 export interface RadarControl {
   getStatus(): RadarControlStatus;
@@ -16,6 +16,14 @@ export interface RadarControlOptions {
   readonly commandTargetProvider?: () => CommandTarget | undefined;
   readonly config: BlipWatchConfig;
   readonly logger: Logger;
+  readonly observedStateProvider?: () => RadarControlObservedState | undefined;
+  readonly observedStateRequestGraceMs?: number;
+}
+
+export interface RadarControlObservedState {
+  readonly observedAt: string | null;
+  readonly source: RadarOperatingStateSource | null;
+  readonly state: RadarOperatingState | null;
 }
 
 const COMMAND_WAKE = Buffer.from([0x01, 0xb1]);
@@ -28,6 +36,7 @@ const COMMAND_STAY_ON_B = Buffer.from([0x03, 0xc2]);
 const COMMAND_STAY_ON_C = Buffer.from([0x04, 0xc2]);
 const COMMAND_STAY_ON_D = Buffer.from([0x05, 0xc2]);
 const COMMAND_STAY_ON_E = Buffer.from([0x0a, 0xc2]);
+const OBSERVED_STATE_REQUEST_GRACE_MS = 5_000;
 
 type CommandName =
   | "wake"
@@ -41,7 +50,13 @@ type CommandName =
   | "stay-alive-d"
   | "stay-alive-e";
 
-export const createRadarControl = ({ commandTargetProvider, config, logger }: RadarControlOptions): RadarControl => {
+export const createRadarControl = ({
+  commandTargetProvider,
+  config,
+  logger,
+  observedStateProvider,
+  observedStateRequestGraceMs = OBSERVED_STATE_REQUEST_GRACE_MS
+}: RadarControlOptions): RadarControl => {
   let socket: Socket | undefined;
   let interval: NodeJS.Timeout | undefined;
   let lastCommandAt: Date | undefined;
@@ -49,6 +64,7 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
   let lastError: string | undefined;
   let lastRequestAt: Date | undefined;
   let lastTransmitOnTarget: string | undefined;
+  let hasObservedTransmit = false;
   let commandsSent = 0;
   let stayAliveSequence = 0;
   let desiredState: RadarControlStatus["desiredState"] =
@@ -119,6 +135,7 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
   };
 
   const sendTransmitCycle = async (): Promise<void> => {
+    reconcileObservedState();
     if (desiredState !== "transmit") {
       return;
     }
@@ -130,6 +147,31 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
     }
 
     await sendStayAlive();
+  };
+
+  const reconcileObservedState = (): void => {
+    const observedState = observedStateProvider?.();
+    if (observedState?.state === "transmit") {
+      hasObservedTransmit = true;
+      return;
+    }
+
+    if (observedState?.state !== "standby" || desiredState !== "transmit") {
+      return;
+    }
+
+    if (observedState.source === "inferred" && !hasObservedTransmit) {
+      return;
+    }
+
+    const requestAgeMs = lastRequestAt ? Date.now() - lastRequestAt.getTime() : Number.POSITIVE_INFINITY;
+    if (requestAgeMs < observedStateRequestGraceMs) {
+      return;
+    }
+
+    desiredState = "standby";
+    lastTransmitOnTarget = undefined;
+    logger.info("radar control observed external standby; pausing transmit stay-alive");
   };
 
   const requestStandby = async (): Promise<void> => {
@@ -163,6 +205,7 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
   return {
     getStatus(): RadarControlStatus {
       const commandTarget = getCommandTarget(config, commandTargetProvider);
+      const observedState = observedStateProvider?.();
       return {
         commandTarget: `${commandTarget.host}:${commandTarget.port}`,
         commandTargetSource: commandTarget.source,
@@ -174,6 +217,9 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
         lastError: lastError ?? null,
         lastRequestAt: lastRequestAt?.toISOString() ?? null,
         mode: config.radarControlMode,
+        observedState: observedState?.state ?? null,
+        observedStateAt: observedState?.observedAt ?? null,
+        observedStateSource: observedState?.source ?? null,
         running: socket !== undefined,
         stayAliveIntervalMs: config.radarControlStayAliveIntervalMs,
         wakeTarget: `${config.radarControlWakeHost}:${config.radarControlWakePort}`

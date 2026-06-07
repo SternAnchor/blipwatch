@@ -200,7 +200,7 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /radar/control/standby` and `POST /radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, command counts, last command, target source, and any socket errors are exposed through `/radar/status` and the root dashboard.
+The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /radar/control/standby` and `POST /radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, and any socket errors are exposed through `/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
 
 ### Capture Radar Traffic
 
@@ -437,6 +437,24 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastSpokeAt": "2026-06-07T00:00:00.000Z",
     "renderState": "ready",
     "spokeCount": 1
+  },
+  "control": {
+    "enabled": true,
+    "running": true,
+    "mode": "transmit",
+    "desiredState": "transmit",
+    "observedState": "standby",
+    "observedStateAt": "2026-06-07T00:00:00.000Z",
+    "observedStateSource": "report",
+    "commandTarget": "236.6.7.10:6680",
+    "commandTargetSource": "discovered",
+    "wakeTarget": "236.6.7.5:6878",
+    "commandsSent": 3,
+    "lastCommandAt": "2026-06-07T00:00:00.000Z",
+    "lastCommandName": "stay-alive-a",
+    "lastRequestAt": "2026-06-07T00:00:00.000Z",
+    "lastError": null,
+    "stayAliveIntervalMs": 1000
   }
 }
 ```

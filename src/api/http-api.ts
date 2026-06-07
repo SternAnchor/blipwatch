@@ -523,6 +523,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <div class="stat"><span>Interface</span><strong id="interface">-</strong></div>
               <div class="stat"><span>Image Group</span><strong id="image-group">-</strong></div>
               <div class="stat"><span>Report Group</span><strong id="report-group">-</strong></div>
+              <div class="stat"><span>Radar State</span><strong id="radar-state">-</strong></div>
               <div class="stat"><span>Control</span><strong id="control">-</strong></div>
               <div class="stat"><span>Commands Sent</span><strong id="commands">0</strong></div>
             </div>
@@ -560,6 +561,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         imageGroup: document.getElementById("image-group"),
         interface: document.getElementById("interface"),
         packets: document.getElementById("packets"),
+        radarState: document.getElementById("radar-state"),
         rendered: document.getElementById("rendered"),
         reportGroup: document.getElementById("report-group"),
         reports: document.getElementById("reports")
@@ -572,10 +574,11 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const setControlButtons = (control) => {
         const active = Boolean(control?.enabled && control?.running);
         const disabled = controlRequestPending || !active;
+        const visibleState = control?.observedState ?? control?.desiredState;
         standbyButton.disabled = disabled;
         transmitButton.disabled = disabled;
-        standbyButton.classList.toggle("active", control?.desiredState === "standby");
-        transmitButton.classList.toggle("active", control?.desiredState === "transmit");
+        standbyButton.classList.toggle("active", visibleState === "standby");
+        transmitButton.classList.toggle("active", visibleState === "transmit");
       };
 
       const requestControl = async (desiredState) => {
@@ -621,10 +624,16 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(fields.imageGroup, (status.receiver?.multicastGroups ?? []).join(", ") || "-");
           setText(fields.reportGroup, status.discovery?.multicastGroup);
           setText(
+            fields.radarState,
+            status.control?.observedState
+              ? status.control.observedState + "/" + (status.control.observedStateSource ?? "unknown")
+              : status.discovery?.radar?.statusName
+          );
+          setText(
             fields.control,
             status.control?.enabled
               ? (status.control?.running
-                ? status.control?.desiredState + "/" + (status.control?.commandTargetSource ?? "unknown")
+                ? "requested " + status.control?.desiredState + "/" + (status.control?.commandTargetSource ?? "unknown")
                 : "enabled")
               : "disabled"
           );

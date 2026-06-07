@@ -1,3 +1,6 @@
+export type RadarOperatingState = "standby" | "transmit" | "unknown" | "waking-up";
+export type RadarOperatingStateSource = "inferred" | "report" | "traffic";
+
 export interface RadarReceiverStatus {
   readonly boundInterface: string | null;
   readonly lastPacketAt: string | null;
@@ -26,6 +29,9 @@ export interface RadarControlStatus {
   readonly lastError: string | null;
   readonly lastRequestAt: string | null;
   readonly mode: string;
+  readonly observedState: RadarOperatingState | null;
+  readonly observedStateAt: string | null;
+  readonly observedStateSource: RadarOperatingStateSource | null;
   readonly running: boolean;
   readonly stayAliveIntervalMs: number;
   readonly wakeTarget: string;
