@@ -2,7 +2,7 @@
 
 BlipWatch is an open-source Node.js server for receiving radar data from a Navico/B&G/Simrad HALO radar on a local Ethernet network and exposing live radar imagery through standard HTTP endpoints.
 
-The v0.01 implementation provides the first end-to-end server path: UDP packet reception, placeholder packet decoding for hardware-free development, image rendering, in-memory replay, HTTP APIs, Docker packaging, and release automation scaffolding.
+The 1.0.0 implementation provides the first end-to-end server path: UDP packet reception, placeholder packet decoding for hardware-free development, image rendering, in-memory replay, HTTP APIs, Docker packaging, and release automation scaffolding.
 
 ## Safety Notice
 
@@ -12,7 +12,7 @@ It is not a certified navigation, collision-avoidance, watchkeeping, or safety-o
 
 ## Project Status
 
-This repository is in early v0.01 development.
+This repository is in early 1.0.0 development.
 
 Current limitations:
 
@@ -279,7 +279,7 @@ docs: add raspberry pi deployment notes
 
 Branches:
 
-- `develop` produces preview prereleases, such as `0.1.0-develop.1`.
+- `develop` produces preview prereleases, such as `1.1.0-develop.1`.
 - `main` produces stable releases.
 
 Release automation:
