@@ -1,3 +1,9 @@
+## [1.1.0-develop.11](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.10...v1.1.0-develop.11) (2026-06-07)
+
+### Bug Fixes
+
+* bind multicast receivers on wildcard address ([36c5bca](https://github.com/SternAnchor/blipwatch/commit/36c5bca08d8929260af8e6074f0cb6468b68631f)), closes [#58](https://github.com/SternAnchor/blipwatch/issues/58)
+
 ## [1.1.0-develop.10](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.9...v1.1.0-develop.10) (2026-06-07)
 
 ### Features
