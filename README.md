@@ -145,7 +145,7 @@ Use debug logging during hardware testing:
 PORT=8080 \
 RADAR_DISCOVERY_ENABLED=true \
 RADAR_INTERFACE=0.0.0.0 \
-RADAR_MULTICAST_GROUPS= \
+RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
@@ -160,7 +160,7 @@ Or from source during development:
 PORT=8080 \
 RADAR_DISCOVERY_ENABLED=true \
 RADAR_INTERFACE=0.0.0.0 \
-RADAR_MULTICAST_GROUPS= \
+RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
@@ -196,11 +196,11 @@ Use Wireshark when a visual packet view is easier:
 
 Current protocol notes:
 
-- `RADAR_UDP_PORT=6678` is the current default receive port from Phase 1.
-- `RADAR_MULTICAST_GROUPS` can be set to a comma-separated list of IPv4 multicast groups once observed for the target radar.
+- `RADAR_UDP_PORT=6678` is the current default image/spoke receive port.
+- `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
 - Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; it does not send wake, standby, transmit, or control commands.
-- Real HALO multicast groups, control ports, and spoke packet layout are still being confirmed.
+- Real HALO control ports and exact report payload fields are still being confirmed.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
 - The initial Navico/HALO frame decoder is based on high-level packet structure documented in the GPL-compatible OpenCPN `radar_pi` Navico receiver: an 8-byte frame header followed by 24-byte scan-line headers and packed 4-bit return samples. It currently decodes the first structurally valid scan line from a packet.
@@ -266,7 +266,7 @@ BlipWatch is configured through environment variables.
 | `PORT` | `8080` | HTTP API port. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. No active wake or transmit commands are sent. |
 | `RADAR_INTERFACE` | `0.0.0.0` | Local interface address used for UDP radar packet binding. |
-| `RADAR_MULTICAST_GROUPS` | empty | Optional comma-separated IPv4 multicast groups to join after UDP bind. |
+| `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
 | `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
@@ -281,7 +281,7 @@ Example:
 PORT=8080 \
 RADAR_DISCOVERY_ENABLED=true \
 RADAR_INTERFACE=0.0.0.0 \
-RADAR_MULTICAST_GROUPS= \
+RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
@@ -337,6 +337,11 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
 
 ```json
 {
+  "diagnostics": {
+    "phase": "receiving-and-rendering",
+    "summary": "Radar spokes are decoding and rendering.",
+    "nextActions": ["Open /radar/latest.png or /radar/latest.json to inspect current rendered imagery."]
+  },
   "discovery": {
     "enabled": true,
     "running": true,
@@ -366,7 +371,7 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "packetsReceived": 1,
     "lastPacketAt": "2026-06-07T00:00:00.000Z",
     "lastSourceAddress": "192.0.2.10:6678",
-    "multicastGroups": ["239.2.1.1"],
+    "multicastGroups": ["236.6.7.8"],
     "boundInterface": "0.0.0.0",
     "udpPort": 6678
   },
@@ -452,6 +457,7 @@ docker run --rm \
   -e PORT=8080 \
   -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
   -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
   -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
@@ -465,6 +471,7 @@ docker run --rm --network host \
   -e PORT=8080 \
   -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
   -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
   -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \

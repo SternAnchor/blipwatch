@@ -50,8 +50,23 @@ export interface RadarRendererStatus {
   readonly spokeCount: number;
 }
 
+export type RadarStatusPhase =
+  | "receiving-and-rendering"
+  | "receiving-but-not-decoding"
+  | "decoded-but-not-rendered"
+  | "discovery-only"
+  | "waiting-for-udp"
+  | "listener-stopped";
+
+export interface RadarStatusDiagnostics {
+  readonly phase: RadarStatusPhase;
+  readonly summary: string;
+  readonly nextActions: readonly string[];
+}
+
 export interface RadarStatus {
   readonly decoder: RadarDecoderStatus;
+  readonly diagnostics: RadarStatusDiagnostics;
   readonly discovery: RadarDiscoveryStatus;
   readonly receiver: RadarReceiverStatus;
   readonly renderer: RadarRendererStatus;

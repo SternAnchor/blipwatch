@@ -99,6 +99,11 @@ const radarStatus = (): RadarStatus => ({
     packetsDecoded: 7,
     packetsRejected: 2
   },
+  diagnostics: {
+    nextActions: ["Open /radar/latest.png or /radar/latest.json to inspect current rendered imagery."],
+    phase: "receiving-and-rendering",
+    summary: "Radar spokes are decoding and rendering."
+  },
   discovery: {
     boundInterface: "127.0.0.1",
     enabled: true,
@@ -189,6 +194,9 @@ describe("HTTP API", () => {
       decoder: {
         packetsDecoded: 7,
         packetsRejected: 2
+      },
+      diagnostics: {
+        phase: "receiving-and-rendering"
       },
       discovery: {
         lastReportSource: "192.0.2.11:6878",

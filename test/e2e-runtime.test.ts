@@ -15,6 +15,7 @@ const startServer = async (): Promise<{ readonly baseUrl: string; readonly radar
     PORT: "0",
     RADAR_DISCOVERY_ENABLED: "false",
     RADAR_INTERFACE: "127.0.0.1",
+    RADAR_MULTICAST_GROUPS: "",
     RADAR_UDP_PORT: "0",
     REPLAY_FRAME_INTERVAL_MS: "1",
     REPLAY_RETENTION_SECONDS: "300"
@@ -85,6 +86,9 @@ describe("runtime data path", () => {
       decoder: {
         packetsDecoded: 1,
         packetsRejected: 0
+      },
+      diagnostics: {
+        phase: "receiving-and-rendering"
       },
       receiver: {
         packetsReceived: 1,

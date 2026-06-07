@@ -5,7 +5,7 @@ import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarDiscovery } from "./radar/discovery.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver } from "./radar/receiver.js";
-import type { RadarStatus } from "./radar/status.js";
+import type { RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
 
 export interface BlipWatchServer {
@@ -33,22 +33,33 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   let lastDecodedSpokeAt: Date | undefined;
   const getRadarStatus = (): RadarStatus => {
     const rendererMetadata = renderer.getLatestMetadata();
+    const decoderStatus = {
+      lastDecodedSpokeAt: lastDecodedSpokeAt?.toISOString() ?? null,
+      packetsDecoded,
+      packetsRejected
+    };
+    const discoveryStatus = discovery.getStatus();
+    const receiverStatus = receiver.getStatus();
+    const rendererStatus = {
+      imageAvailable: rendererMetadata.renderState === "ready",
+      imageSize: rendererMetadata.imageSize,
+      lastRenderedImageAt: rendererMetadata.lastFrameAt,
+      lastSpokeAt: rendererMetadata.lastSpokeAt,
+      renderState: rendererMetadata.renderState,
+      spokeCount: rendererMetadata.spokeCount
+    } as const;
+
     return {
-      decoder: {
-        lastDecodedSpokeAt: lastDecodedSpokeAt?.toISOString() ?? null,
-        packetsDecoded,
-        packetsRejected
-      },
-      discovery: discovery.getStatus(),
-      receiver: receiver.getStatus(),
-      renderer: {
-        imageAvailable: rendererMetadata.renderState === "ready",
-        imageSize: rendererMetadata.imageSize,
-        lastRenderedImageAt: rendererMetadata.lastFrameAt,
-        lastSpokeAt: rendererMetadata.lastSpokeAt,
-        renderState: rendererMetadata.renderState,
-        spokeCount: rendererMetadata.spokeCount
-      }
+      decoder: decoderStatus,
+      diagnostics: getRadarStatusDiagnostics({
+        decoder: decoderStatus,
+        discovery: discoveryStatus,
+        receiver: receiverStatus,
+        renderer: rendererStatus
+      }),
+      discovery: discoveryStatus,
+      receiver: receiverStatus,
+      renderer: rendererStatus
     };
   };
   const httpApi = createHttpApi({ config, logger, renderer, radarStatus: getRadarStatus, replayBuffer });
@@ -110,3 +121,66 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   replayFrameIntervalMs: config.replayFrameIntervalMs,
   replayRetentionSeconds: config.replayRetentionSeconds
 });
+
+const getRadarStatusDiagnostics = ({
+  decoder,
+  discovery,
+  receiver,
+  renderer
+}: Pick<RadarStatus, "decoder" | "discovery" | "receiver" | "renderer">): RadarStatusDiagnostics => {
+  if (!receiver.running && !discovery.running) {
+    return {
+      nextActions: ["Start BlipWatch and check startup logs for UDP bind or multicast join errors."],
+      phase: "listener-stopped",
+      summary: "Radar discovery and spoke listeners are not running."
+    };
+  }
+
+  if (renderer.imageAvailable) {
+    return {
+      nextActions: ["Open /radar/latest.png or /radar/latest.json to inspect current rendered imagery."],
+      phase: "receiving-and-rendering",
+      summary: "Radar spokes are decoding and rendering."
+    };
+  }
+
+  if (decoder.packetsDecoded > 0) {
+    return {
+      nextActions: ["Capture /radar/status and /radar/latest.json from the same test window."],
+      phase: "decoded-but-not-rendered",
+      summary: "Radar spokes decoded, but no rendered image is available yet."
+    };
+  }
+
+  if (receiver.packetsReceived > 0) {
+    return {
+      nextActions: [
+        "Save a short UDP replay payload or pcap from the same interval.",
+        "Check decoder rejection logs with LOG_LEVEL=debug."
+      ],
+      phase: "receiving-but-not-decoding",
+      summary: "UDP packets are arriving on the spoke receiver, but none have decoded as radar spokes."
+    };
+  }
+
+  if (discovery.reportsReceived > 0) {
+    return {
+      nextActions: [
+        "Compare the discovered data endpoint with RADAR_UDP_PORT and RADAR_MULTICAST_GROUPS.",
+        "If the radar remains in standby, later work may need an explicit opt-in wake/transmit command."
+      ],
+      phase: "discovery-only",
+      summary: "Navico discovery reports are arriving, but no spoke packets have reached the image receiver."
+    };
+  }
+
+  return {
+    nextActions: [
+      "Confirm RADAR_INTERFACE is the laptop address on the radar Ethernet network, not Wi-Fi or a VPN.",
+      "Run sudo tcpdump -i <interface> -n udp or Wireshark to confirm whether any HALO UDP traffic is present.",
+      "If capture sees traffic, compare its destination group and port with RADAR_REPORT_* and RADAR_MULTICAST_GROUPS."
+    ],
+    phase: "waiting-for-udp",
+    summary: "No Navico discovery reports or radar spoke packets have reached BlipWatch, so latest.png will remain empty."
+  };
+};
