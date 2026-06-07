@@ -1,0 +1,36 @@
+{
+  "name": "blipwatch",
+  "version": "0.0.0-development",
+  "description": "Server-based interface for HALO-based radars.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "debug": "LOG_LEVEL=debug tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint .",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1",
+    "vitest": "^4.0.14"
+  }
+}
