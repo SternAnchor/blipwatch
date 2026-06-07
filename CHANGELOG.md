@@ -1,3 +1,9 @@
+## [1.1.0-develop.2](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.1...v1.1.0-develop.2) (2026-06-07)
+
+### Features
+
+* add radar hardware status endpoint ([286006b](https://github.com/SternAnchor/blipwatch/commit/286006b7575e7dbf98632ae061182d4dd92eb932)), closes [#47](https://github.com/SternAnchor/blipwatch/issues/47)
+
 ## [1.1.0-develop.1](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.5...v1.1.0-develop.1) (2026-06-07)
 
 ### Features
