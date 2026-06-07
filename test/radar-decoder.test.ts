@@ -1,10 +1,9 @@
-import { readFile } from "node:fs/promises";
-
 import { describe, expect, it } from "vitest";
 
 import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import { createRadarDecoder } from "../src/radar/decoder.js";
+import { createPlaceholderSpokePacket } from "../src/sim/placeholder-fixture.js";
 
 const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
   const messages: string[] = [];
@@ -26,16 +25,11 @@ const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSi
   return { messages, sink };
 };
 
-const readHexFixture = async (path: string): Promise<Buffer> => {
-  const fixture = await readFile(path, "utf8");
-  return Buffer.from(fixture.replaceAll(/\s/g, ""), "hex");
-};
-
 describe("createRadarDecoder", () => {
-  it("decodes the placeholder spoke fixture into the normalized radar model", async () => {
+  it("decodes the placeholder spoke fixture into the normalized radar model", () => {
     const { messages, sink } = createMemorySink();
     const decoder = createRadarDecoder({ logger: createLogger({ level: "debug", sink }) });
-    const packet = await readHexFixture("test/fixtures/placeholder-spoke.hex");
+    const packet = createPlaceholderSpokePacket();
 
     const result = decoder.decode(packet);
 
