@@ -1,0 +1,204 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: ${{ github.event_name == 'pull_request' && 'Validate' || github.ref_name == 'develop' && 'Validate before preview release' || 'Validate before stable release' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate commit messages
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Docker build check
+        run: npm run docker:build
+
+  preview-release:
+    name: Publish preview release
+    if: github.event_name == 'push' && github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    needs: validate
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    permissions:
+      contents: write
+      issues: write
+      packages: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Skip preview release until NPM_TOKEN is available
+        if: env.NPM_TOKEN == ''
+        run: echo "NPM_TOKEN is not available to this workflow; skipping preview npm/GHCR publish."
+
+      - name: Install dependencies
+        if: env.NPM_TOKEN != ''
+        run: npm ci
+
+      - name: Run semantic-release preview
+        if: env.NPM_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release
+
+      - name: Read package version
+        if: env.NPM_TOKEN != ''
+        id: package
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup QEMU
+        if: env.NPM_TOKEN != ''
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        if: env.NPM_TOKEN != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: env.NPM_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+
+      - name: Build and publish preview Docker image
+        if: env.NPM_TOKEN != ''
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/sternanchor/blipwatch:develop
+            ghcr.io/sternanchor/blipwatch:${{ steps.package.outputs.version }}
+            ghcr.io/sternanchor/blipwatch:${{ github.sha }}
+
+  stable-release:
+    name: Publish stable release
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    needs: validate
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    permissions:
+      contents: write
+      issues: write
+      packages: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Skip stable release until NPM_TOKEN is available
+        if: env.NPM_TOKEN == ''
+        run: echo "NPM_TOKEN is not available to this workflow; skipping stable npm/GHCR publish."
+
+      - name: Install dependencies
+        if: env.NPM_TOKEN != ''
+        run: npm ci
+
+      - name: Run semantic-release stable
+        if: env.NPM_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release
+
+      - name: Read package version
+        if: env.NPM_TOKEN != ''
+        id: package
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup QEMU
+        if: env.NPM_TOKEN != ''
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        if: env.NPM_TOKEN != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: env.NPM_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+
+      - name: Build and publish stable Docker image
+        if: env.NPM_TOKEN != ''
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/sternanchor/blipwatch:latest
+            ghcr.io/sternanchor/blipwatch:${{ steps.package.outputs.version }}
