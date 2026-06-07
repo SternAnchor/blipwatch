@@ -95,7 +95,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       renderer: rendererStatus
     };
   };
-  const httpApi = createHttpApi({ config, logger, renderer, radarStatus: getRadarStatus, replayBuffer });
+  const httpApi = createHttpApi({ config, logger, radarControl: control, radarStatus: getRadarStatus, renderer, replayBuffer });
 
   return {
     addresses(): BlipWatchServerAddresses {

@@ -31,6 +31,7 @@ describe("Navico radar control commands", () => {
   it("keeps the documented wake, transmit, and stay-alive byte sequences stable", () => {
     expect(navicoControlCommands.wake.toString("hex")).toBe("01b1");
     expect(navicoControlCommands.transmitOn.map((command) => command.toString("hex"))).toEqual(["00c101", "01c101"]);
+    expect(navicoControlCommands.transmitOff.map((command) => command.toString("hex"))).toEqual(["00c101", "01c100"]);
     expect(navicoControlCommands.stayAlive.map((command) => command.toString("hex"))).toEqual([
       "a0c1",
       "03c2",
@@ -54,7 +55,24 @@ describe("Navico radar control commands", () => {
 
     expect(control.getStatus()).toMatchObject({
       commandTarget: "236.6.8.99:6517",
-      commandTargetSource: "discovered"
+      commandTargetSource: "discovered",
+      desiredState: "standby"
+    });
+  });
+
+  it("reports transmit as the desired state when configured to request transmit on startup", () => {
+    const { sink } = createMemorySink();
+    const control = createRadarControl({
+      config: {
+        ...config,
+        radarControlMode: "transmit"
+      },
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    expect(control.getStatus()).toMatchObject({
+      desiredState: "transmit",
+      mode: "transmit"
     });
   });
 });

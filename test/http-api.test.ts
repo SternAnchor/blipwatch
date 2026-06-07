@@ -106,10 +106,12 @@ const radarStatus = (): RadarStatus => ({
     commandTarget: "236.6.8.36:6516",
     commandTargetSource: "configured",
     commandsSent: 3,
+    desiredState: "transmit",
     enabled: true,
     lastCommandAt: capturedAt,
     lastCommandName: "transmit-on-b",
     lastError: null,
+    lastRequestAt: capturedAt,
     mode: "transmit",
     running: true,
     stayAliveIntervalMs: 1000,
@@ -208,6 +210,8 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("/radar/latest.png");
     expect(dashboardBody).toContain("Interface");
     expect(dashboardBody).toContain("Control");
+    expect(dashboardBody).toContain("Standby");
+    expect(dashboardBody).toContain("Transmit");
 
     const health = await fetch(`${baseUrl}/health`);
     expect(health.status).toBe(200);
@@ -236,6 +240,7 @@ describe("HTTP API", () => {
         commandTarget: "236.6.8.36:6516",
         commandTargetSource: "configured",
         commandsSent: 3,
+        desiredState: "transmit",
         enabled: true,
         mode: "transmit",
         running: true
@@ -308,6 +313,48 @@ describe("HTTP API", () => {
     const unavailable = await fetch(`${baseUrl}/radar/replay/frame?at=2026-06-07T00%3A00%3A01.000Z`);
     expect(unavailable.status).toBe(404);
     await expect(unavailable.json()).resolves.toMatchObject({ error: "frame_not_found" });
+  });
+
+  it("exposes explicit radar standby and transmit control endpoints", async () => {
+    const { sink } = createMemorySink();
+    const radarControl = {
+      requestStandby: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      requestTransmit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    };
+    api = createHttpApi({
+      config,
+      logger: createLogger({ level: "debug", sink }),
+      radarControl,
+      radarStatus,
+      renderer: createRenderer(),
+      replayBuffer: createReplayBuffer()
+    });
+    await api.start();
+
+    const port = api.address()?.port;
+    if (!port) {
+      throw new Error("HTTP API did not expose a bound port");
+    }
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    const transmit = await fetch(`${baseUrl}/radar/control/transmit`, { method: "POST" });
+    expect(transmit.status).toBe(200);
+    await expect(transmit.json()).resolves.toMatchObject({ desiredState: "transmit", ok: true });
+    expect(radarControl.requestTransmit).toHaveBeenCalledOnce();
+
+    const standby = await fetch(`${baseUrl}/radar/control/standby`, { method: "POST" });
+    expect(standby.status).toBe(200);
+    await expect(standby.json()).resolves.toMatchObject({ desiredState: "standby", ok: true });
+    expect(radarControl.requestStandby).toHaveBeenCalledOnce();
+  });
+
+  it("reports unavailable radar control endpoints when no control handler is configured", async () => {
+    const baseUrl = await startApi();
+
+    const response = await fetch(`${baseUrl}/radar/control/transmit`, { method: "POST" });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ error: "radar_control_unavailable" });
   });
 
   it("configures defensive HTTP connection limits", () => {

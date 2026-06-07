@@ -19,10 +19,12 @@ export interface RadarControlStatus {
   readonly commandTarget: string;
   readonly commandTargetSource: string;
   readonly commandsSent: number;
+  readonly desiredState: "standby" | "transmit";
   readonly enabled: boolean;
   readonly lastCommandAt: string | null;
   readonly lastCommandName: string | null;
   readonly lastError: string | null;
+  readonly lastRequestAt: string | null;
   readonly mode: string;
   readonly running: boolean;
   readonly stayAliveIntervalMs: number;

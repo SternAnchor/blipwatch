@@ -6,6 +6,8 @@ import type { RadarControlStatus } from "./status.js";
 
 export interface RadarControl {
   getStatus(): RadarControlStatus;
+  requestStandby(): Promise<void>;
+  requestTransmit(): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -19,6 +21,8 @@ export interface RadarControlOptions {
 const COMMAND_WAKE = Buffer.from([0x01, 0xb1]);
 const COMMAND_TX_ON_A = Buffer.from([0x00, 0xc1, 0x01]);
 const COMMAND_TX_ON_B = Buffer.from([0x01, 0xc1, 0x01]);
+const COMMAND_TX_OFF_A = Buffer.from([0x00, 0xc1, 0x01]);
+const COMMAND_TX_OFF_B = Buffer.from([0x01, 0xc1, 0x00]);
 const COMMAND_STAY_ON_A = Buffer.from([0xa0, 0xc1]);
 const COMMAND_STAY_ON_B = Buffer.from([0x03, 0xc2]);
 const COMMAND_STAY_ON_C = Buffer.from([0x04, 0xc2]);
@@ -27,6 +31,8 @@ const COMMAND_STAY_ON_E = Buffer.from([0x0a, 0xc2]);
 
 type CommandName =
   | "wake"
+  | "transmit-off-a"
+  | "transmit-off-b"
   | "transmit-on-a"
   | "transmit-on-b"
   | "stay-alive-a"
@@ -41,13 +47,21 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
   let lastCommandAt: Date | undefined;
   let lastCommandName: CommandName | undefined;
   let lastError: string | undefined;
+  let lastRequestAt: Date | undefined;
+  let lastTransmitOnTarget: string | undefined;
   let commandsSent = 0;
   let stayAliveSequence = 0;
+  let desiredState: RadarControlStatus["desiredState"] =
+    config.radarControlMode === "transmit" ? "transmit" : "standby";
 
-  const sendCommand = async (name: CommandName, payload: Buffer, target: CommandTarget): Promise<void> => {
+  const assertSocketActive = (): void => {
     if (!socket) {
       throw new Error("radar control socket is not active");
     }
+  };
+
+  const sendCommand = async (name: CommandName, payload: Buffer, target: CommandTarget): Promise<void> => {
+    assertSocketActive();
 
     await new Promise<void>((resolve, reject) => {
       socket?.send(payload, target.port, target.host, (error) => {
@@ -72,6 +86,14 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
     const target = getCommandTarget(config, commandTargetProvider);
     await sendCommand("transmit-on-a", COMMAND_TX_ON_A, target);
     await sendCommand("transmit-on-b", COMMAND_TX_ON_B, target);
+    lastTransmitOnTarget = getTargetKey(target);
+  };
+
+  const sendTransmitOff = async (): Promise<void> => {
+    const target = getCommandTarget(config, commandTargetProvider);
+    await sendCommand("transmit-off-a", COMMAND_TX_OFF_A, target);
+    await sendCommand("transmit-off-b", COMMAND_TX_OFF_B, target);
+    lastTransmitOnTarget = undefined;
   };
 
   const sendStayAlive = async (): Promise<void> => {
@@ -96,6 +118,48 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
     }
   };
 
+  const sendTransmitCycle = async (): Promise<void> => {
+    if (desiredState !== "transmit") {
+      return;
+    }
+
+    const target = getCommandTarget(config, commandTargetProvider);
+    if (lastTransmitOnTarget !== getTargetKey(target)) {
+      await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
+      await sendTransmitOn();
+    }
+
+    await sendStayAlive();
+  };
+
+  const requestStandby = async (): Promise<void> => {
+    assertSocketActive();
+    desiredState = "standby";
+    lastRequestAt = new Date();
+    try {
+      await sendTransmitOff();
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      logger.error("radar control standby request failed", error);
+      throw error;
+    }
+  };
+
+  const requestTransmit = async (): Promise<void> => {
+    assertSocketActive();
+    desiredState = "transmit";
+    lastRequestAt = new Date();
+    try {
+      await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
+      await sendTransmitOn();
+      await sendStayAlive();
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      logger.error("radar control transmit request failed", error);
+      throw error;
+    }
+  };
+
   return {
     getStatus(): RadarControlStatus {
       const commandTarget = getCommandTarget(config, commandTargetProvider);
@@ -103,16 +167,20 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
         commandTarget: `${commandTarget.host}:${commandTarget.port}`,
         commandTargetSource: commandTarget.source,
         commandsSent,
+        desiredState,
         enabled: config.radarControlEnabled,
         lastCommandAt: lastCommandAt?.toISOString() ?? null,
         lastCommandName: lastCommandName ?? null,
         lastError: lastError ?? null,
+        lastRequestAt: lastRequestAt?.toISOString() ?? null,
         mode: config.radarControlMode,
         running: socket !== undefined,
         stayAliveIntervalMs: config.radarControlStayAliveIntervalMs,
         wakeTarget: `${config.radarControlWakeHost}:${config.radarControlWakePort}`
       };
     },
+    requestStandby,
+    requestTransmit,
     async start(): Promise<void> {
       if (!config.radarControlEnabled) {
         logger.debug("radar control start skipped; disabled by configuration");
@@ -153,19 +221,15 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
         });
       });
 
-      await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
       if (config.radarControlMode === "transmit") {
-        await sendTransmitOn();
-        await sendStayAlive();
+        await requestTransmit();
+      } else {
+        await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
       }
       interval = setInterval(() => {
         void (async () => {
           try {
-            await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
-            if (config.radarControlMode === "transmit") {
-              await sendTransmitOn();
-              await sendStayAlive();
-            }
+            await sendTransmitCycle();
           } catch (error) {
             lastError = error instanceof Error ? error.message : String(error);
             logger.error("radar control cycle failed", error);
@@ -185,6 +249,7 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
 
       const activeSocket = socket;
       socket = undefined;
+      lastTransmitOnTarget = undefined;
       await new Promise<void>((resolve, reject) => {
         try {
           activeSocket.close(() => {
@@ -198,6 +263,8 @@ export const createRadarControl = ({ commandTargetProvider, config, logger }: Ra
     }
   };
 };
+
+const getTargetKey = (target: CommandTarget): string => `${target.host}:${target.port}`;
 
 export interface CommandTarget {
   readonly host: string;
@@ -237,10 +304,12 @@ const getCommandTarget = (
 
 export const navicoControlCommands = {
   stayAlive: [COMMAND_STAY_ON_A, COMMAND_STAY_ON_B, COMMAND_STAY_ON_C, COMMAND_STAY_ON_D, COMMAND_STAY_ON_E],
+  transmitOff: [COMMAND_TX_OFF_A, COMMAND_TX_OFF_B],
   transmitOn: [COMMAND_TX_ON_A, COMMAND_TX_ON_B],
   wake: COMMAND_WAKE
 } as const satisfies {
   readonly stayAlive: readonly Buffer[];
+  readonly transmitOff: readonly Buffer[];
   readonly transmitOn: readonly Buffer[];
   readonly wake: Buffer;
 };

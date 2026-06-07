@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
+import type { RadarControl } from "../radar/control.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus } from "../radar/status.js";
 import type { ReplayBuffer } from "../replay/replay-buffer.js";
@@ -17,6 +18,7 @@ export interface HttpApi {
 interface HttpApiOptions {
   readonly config: BlipWatchConfig;
   readonly logger: Logger;
+  readonly radarControl?: Pick<RadarControl, "requestStandby" | "requestTransmit">;
   readonly renderer: RadarImageRenderer;
   readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
@@ -31,7 +33,14 @@ export const HTTP_SERVER_LIMITS = {
 
 export const HTTP_SERVER_SHUTDOWN_GRACE_MS = 5_000;
 
-export const createHttpApi = ({ config, logger, renderer, radarStatus, replayBuffer }: HttpApiOptions): HttpApi => {
+export const createHttpApi = ({
+  config,
+  logger,
+  radarControl,
+  renderer,
+  radarStatus,
+  replayBuffer
+}: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
 
   return {
@@ -50,6 +59,16 @@ export const createHttpApi = ({ config, logger, renderer, radarStatus, replayBuf
         );
 
         const url = new URL(request.url ?? "/", "http://localhost");
+
+        if (request.method === "POST" && url.pathname === "/radar/control/standby") {
+          void handleRadarControlRequest(response, radarControl, "standby");
+          return;
+        }
+
+        if (request.method === "POST" && url.pathname === "/radar/control/transmit") {
+          void handleRadarControlRequest(response, radarControl, "transmit");
+          return;
+        }
 
         if (request.method !== "GET") {
           sendJson(response, 405, { error: "method_not_allowed" });
@@ -195,6 +214,35 @@ const sendPng = (
   response.end(body);
 };
 
+const handleRadarControlRequest = async (
+  response: ServerResponse,
+  radarControl: HttpApiOptions["radarControl"],
+  desiredState: "standby" | "transmit"
+): Promise<void> => {
+  if (!radarControl) {
+    sendJson(response, 503, {
+      error: "radar_control_unavailable",
+      message: "Radar control is not available in this process."
+    });
+    return;
+  }
+
+  try {
+    if (desiredState === "standby") {
+      await radarControl.requestStandby();
+    } else {
+      await radarControl.requestTransmit();
+    }
+
+    sendJson(response, 200, { ok: true, desiredState });
+  } catch (error) {
+    sendJson(response, 409, {
+      error: "radar_control_failed",
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
+
 const renderDashboardHtml = (): string => `<!doctype html>
 <html lang="en">
   <head>
@@ -338,6 +386,39 @@ const renderDashboardHtml = (): string => `<!doctype html>
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .control-actions {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      button {
+        appearance: none;
+        background: #111518;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        min-height: 44px;
+        padding: 10px 12px;
+      }
+
+      button:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+
+      button.active {
+        background: #173622;
+        border-color: var(--accent);
+      }
+
+      button:disabled {
+        color: #657178;
+        cursor: not-allowed;
+      }
+
       .stat {
         background: #111518;
         border: 1px solid var(--border);
@@ -430,6 +511,10 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <strong id="phase-name">Loading</strong>
               <div class="subtle" id="phase-summary">Requesting radar status...</div>
             </div>
+            <div class="control-actions" aria-label="Radar controls">
+              <button id="standby-button" type="button">Standby</button>
+              <button id="transmit-button" type="button">Transmit</button>
+            </div>
             <div class="stats">
               <div class="stat"><span>Discovery Reports</span><strong id="reports">0</strong></div>
               <div class="stat"><span>Packets Received</span><strong id="packets">0</strong></div>
@@ -465,6 +550,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const lastUpdated = document.getElementById("last-updated");
       const actions = document.getElementById("actions");
       const rawStatus = document.getElementById("raw-status");
+      const standbyButton = document.getElementById("standby-button");
+      const transmitButton = document.getElementById("transmit-button");
+      let controlRequestPending = false;
       const fields = {
         commands: document.getElementById("commands"),
         control: document.getElementById("control"),
@@ -479,6 +567,35 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       const setText = (element, value) => {
         element.textContent = value ?? "-";
+      };
+
+      const setControlButtons = (control) => {
+        const active = Boolean(control?.enabled && control?.running);
+        const disabled = controlRequestPending || !active;
+        standbyButton.disabled = disabled;
+        transmitButton.disabled = disabled;
+        standbyButton.classList.toggle("active", control?.desiredState === "standby");
+        transmitButton.classList.toggle("active", control?.desiredState === "transmit");
+      };
+
+      const requestControl = async (desiredState) => {
+        controlRequestPending = true;
+        standbyButton.disabled = true;
+        transmitButton.disabled = true;
+        try {
+          const response = await fetch("/radar/control/" + desiredState, { method: "POST" });
+          if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            throw new Error(body.message ?? "Radar control request failed");
+          }
+          await refresh();
+        } catch (error) {
+          phase.className = "phase error";
+          setText(phaseName, "control-error");
+          setText(phaseSummary, error instanceof Error ? error.message : String(error));
+        } finally {
+          controlRequestPending = false;
+        }
       };
 
       const refresh = async () => {
@@ -507,10 +624,11 @@ const renderDashboardHtml = (): string => `<!doctype html>
             fields.control,
             status.control?.enabled
               ? (status.control?.running
-                ? status.control?.mode + "/" + (status.control?.commandTargetSource ?? "unknown")
+                ? status.control?.desiredState + "/" + (status.control?.commandTargetSource ?? "unknown")
                 : "enabled")
               : "disabled"
           );
+          setControlButtons(status.control);
           setText(fields.commands, status.control?.commandsSent);
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {
             const item = document.createElement("li");
@@ -524,9 +642,16 @@ const renderDashboardHtml = (): string => `<!doctype html>
           phase.className = "phase error";
           setText(phaseName, "status-error");
           setText(phaseSummary, error instanceof Error ? error.message : String(error));
+          setControlButtons(undefined);
         }
       };
 
+      standbyButton.addEventListener("click", () => {
+        void requestControl("standby");
+      });
+      transmitButton.addEventListener("click", () => {
+        void requestControl("transmit");
+      });
       void refresh();
       setInterval(refresh, 2000);
     </script>

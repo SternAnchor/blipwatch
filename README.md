@@ -47,7 +47,7 @@ Known protocol gaps:
 
 - Confirm the real HALO report payload fields for model, firmware, and operating state beyond the currently parsed `01b2` location report.
 - Improve rendering persistence/decay so real returns are easier to inspect visually between spoke updates.
-- Add standby, range, gain, and other control commands after the wake/transmit path has been validated safely.
+- Add range, gain, and other control commands after the wake/transmit/standby path has been validated safely.
 - Add sanitized real packet fixtures once hardware traffic is captured.
 
 ## Requirements
@@ -186,7 +186,7 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-Request transmit and keep the HALO active with periodic stay-alive commands:
+Request transmit on startup and keep the HALO active with periodic stay-alive commands:
 
 ```bash
 RADAR_CONTROL_ENABLED=true \
@@ -200,7 +200,7 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-The current control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit and stay-alive commands when `RADAR_CONTROL_MODE=transmit`. While control is enabled, BlipWatch repeats the wake/transmit/stay-alive cycle at `RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS` so the radar can transition after discovery reports or delayed network readiness. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, command counts, last command, target source, and any socket errors are exposed through `/radar/status` and the root dashboard.
+The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /radar/control/standby` and `POST /radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, command counts, last command, target source, and any socket errors are exposed through `/radar/status` and the root dashboard.
 
 ### Capture Radar Traffic
 
