@@ -103,7 +103,9 @@ jobs:
       - name: Read package version
         if: env.NPM_TOKEN != ''
         id: package
-        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup QEMU
         if: env.NPM_TOKEN != ''
@@ -175,7 +177,9 @@ jobs:
       - name: Read package version
         if: env.NPM_TOKEN != ''
         id: package
-        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup QEMU
         if: env.NPM_TOKEN != ''
