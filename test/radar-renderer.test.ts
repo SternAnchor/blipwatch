@@ -2,10 +2,10 @@ import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
 
 import type { BlipWatchConfig } from "../src/config/config.js";
-import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import type { RadarSpoke } from "../src/radar/decoder.js";
 import { createRadarImageRenderer } from "../src/radar/renderer.js";
+import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
   imageSize: 32,
@@ -15,26 +15,6 @@ const config: BlipWatchConfig = {
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
-};
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
 };
 
 const readPixel = (image: PNG, x: number, y: number): [number, number, number, number] => {

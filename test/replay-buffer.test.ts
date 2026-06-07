@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { BlipWatchConfig } from "../src/config/config.js";
-import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import type { RadarImageMetadata } from "../src/radar/renderer.js";
 import { createReplayBuffer } from "../src/replay/replay-buffer.js";
+import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
   imageSize: 16,
@@ -23,26 +23,6 @@ const metadata: RadarImageMetadata = {
   maxIntensity: 255,
   renderState: "ready",
   spokeCount: 1
-};
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
 };
 
 const frame = (isoTimestamp: string, value: number) => ({

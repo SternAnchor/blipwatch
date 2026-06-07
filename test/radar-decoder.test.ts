@@ -1,29 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import { createRadarDecoder } from "../src/radar/decoder.js";
 import { createPlaceholderSpokePacket } from "../src/sim/placeholder-fixture.js";
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
-};
+import { createMemorySink } from "./support/logger.js";
 
 describe("createRadarDecoder", () => {
   it("decodes the placeholder spoke fixture into the normalized radar model", () => {
