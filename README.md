@@ -117,8 +117,8 @@ Keep the safety notice in mind during all testing. BlipWatch is experimental dia
 
 1. Connect the laptop to the radar Ethernet network or to the same switch as the HALO radar.
 2. Disable VPNs or firewall rules that may block local UDP traffic while testing.
-3. Identify the local interface address assigned on the radar network.
-4. Run BlipWatch with that interface or `0.0.0.0` while protocol details are still being discovered.
+3. Identify the local interface address assigned on the radar network if you want to override automatic selection.
+4. Run BlipWatch with `RADAR_INTERFACE=auto`, or set a concrete interface address such as `192.168.15.188`.
 5. Open `http://localhost:8080/` for the live radar dashboard, or `http://localhost:8080/radar/latest.png` for the raw image.
 
 Useful interface discovery commands:
@@ -144,7 +144,7 @@ Use debug logging during hardware testing:
 ```bash
 PORT=8080 \
 RADAR_DISCOVERY_ENABLED=true \
-RADAR_INTERFACE=0.0.0.0 \
+RADAR_INTERFACE=auto \
 RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
@@ -159,7 +159,7 @@ Or from source during development:
 ```bash
 PORT=8080 \
 RADAR_DISCOVERY_ENABLED=true \
-RADAR_INTERFACE=0.0.0.0 \
+RADAR_INTERFACE=auto \
 RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
@@ -197,6 +197,7 @@ Use Wireshark when a visual packet view is easier:
 Current protocol notes:
 
 - `RADAR_UDP_PORT=6678` is the current default image/spoke receive port.
+- `RADAR_INTERFACE=auto` selects a likely non-virtual IPv4 interface before joining multicast groups. Set it to a concrete local address if auto-selection picks the wrong network.
 - `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
 - Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; it does not send wake, standby, transmit, or control commands.
@@ -265,7 +266,7 @@ BlipWatch is configured through environment variables.
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP API port. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. No active wake or transmit commands are sent. |
-| `RADAR_INTERFACE` | `0.0.0.0` | Local interface address used for UDP radar packet binding. |
+| `RADAR_INTERFACE` | `auto` | Local interface address used for UDP radar packet binding, or `auto` to choose a likely hardware interface. |
 | `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
 | `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
@@ -280,7 +281,7 @@ Example:
 ```bash
 PORT=8080 \
 RADAR_DISCOVERY_ENABLED=true \
-RADAR_INTERFACE=0.0.0.0 \
+RADAR_INTERFACE=auto \
 RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
@@ -353,7 +354,7 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastReportAt": "2026-06-07T00:00:00.000Z",
     "lastReportSource": "192.0.2.11:6878",
     "multicastGroup": "236.6.7.5",
-    "boundInterface": "0.0.0.0",
+    "boundInterface": "192.168.15.188",
     "udpPort": 6878,
     "radar": {
       "reportType": "0x01",
@@ -376,7 +377,7 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastPacketAt": "2026-06-07T00:00:00.000Z",
     "lastSourceAddress": "192.0.2.10:6678",
     "multicastGroups": ["236.6.7.8"],
-    "boundInterface": "0.0.0.0",
+    "boundInterface": "192.168.15.188",
     "udpPort": 6678
   },
   "decoder": {
@@ -460,7 +461,7 @@ docker run --rm \
   -p 6678:6678/udp \
   -e PORT=8080 \
   -e RADAR_DISCOVERY_ENABLED=true \
-  -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_INTERFACE=auto \
   -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
   -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
   -e RADAR_REPORT_UDP_PORT=6878 \
@@ -474,7 +475,7 @@ For onboard hardware directly connected to a radar Ethernet network, host networ
 docker run --rm --network host \
   -e PORT=8080 \
   -e RADAR_DISCOVERY_ENABLED=true \
-  -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_INTERFACE=auto \
   -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
   -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
   -e RADAR_REPORT_UDP_PORT=6878 \
@@ -507,15 +508,17 @@ Use a Raspberry Pi or similar Linux host with Ethernet access to the radar netwo
 1. Connect the host to the radar Ethernet network.
 2. Confirm the host can receive UDP traffic from the radar.
 3. Run the container with host networking.
-4. Open `http://<host>:8080/health` to confirm the server is running.
-5. Open `http://<host>:8080/radar/latest.png` to inspect the current image.
+4. Open `http://<host>:8080/` to confirm the server is running and inspect the current image/status.
 
 Example:
 
 ```bash
 docker run -d --name blipwatch --restart unless-stopped --network host \
   -e PORT=8080 \
-  -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_INTERFACE=auto \
+  -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
+  -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+  -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
   -e LOG_LEVEL=info \
   ghcr.io/sternanchor/blipwatch:latest

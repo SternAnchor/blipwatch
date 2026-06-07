@@ -179,7 +179,9 @@ describe("HTTP API", () => {
     expect(dashboard.status).toBe(200);
     expect(dashboard.headers.get("content-type")).toContain("text/html");
     await expect(dashboard.text()).resolves.toContain("BlipWatch");
-    await expect(fetch(`${baseUrl}/`).then((response) => response.text())).resolves.toContain("/radar/latest.png");
+    const dashboardBody = await fetch(`${baseUrl}/`).then((response) => response.text());
+    expect(dashboardBody).toContain("/radar/latest.png");
+    expect(dashboardBody).toContain("Interface");
 
     const health = await fetch(`${baseUrl}/health`);
     expect(health.status).toBe(200);

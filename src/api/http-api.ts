@@ -435,6 +435,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <div class="stat"><span>Packets Received</span><strong id="packets">0</strong></div>
               <div class="stat"><span>Decoded Spokes</span><strong id="decoded">0</strong></div>
               <div class="stat"><span>Rendered Spokes</span><strong id="rendered">0</strong></div>
+              <div class="stat"><span>Interface</span><strong id="interface">-</strong></div>
               <div class="stat"><span>Image Group</span><strong id="image-group">-</strong></div>
               <div class="stat"><span>Report Group</span><strong id="report-group">-</strong></div>
             </div>
@@ -465,6 +466,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const fields = {
         decoded: document.getElementById("decoded"),
         imageGroup: document.getElementById("image-group"),
+        interface: document.getElementById("interface"),
         packets: document.getElementById("packets"),
         rendered: document.getElementById("rendered"),
         reportGroup: document.getElementById("report-group"),
@@ -488,6 +490,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(fields.packets, status.receiver?.packetsReceived);
           setText(fields.decoded, status.decoder?.packetsDecoded);
           setText(fields.rendered, status.renderer?.spokeCount);
+          setText(fields.interface, status.receiver?.boundInterface ?? status.discovery?.boundInterface);
           setText(fields.imageGroup, (status.receiver?.multicastGroups ?? []).join(", ") || "-");
           setText(fields.reportGroup, status.discovery?.multicastGroup);
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {

@@ -9,7 +9,7 @@ describe("loadConfig", () => {
       logLevel: "info",
       port: 8080,
       radarDiscoveryEnabled: true,
-      radarInterface: "0.0.0.0",
+      radarInterface: "auto",
       radarMulticastGroups: ["236.6.7.8"],
       radarReportMulticastGroup: "236.6.7.5",
       radarReportUdpPort: 6878,

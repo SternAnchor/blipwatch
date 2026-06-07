@@ -3,6 +3,7 @@ import { ConfigurationError, loadConfig } from "./config/config.js";
 import { createLogger, type Logger } from "./logging/logger.js";
 import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarDiscovery } from "./radar/discovery.js";
+import { resolveRadarInterface } from "./radar/network-interface.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver } from "./radar/receiver.js";
 import type { RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
@@ -21,8 +22,17 @@ export interface BlipWatchServerAddresses {
 }
 
 export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): BlipWatchServer => {
-  const config = loadConfig(env);
-  const logger = createLogger({ level: config.logLevel });
+  const loadedConfig = loadConfig(env);
+  const logger = createLogger({ level: loadedConfig.logLevel });
+  const resolvedInterface = resolveRadarInterface(loadedConfig.radarInterface);
+  const config = {
+    ...loadedConfig,
+    radarInterface: resolvedInterface.address
+  };
+  if (loadedConfig.radarInterface === "auto") {
+    logger.info(`auto-selected radar interface ${resolvedInterface.name} (${resolvedInterface.address})`);
+  }
+
   const receiver = createRadarReceiver({ config, logger });
   const decoder = createRadarDecoder({ logger });
   const discovery = createRadarDiscovery({ config, logger });
