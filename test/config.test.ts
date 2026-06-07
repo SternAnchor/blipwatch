@@ -9,6 +9,7 @@ describe("loadConfig", () => {
       logLevel: "info",
       port: 8080,
       radarInterface: "0.0.0.0",
+      radarMulticastGroups: [],
       radarUdpPort: 6678,
       replayFrameIntervalMs: 1000,
       replayRetentionSeconds: 300
@@ -26,6 +27,7 @@ describe("loadConfig", () => {
         LOG_LEVEL: "debug",
         PORT: "9090",
         RADAR_INTERFACE: "192.0.2.10",
+        RADAR_MULTICAST_GROUPS: "239.2.1.1, 239.2.1.2",
         RADAR_UDP_PORT: "6679",
         REPLAY_FRAME_INTERVAL_MS: "250",
         REPLAY_RETENTION_SECONDS: "60"
@@ -35,6 +37,7 @@ describe("loadConfig", () => {
       logLevel: "debug",
       port: 9090,
       radarInterface: "192.0.2.10",
+      radarMulticastGroups: ["239.2.1.1", "239.2.1.2"],
       radarUdpPort: 6679,
       replayFrameIntervalMs: 250,
       replayRetentionSeconds: 60
@@ -51,5 +54,8 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ RADAR_UDP_PORT: "70000" })).toThrow("RADAR_UDP_PORT must be between 0 and 65535");
     expect(() => loadConfig({ LOG_LEVEL: "trace" })).toThrow('LOG_LEVEL must be one of: debug, info; received "trace"');
     expect(() => loadConfig({ RADAR_INTERFACE: "   " })).toThrow("RADAR_INTERFACE must not be empty");
+    expect(() => loadConfig({ RADAR_MULTICAST_GROUPS: "192.0.2.10" })).toThrow(
+      'RADAR_MULTICAST_GROUPS must contain IPv4 multicast addresses; received "192.0.2.10"'
+    );
   });
 });

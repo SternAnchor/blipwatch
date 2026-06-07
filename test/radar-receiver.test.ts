@@ -11,6 +11,7 @@ const baseConfig: BlipWatchConfig = {
   logLevel: "debug",
   port: 8080,
   radarInterface: "127.0.0.1",
+  radarMulticastGroups: [],
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -41,6 +42,7 @@ describe("createRadarReceiver", () => {
       boundInterface: null,
       lastPacketAt: null,
       lastSourceAddress: null,
+      multicastGroups: [],
       packetsReceived: 0,
       running: false,
       udpPort: null

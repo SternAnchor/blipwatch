@@ -12,6 +12,7 @@ const config: BlipWatchConfig = {
   logLevel: "debug",
   port: 8080,
   radarInterface: "127.0.0.1",
+  radarMulticastGroups: [],
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300

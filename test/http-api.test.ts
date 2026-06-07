@@ -23,6 +23,7 @@ const config: BlipWatchConfig = {
   logLevel: "debug",
   port: 0,
   radarInterface: "127.0.0.1",
+  radarMulticastGroups: [],
   radarUdpPort: 0,
   replayFrameIntervalMs: 1,
   replayRetentionSeconds: 300
@@ -99,6 +100,7 @@ const radarStatus = (): RadarStatus => ({
     boundInterface: "127.0.0.1",
     lastPacketAt: capturedAt,
     lastSourceAddress: "192.0.2.10:6678",
+    multicastGroups: ["239.2.1.1"],
     packetsReceived: 9,
     running: true,
     udpPort: 6678
@@ -163,6 +165,7 @@ describe("HTTP API", () => {
       },
       receiver: {
         lastSourceAddress: "192.0.2.10:6678",
+        multicastGroups: ["239.2.1.1"],
         packetsReceived: 9,
         running: true,
         udpPort: 6678

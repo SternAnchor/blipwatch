@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 export type LogVerbosity = "debug" | "info";
 
 const DEFAULTS = {
@@ -5,6 +7,7 @@ const DEFAULTS = {
   logLevel: "info",
   port: 8080,
   radarInterface: "0.0.0.0",
+  radarMulticastGroups: [],
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -15,6 +18,7 @@ export interface BlipWatchConfig {
   readonly logLevel: LogVerbosity;
   readonly port: number;
   readonly radarInterface: string;
+  readonly radarMulticastGroups: readonly string[];
   readonly radarUdpPort: number;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
@@ -32,6 +36,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
   radarInterface: parseNonEmptyString(env.RADAR_INTERFACE, "RADAR_INTERFACE", DEFAULTS.radarInterface),
+  radarMulticastGroups: parseMulticastGroups(env.RADAR_MULTICAST_GROUPS),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
   replayFrameIntervalMs: parsePositiveInteger(
     env.REPLAY_FRAME_INTERVAL_MS,
@@ -98,4 +103,27 @@ const parseNonEmptyString = (value: string | undefined, name: string, defaultVal
   }
 
   return trimmed;
+};
+
+const parseMulticastGroups = (value: string | undefined): readonly string[] => {
+  if (value === undefined || value.trim().length === 0) {
+    return DEFAULTS.radarMulticastGroups;
+  }
+
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+    if (!isIpv4MulticastAddress(entry)) {
+      throw new ConfigurationError(`RADAR_MULTICAST_GROUPS must contain IPv4 multicast addresses; received "${entry}"`);
+    }
+
+    return entry;
+  });
+};
+
+const isIpv4MulticastAddress = (value: string): boolean => {
+  if (isIP(value) !== 4) {
+    return false;
+  }
+
+  const firstOctet = Number.parseInt(value.split(".")[0] ?? "", 10);
+  return firstOctet >= 224 && firstOctet <= 239;
 };

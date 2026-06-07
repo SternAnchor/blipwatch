@@ -118,6 +118,7 @@ Use debug logging during hardware testing:
 ```bash
 PORT=8080 \
 RADAR_INTERFACE=0.0.0.0 \
+RADAR_MULTICAST_GROUPS= \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 LOG_LEVEL=debug \
@@ -129,6 +130,7 @@ Or from source during development:
 ```bash
 PORT=8080 \
 RADAR_INTERFACE=0.0.0.0 \
+RADAR_MULTICAST_GROUPS= \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 LOG_LEVEL=debug \
@@ -163,6 +165,7 @@ Use Wireshark when a visual packet view is easier:
 Current protocol notes:
 
 - `RADAR_UDP_PORT=6678` is the current default receive port from Phase 1.
+- `RADAR_MULTICAST_GROUPS` can be set to a comma-separated list of IPv4 multicast groups once observed for the target radar.
 - Real HALO multicast groups, control ports, and spoke packet layout are still being confirmed.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Keep explicit notes for observed packet sizes, repeated headers, counters, angle-like fields, and intensity-like payload regions.
@@ -185,6 +188,7 @@ BlipWatch is configured through environment variables.
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP API port. |
 | `RADAR_INTERFACE` | `0.0.0.0` | Local interface address used for UDP radar packet binding. |
+| `RADAR_MULTICAST_GROUPS` | empty | Optional comma-separated IPv4 multicast groups to join after UDP bind. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
@@ -196,6 +200,7 @@ Example:
 ```bash
 PORT=8080 \
 RADAR_INTERFACE=0.0.0.0 \
+RADAR_MULTICAST_GROUPS= \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 REPLAY_RETENTION_SECONDS=300 \
@@ -254,6 +259,7 @@ Returns hardware-focused receiver, decoder, and renderer diagnostics.
     "packetsReceived": 1,
     "lastPacketAt": "2026-06-07T00:00:00.000Z",
     "lastSourceAddress": "192.0.2.10:6678",
+    "multicastGroups": ["239.2.1.1"],
     "boundInterface": "0.0.0.0",
     "udpPort": 6678
   },

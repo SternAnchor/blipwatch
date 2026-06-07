@@ -47,6 +47,7 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         boundInterface: currentAddress?.address ?? (socket ? config.radarInterface : null),
         lastPacketAt: lastPacketAt?.toISOString() ?? null,
         lastSourceAddress: lastSourceAddress ?? null,
+        multicastGroups: config.radarMulticastGroups,
         packetsReceived: packetCount,
         running: socket !== undefined,
         udpPort: currentAddress?.port ?? (socket ? config.radarUdpPort : null)
@@ -64,7 +65,7 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         return;
       }
 
-      socket = createSocket("udp4");
+      socket = createSocket({ reuseAddr: true, type: "udp4" });
 
       socket.on("message", (data, remote) => {
         packetCount += 1;
@@ -94,6 +95,13 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         activeSocket.once("error", reject);
         activeSocket.bind(config.radarUdpPort, config.radarInterface, () => {
           activeSocket.off("error", reject);
+          try {
+            joinConfiguredMulticastGroups(activeSocket, config, logger);
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+            return;
+          }
+
           logger.info(`radar receiver listening on ${config.radarInterface}:${config.radarUdpPort}`);
           logger.debug("radar receiver packet diagnostics enabled");
           resolve();
@@ -120,4 +128,12 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
       });
     }
   };
+};
+
+const joinConfiguredMulticastGroups = (socket: Socket, config: BlipWatchConfig, logger: Logger): void => {
+  for (const group of config.radarMulticastGroups) {
+    const multicastInterface = config.radarInterface === "0.0.0.0" ? undefined : config.radarInterface;
+    socket.addMembership(group, multicastInterface);
+    logger.info(`radar receiver joined multicast group ${group}`);
+  }
 };

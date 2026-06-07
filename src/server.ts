@@ -97,6 +97,7 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   logLevel: config.logLevel,
   port: config.port,
   radarInterface: config.radarInterface,
+  radarMulticastGroups: config.radarMulticastGroups.join(","),
   radarUdpPort: config.radarUdpPort,
   replayFrameIntervalMs: config.replayFrameIntervalMs,
   replayRetentionSeconds: config.replayRetentionSeconds

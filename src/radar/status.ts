@@ -2,6 +2,7 @@ export interface RadarReceiverStatus {
   readonly boundInterface: string | null;
   readonly lastPacketAt: string | null;
   readonly lastSourceAddress: string | null;
+  readonly multicastGroups: readonly string[];
   readonly packetsReceived: number;
   readonly running: boolean;
   readonly udpPort: number | null;
