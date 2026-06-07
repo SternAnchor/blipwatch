@@ -119,7 +119,7 @@ Keep the safety notice in mind during all testing. BlipWatch is experimental dia
 2. Disable VPNs or firewall rules that may block local UDP traffic while testing.
 3. Identify the local interface address assigned on the radar network.
 4. Run BlipWatch with that interface or `0.0.0.0` while protocol details are still being discovered.
-5. Open `http://localhost:8080/radar/latest.png` and `http://localhost:8080/health`.
+5. Open `http://localhost:8080/` for the live radar dashboard, or `http://localhost:8080/radar/latest.png` for the raw image.
 
 Useful interface discovery commands:
 
@@ -293,6 +293,10 @@ npm start
 ```
 
 ## HTTP API
+
+### `GET /`
+
+Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, next actions, and raw `/radar/status` JSON. The dashboard refreshes the status and image automatically.
 
 ### `GET /health`
 

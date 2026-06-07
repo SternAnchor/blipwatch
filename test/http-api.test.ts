@@ -175,6 +175,12 @@ describe("HTTP API", () => {
   it("serves health, latest image, latest metadata, and replay endpoints", async () => {
     const baseUrl = await startApi();
 
+    const dashboard = await fetch(`${baseUrl}/`);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.headers.get("content-type")).toContain("text/html");
+    await expect(dashboard.text()).resolves.toContain("BlipWatch");
+    await expect(fetch(`${baseUrl}/`).then((response) => response.text())).resolves.toContain("/radar/latest.png");
+
     const health = await fetch(`${baseUrl}/health`);
     expect(health.status).toBe(200);
     expect(health.headers.get("content-type")).toContain("application/json");
