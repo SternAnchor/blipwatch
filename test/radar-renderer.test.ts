@@ -1,0 +1,95 @@
+import { PNG } from "pngjs";
+import { describe, expect, it } from "vitest";
+
+import type { BlipWatchConfig } from "../src/config/config.js";
+import type { LogSink } from "../src/logging/logger.js";
+import { createLogger } from "../src/logging/logger.js";
+import type { RadarSpoke } from "../src/radar/decoder.js";
+import { createRadarImageRenderer } from "../src/radar/renderer.js";
+
+const config: BlipWatchConfig = {
+  imageSize: 32,
+  logLevel: "debug",
+  port: 8080,
+  radarInterface: "127.0.0.1",
+  radarUdpPort: 0,
+  replayFrameIntervalMs: 1000,
+  replayRetentionSeconds: 300
+};
+
+const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
+  const messages: string[] = [];
+  const sink: LogSink = {
+    debug(message: string): void {
+      messages.push(message);
+    },
+    error(message: string): void {
+      messages.push(message);
+    },
+    info(message: string): void {
+      messages.push(message);
+    },
+    warn(message: string): void {
+      messages.push(message);
+    }
+  };
+
+  return { messages, sink };
+};
+
+const readPixel = (image: PNG, x: number, y: number): [number, number, number, number] => {
+  const offset = (y * image.width + x) * 4;
+  return [
+    image.data[offset] ?? 0,
+    image.data[offset + 1] ?? 0,
+    image.data[offset + 2] ?? 0,
+    image.data[offset + 3] ?? 0
+  ];
+};
+
+describe("createRadarImageRenderer", () => {
+  it("produces an empty PNG and metadata before any radar data arrives", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+
+    expect(png.width).toBe(32);
+    expect(png.height).toBe(32);
+    expect(renderer.getLatestMetadata()).toEqual({
+      imageSize: 32,
+      lastFrameAt: null,
+      lastSpokeAt: null,
+      maxIntensity: 0,
+      renderState: "empty",
+      spokeCount: 0
+    });
+  });
+
+  it("renders a normalized spoke into the current image", () => {
+    const { messages, sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+    const receivedAt = new Date("2026-06-07T00:00:00.000Z");
+    const spoke: RadarSpoke = {
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 64, 128, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt,
+      sampleCount: 4,
+      type: "spoke"
+    };
+
+    renderer.applySpoke(spoke);
+
+    const metadata = renderer.getLatestMetadata();
+    expect(metadata.renderState).toBe("ready");
+    expect(metadata.lastSpokeAt).toBe(receivedAt.toISOString());
+    expect(metadata.maxIntensity).toBe(255);
+    expect(metadata.spokeCount).toBe(1);
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
+    expect(messages.some((message) => message.includes("radar spoke rendered angle=90"))).toBe(true);
+  });
+});

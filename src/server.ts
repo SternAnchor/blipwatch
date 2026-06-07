@@ -28,7 +28,10 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
       receiver.onPacket((packet) => {
-        decoder.decode(packet);
+        const result = decoder.decode(packet);
+        if (result.ok) {
+          renderer.applySpoke(result.spoke);
+        }
       });
       await receiver.start();
       logger.debug(`decoder ready: ${decoder.name}`);
