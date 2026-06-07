@@ -1,3 +1,9 @@
+## [1.1.0-develop.13](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.12...v1.1.0-develop.13) (2026-06-07)
+
+### Bug Fixes
+
+* repeat HALO control handshake ([b5b9ddb](https://github.com/SternAnchor/blipwatch/commit/b5b9ddbdda414170bbd049aee1fc4104c74004f5)), closes [#60](https://github.com/SternAnchor/blipwatch/issues/60)
+
 ## [1.1.0-develop.12](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.11...v1.1.0-develop.12) (2026-06-07)
 
 ### Features
