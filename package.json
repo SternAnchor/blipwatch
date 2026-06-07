@@ -13,6 +13,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "docker:build": "docker build -t blipwatch:local .",
+    "docker:buildx": "docker buildx build --platform linux/amd64,linux/arm64 -t blipwatch:local --load .",
     "debug": "LOG_LEVEL=debug tsx watch src/index.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
