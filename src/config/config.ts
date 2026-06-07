@@ -1,4 +1,4 @@
-export type LogLevel = "debug" | "info";
+export type LogVerbosity = "debug" | "info";
 
 const DEFAULTS = {
   imageSize: 1024,
@@ -12,7 +12,7 @@ const DEFAULTS = {
 
 export interface BlipWatchConfig {
   readonly imageSize: number;
-  readonly logLevel: LogLevel;
+  readonly logLevel: LogVerbosity;
   readonly port: number;
   readonly radarInterface: string;
   readonly radarUdpPort: number;
@@ -75,7 +75,7 @@ const parseInteger = (value: string | undefined, name: string, defaultValue: num
   return Number.parseInt(value, 10);
 };
 
-const parseLogLevel = (value: string | undefined): LogLevel => {
+const parseLogLevel = (value: string | undefined): LogVerbosity => {
   if (value === undefined || value === "") {
     return DEFAULTS.logLevel;
   }
