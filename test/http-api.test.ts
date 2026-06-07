@@ -22,6 +22,13 @@ const config: BlipWatchConfig = {
   imageSize: 32,
   logLevel: "debug",
   port: 0,
+  radarControlEnabled: false,
+  radarControlHost: "236.6.8.36",
+  radarControlMode: "wake",
+  radarControlPort: 6516,
+  radarControlStayAliveIntervalMs: 1000,
+  radarControlWakeHost: "236.6.7.5",
+  radarControlWakePort: 6878,
   radarDiscoveryEnabled: false,
   radarInterface: "127.0.0.1",
   radarMulticastGroups: [],
@@ -94,6 +101,18 @@ const createReplayBuffer = (): ReplayBuffer => ({
 });
 
 const radarStatus = (): RadarStatus => ({
+  control: {
+    commandTarget: "236.6.8.36:6516",
+    commandsSent: 3,
+    enabled: true,
+    lastCommandAt: capturedAt,
+    lastCommandName: "transmit-on-b",
+    lastError: null,
+    mode: "transmit",
+    running: true,
+    stayAliveIntervalMs: 1000,
+    wakeTarget: "236.6.7.5:6878"
+  },
   decoder: {
     lastDecodedSpokeAt: capturedAt,
     packetsDecoded: 7,
@@ -184,6 +203,7 @@ describe("HTTP API", () => {
     const dashboardBody = await fetch(`${baseUrl}/`).then((response) => response.text());
     expect(dashboardBody).toContain("/radar/latest.png");
     expect(dashboardBody).toContain("Interface");
+    expect(dashboardBody).toContain("Control");
 
     const health = await fetch(`${baseUrl}/health`);
     expect(health.status).toBe(200);
@@ -207,6 +227,13 @@ describe("HTTP API", () => {
       },
       diagnostics: {
         phase: "receiving-and-rendering"
+      },
+      control: {
+        commandTarget: "236.6.8.36:6516",
+        commandsSent: 3,
+        enabled: true,
+        mode: "transmit",
+        running: true
       },
       discovery: {
         lastReportSource: "192.0.2.11:6878",

@@ -1,6 +1,7 @@
 import { createHttpApi } from "./api/http-api.js";
 import { ConfigurationError, loadConfig } from "./config/config.js";
 import { createLogger, type Logger } from "./logging/logger.js";
+import { createRadarControl } from "./radar/control.js";
 import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarDiscovery } from "./radar/discovery.js";
 import { resolveRadarInterface } from "./radar/network-interface.js";
@@ -34,6 +35,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   }
 
   const receiver = createRadarReceiver({ config, logger });
+  const control = createRadarControl({ config, logger });
   const decoder = createRadarDecoder({ logger });
   const discovery = createRadarDiscovery({ config, logger });
   const renderer = createRadarImageRenderer({ config, logger });
@@ -60,6 +62,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     } as const;
 
     return {
+      control: control.getStatus(),
       decoder: decoderStatus,
       diagnostics: getRadarStatusDiagnostics({
         decoder: decoderStatus,
@@ -87,6 +90,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
       await discovery.start();
+      await control.start();
       receiver.onPacket((packet) => {
         const result = decoder.decode(packet);
         if (result.ok) {
@@ -109,6 +113,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     },
     async stop(): Promise<void> {
       await receiver.stop();
+      await control.stop();
       await discovery.stop();
       await httpApi.stop();
       logger.info("BlipWatch stopped");
@@ -122,6 +127,13 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   imageSize: config.imageSize,
   logLevel: config.logLevel,
   port: config.port,
+  radarControlEnabled: String(config.radarControlEnabled),
+  radarControlHost: config.radarControlHost,
+  radarControlMode: config.radarControlMode,
+  radarControlPort: config.radarControlPort,
+  radarControlStayAliveIntervalMs: config.radarControlStayAliveIntervalMs,
+  radarControlWakeHost: config.radarControlWakeHost,
+  radarControlWakePort: config.radarControlWakePort,
   radarDiscoveryEnabled: String(config.radarDiscoveryEnabled),
   radarInterface: config.radarInterface,
   radarMulticastGroups: config.radarMulticastGroups.join(","),

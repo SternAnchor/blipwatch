@@ -8,6 +8,13 @@ describe("loadConfig", () => {
       imageSize: 1024,
       logLevel: "info",
       port: 8080,
+      radarControlEnabled: false,
+      radarControlHost: "236.6.8.36",
+      radarControlMode: "wake",
+      radarControlPort: 6516,
+      radarControlStayAliveIntervalMs: 1000,
+      radarControlWakeHost: "236.6.7.5",
+      radarControlWakePort: 6878,
       radarDiscoveryEnabled: true,
       radarInterface: "auto",
       radarMulticastGroups: ["236.6.7.8"],
@@ -33,6 +40,13 @@ describe("loadConfig", () => {
         IMAGE_SIZE: "512",
         LOG_LEVEL: "debug",
         PORT: "9090",
+        RADAR_CONTROL_ENABLED: "true",
+        RADAR_CONTROL_HOST: "236.6.8.36",
+        RADAR_CONTROL_MODE: "transmit",
+        RADAR_CONTROL_PORT: "6516",
+        RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS: "500",
+        RADAR_CONTROL_WAKE_HOST: "236.6.7.5",
+        RADAR_CONTROL_WAKE_PORT: "6878",
         RADAR_DISCOVERY_ENABLED: "false",
         RADAR_INTERFACE: "192.0.2.10",
         RADAR_MULTICAST_GROUPS: "239.2.1.1, 239.2.1.2",
@@ -46,6 +60,13 @@ describe("loadConfig", () => {
       imageSize: 512,
       logLevel: "debug",
       port: 9090,
+      radarControlEnabled: true,
+      radarControlHost: "236.6.8.36",
+      radarControlMode: "transmit",
+      radarControlPort: 6516,
+      radarControlStayAliveIntervalMs: 500,
+      radarControlWakeHost: "236.6.7.5",
+      radarControlWakePort: 6878,
       radarDiscoveryEnabled: false,
       radarInterface: "192.0.2.10",
       radarMulticastGroups: ["239.2.1.1", "239.2.1.2"],
@@ -67,6 +88,21 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ RADAR_UDP_PORT: "70000" })).toThrow("RADAR_UDP_PORT must be between 0 and 65535");
     expect(() => loadConfig({ RADAR_DISCOVERY_ENABLED: "maybe" })).toThrow(
       'RADAR_DISCOVERY_ENABLED must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ RADAR_CONTROL_ENABLED: "maybe" })).toThrow(
+      'RADAR_CONTROL_ENABLED must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ RADAR_CONTROL_MODE: "blast" })).toThrow(
+      'RADAR_CONTROL_MODE must be one of: wake, transmit; received "blast"'
+    );
+    expect(() => loadConfig({ RADAR_CONTROL_HOST: "not-ip" })).toThrow(
+      'RADAR_CONTROL_HOST must contain an IPv4 address; received "not-ip"'
+    );
+    expect(() => loadConfig({ RADAR_CONTROL_WAKE_HOST: "not-ip" })).toThrow(
+      'RADAR_CONTROL_WAKE_HOST must contain an IPv4 address; received "not-ip"'
+    );
+    expect(() => loadConfig({ RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS: "0" })).toThrow(
+      "RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS must be greater than 0"
     );
     expect(() => loadConfig({ LOG_LEVEL: "trace" })).toThrow('LOG_LEVEL must be one of: debug, info; received "trace"');
     expect(() => loadConfig({ RADAR_INTERFACE: "   " })).toThrow("RADAR_INTERFACE must not be empty");

@@ -18,7 +18,7 @@ Current limitations:
 
 - Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
-- Passive Navico report discovery is implemented, but active wake, standby, transmit, and range/control commands are not sent by BlipWatch.
+- Passive Navico report discovery is implemented. Active wake/transmit control is available as an explicit opt-in diagnostic path and is disabled by default.
 - Replay storage is in memory only and is lost on restart.
 - The HTTP API is intentionally minimal and unauthenticated.
 - Docker and npm publishing are configured through GitHub Actions using Actions secret `NPM_TOKEN`.
@@ -45,7 +45,8 @@ Known protocol gaps:
 
 - Confirm the real HALO report payload fields for model, serial, operating state, and data endpoints.
 - Confirm the spoke multicast group/port used by the available HALO hardware after discovery or wake.
-- Decide whether BlipWatch should implement opt-in active wake/standby/transmit commands in a later phase.
+- Confirm the active control destination reported by the available HALO hardware before relying on transmit control outside diagnostic testing.
+- Add standby, range, gain, and other control commands after the wake/transmit path has been validated safely.
 - Add sanitized real packet fixtures once hardware traffic is captured.
 
 ## Requirements
@@ -171,6 +172,34 @@ npm run dev
 
 Debug logs should help identify UDP bind status, discovery report bind/join status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
 
+### Optional HALO Wake/Transmit Control
+
+Active control is disabled by default because it can change radar operating state. Only enable it when the radar can transmit safely and you have confirmed the vessel/test area is appropriate.
+
+Wake the radar without requesting transmit:
+
+```bash
+RADAR_CONTROL_ENABLED=true \
+RADAR_CONTROL_MODE=wake \
+RADAR_INTERFACE=auto \
+npm run dev
+```
+
+Request transmit and keep the HALO active with periodic stay-alive commands:
+
+```bash
+RADAR_CONTROL_ENABLED=true \
+RADAR_CONTROL_MODE=transmit \
+RADAR_CONTROL_HOST=236.6.8.36 \
+RADAR_CONTROL_PORT=6516 \
+RADAR_CONTROL_WAKE_HOST=236.6.7.5 \
+RADAR_CONTROL_WAKE_PORT=6878 \
+RADAR_INTERFACE=auto \
+npm run dev
+```
+
+The current control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit and stay-alive commands to `RADAR_CONTROL_HOST:RADAR_CONTROL_PORT` when `RADAR_CONTROL_MODE=transmit`. Control state, command counts, last command, and any socket errors are exposed through `/radar/status` and the root dashboard.
+
 ### Capture Radar Traffic
 
 Packet captures are the most useful artifact when hardware is available but decoder work needs to continue later. Save captures in a private location first, then sanitize or trim them before committing fixtures.
@@ -200,8 +229,8 @@ Current protocol notes:
 - `RADAR_INTERFACE=auto` selects a likely non-virtual IPv4 interface before joining multicast groups. Set it to a concrete local address if auto-selection picks the wrong network.
 - `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
-- Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; it does not send wake, standby, transmit, or control commands.
-- Real HALO control ports and exact report payload fields are still being confirmed.
+- Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; active wake/transmit commands require `RADAR_CONTROL_ENABLED=true`.
+- Real HALO control ports and exact report payload fields are still being confirmed. Override `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` if discovery or packet capture shows a different command endpoint.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
 - The initial Navico/HALO frame decoder is based on high-level packet structure documented in the GPL-compatible OpenCPN `radar_pi` Navico receiver: an 8-byte frame header followed by 24-byte scan-line headers and packed 4-bit return samples. It currently decodes the first structurally valid scan line from a packet.
@@ -230,6 +259,7 @@ Troubleshooting decode failures or blank images:
 - If `receiver.packetsReceived` increases but `decoder.packetsRejected` also increases, save a short sanitized replay payload for decoder work.
 - If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/radar/status` and `/radar/latest.json` from the same test window.
 - If `/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
+- If the radar remains in standby, try the opt-in wake mode first, then transmit mode only when it is safe for the radar to radiate.
 
 ### Replay Saved UDP Payloads
 
@@ -265,7 +295,14 @@ BlipWatch is configured through environment variables.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP API port. |
-| `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. No active wake or transmit commands are sent. |
+| `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
+| `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |
+| `RADAR_CONTROL_MODE` | `wake` | Active control mode. Use `wake` to wake only or `transmit` to request transmit plus stay-alive. |
+| `RADAR_CONTROL_WAKE_HOST` | `236.6.7.5` | IPv4 destination for the Navico wake command. |
+| `RADAR_CONTROL_WAKE_PORT` | `6878` | UDP destination port for the Navico wake command. |
+| `RADAR_CONTROL_HOST` | `236.6.8.36` | IPv4 destination for transmit and stay-alive commands. Override when discovery or capture shows a different command endpoint. |
+| `RADAR_CONTROL_PORT` | `6516` | UDP destination port for transmit and stay-alive commands. |
+| `RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS` | `1000` | Interval between transmit-mode stay-alive command cycles. |
 | `RADAR_INTERFACE` | `auto` | Local interface address used for UDP radar packet binding, or `auto` to choose a likely hardware interface. |
 | `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |

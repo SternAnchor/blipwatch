@@ -15,6 +15,19 @@ export interface RadarDecoderStatus {
   readonly packetsRejected: number;
 }
 
+export interface RadarControlStatus {
+  readonly commandTarget: string;
+  readonly commandsSent: number;
+  readonly enabled: boolean;
+  readonly lastCommandAt: string | null;
+  readonly lastCommandName: string | null;
+  readonly lastError: string | null;
+  readonly mode: string;
+  readonly running: boolean;
+  readonly stayAliveIntervalMs: number;
+  readonly wakeTarget: string;
+}
+
 export interface RadarDiscoveryRadar {
   readonly command: string;
   readonly dataEndpoint: string | null;
@@ -67,6 +80,7 @@ export interface RadarStatusDiagnostics {
 }
 
 export interface RadarStatus {
+  readonly control: RadarControlStatus;
   readonly decoder: RadarDecoderStatus;
   readonly diagnostics: RadarStatusDiagnostics;
   readonly discovery: RadarDiscoveryStatus;

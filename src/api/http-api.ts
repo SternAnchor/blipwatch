@@ -438,6 +438,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <div class="stat"><span>Interface</span><strong id="interface">-</strong></div>
               <div class="stat"><span>Image Group</span><strong id="image-group">-</strong></div>
               <div class="stat"><span>Report Group</span><strong id="report-group">-</strong></div>
+              <div class="stat"><span>Control</span><strong id="control">-</strong></div>
+              <div class="stat"><span>Commands Sent</span><strong id="commands">0</strong></div>
             </div>
             <div>
               <div class="subtle">Next Actions</div>
@@ -464,6 +466,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const actions = document.getElementById("actions");
       const rawStatus = document.getElementById("raw-status");
       const fields = {
+        commands: document.getElementById("commands"),
+        control: document.getElementById("control"),
         decoded: document.getElementById("decoded"),
         imageGroup: document.getElementById("image-group"),
         interface: document.getElementById("interface"),
@@ -499,6 +503,13 @@ const renderDashboardHtml = (): string => `<!doctype html>
           );
           setText(fields.imageGroup, (status.receiver?.multicastGroups ?? []).join(", ") || "-");
           setText(fields.reportGroup, status.discovery?.multicastGroup);
+          setText(
+            fields.control,
+            status.control?.enabled
+              ? (status.control?.running ? status.control?.mode : "enabled")
+              : "disabled"
+          );
+          setText(fields.commands, status.control?.commandsSent);
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {
             const item = document.createElement("li");
             item.textContent = action;

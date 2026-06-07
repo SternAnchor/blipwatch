@@ -1,11 +1,19 @@
 import { isIP } from "node:net";
 
 export type LogVerbosity = "debug" | "info";
+export type RadarControlMode = "wake" | "transmit";
 
 const DEFAULTS = {
   imageSize: 1024,
   logLevel: "info",
   port: 8080,
+  radarControlEnabled: false,
+  radarControlHost: "236.6.8.36",
+  radarControlMode: "wake",
+  radarControlPort: 6516,
+  radarControlStayAliveIntervalMs: 1000,
+  radarControlWakeHost: "236.6.7.5",
+  radarControlWakePort: 6878,
   radarDiscoveryEnabled: true,
   radarInterface: "auto",
   radarMulticastGroups: ["236.6.7.8"],
@@ -20,6 +28,13 @@ export interface BlipWatchConfig {
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
   readonly port: number;
+  readonly radarControlEnabled: boolean;
+  readonly radarControlHost: string;
+  readonly radarControlMode: RadarControlMode;
+  readonly radarControlPort: number;
+  readonly radarControlStayAliveIntervalMs: number;
+  readonly radarControlWakeHost: string;
+  readonly radarControlWakePort: number;
   readonly radarDiscoveryEnabled: boolean;
   readonly radarInterface: string;
   readonly radarMulticastGroups: readonly string[];
@@ -41,6 +56,21 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
+  radarControlEnabled: parseBoolean(env.RADAR_CONTROL_ENABLED, "RADAR_CONTROL_ENABLED", DEFAULTS.radarControlEnabled),
+  radarControlHost: parseIpv4Address(env.RADAR_CONTROL_HOST, "RADAR_CONTROL_HOST", DEFAULTS.radarControlHost),
+  radarControlMode: parseRadarControlMode(env.RADAR_CONTROL_MODE),
+  radarControlPort: parsePort(env.RADAR_CONTROL_PORT, "RADAR_CONTROL_PORT", DEFAULTS.radarControlPort),
+  radarControlStayAliveIntervalMs: parsePositiveInteger(
+    env.RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS,
+    "RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS",
+    DEFAULTS.radarControlStayAliveIntervalMs
+  ),
+  radarControlWakeHost: parseIpv4Address(
+    env.RADAR_CONTROL_WAKE_HOST,
+    "RADAR_CONTROL_WAKE_HOST",
+    DEFAULTS.radarControlWakeHost
+  ),
+  radarControlWakePort: parsePort(env.RADAR_CONTROL_WAKE_PORT, "RADAR_CONTROL_WAKE_PORT", DEFAULTS.radarControlWakePort),
   radarDiscoveryEnabled: parseBoolean(env.RADAR_DISCOVERY_ENABLED, "RADAR_DISCOVERY_ENABLED", DEFAULTS.radarDiscoveryEnabled),
   radarInterface: parseNonEmptyString(env.RADAR_INTERFACE, "RADAR_INTERFACE", DEFAULTS.radarInterface),
   radarMulticastGroups: parseMulticastGroups(env.RADAR_MULTICAST_GROUPS),
@@ -121,6 +151,18 @@ const parseLogLevel = (value: string | undefined): LogVerbosity => {
   throw new ConfigurationError(`LOG_LEVEL must be one of: debug, info; received "${value}"`);
 };
 
+const parseRadarControlMode = (value: string | undefined): RadarControlMode => {
+  if (value === undefined || value === "") {
+    return DEFAULTS.radarControlMode;
+  }
+
+  if (value === "wake" || value === "transmit") {
+    return value;
+  }
+
+  throw new ConfigurationError(`RADAR_CONTROL_MODE must be one of: wake, transmit; received "${value}"`);
+};
+
 const parseNonEmptyString = (value: string | undefined, name: string, defaultValue: string): string => {
   if (value === undefined) {
     return defaultValue;
@@ -152,6 +194,15 @@ const parseMulticastGroup = (value: string | undefined, name: string, defaultVal
   const parsed = parseNonEmptyString(value, name, defaultValue);
   if (!isIpv4MulticastAddress(parsed)) {
     throw new ConfigurationError(`${name} must contain an IPv4 multicast address; received "${parsed}"`);
+  }
+
+  return parsed;
+};
+
+const parseIpv4Address = (value: string | undefined, name: string, defaultValue: string): string => {
+  const parsed = parseNonEmptyString(value, name, defaultValue);
+  if (isIP(parsed) !== 4) {
+    throw new ConfigurationError(`${name} must contain an IPv4 address; received "${parsed}"`);
   }
 
   return parsed;
