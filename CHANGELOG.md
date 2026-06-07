@@ -1,3 +1,9 @@
+## [1.1.0-develop.7](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.6...v1.1.0-develop.7) (2026-06-07)
+
+### Features
+
+* add passive Navico discovery listener ([2d38bb1](https://github.com/SternAnchor/blipwatch/commit/2d38bb1ba11c399ed6f8345044441df36936de34)), closes [#54](https://github.com/SternAnchor/blipwatch/issues/54)
+
 ## [1.1.0-develop.6](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.5...v1.1.0-develop.6) (2026-06-07)
 
 ### Features
