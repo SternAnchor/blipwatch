@@ -1,3 +1,9 @@
+## [1.1.0-develop.1](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.5...v1.1.0-develop.1) (2026-06-07)
+
+### Features
+
+* include content length for PNG responses ([f143a9f](https://github.com/SternAnchor/blipwatch/commit/f143a9fd61d41cb46abd30ab26d688d93875a2b1)), closes [#41](https://github.com/SternAnchor/blipwatch/issues/41)
+
 ## [1.0.1-develop.5](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.4...v1.0.1-develop.5) (2026-06-07)
 
 ### Bug Fixes
