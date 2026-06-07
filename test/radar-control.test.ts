@@ -6,6 +6,9 @@ import { createRadarControl, navicoControlCommands } from "../src/radar/control.
 import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
   imageSize: 1024,
   logLevel: "debug",
   port: 8080,

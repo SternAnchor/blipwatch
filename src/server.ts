@@ -1,3 +1,4 @@
+import { createCalibrationCapture } from "./calibration/calibration-capture.js";
 import { createHttpApi } from "./api/http-api.js";
 import { ConfigurationError, loadConfig } from "./config/config.js";
 import { createLogger, type Logger } from "./logging/logger.js";
@@ -96,6 +97,13 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       renderer: rendererStatus
     };
   };
+  const calibrationCapture = createCalibrationCapture({
+    config,
+    logger,
+    radarStatus: getRadarStatus,
+    renderer,
+    replayBuffer
+  });
   const httpApi = createHttpApi({ config, logger, radarControl: control, radarStatus: getRadarStatus, renderer, replayBuffer });
 
   return {
@@ -112,6 +120,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       await httpApi.start();
       await discovery.start();
       await control.start();
+      await calibrationCapture.start();
       receiver.onPacket((packet) => {
         const result = decoder.decode(packet);
         if (result.ok) {
@@ -133,6 +142,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s interval=${replayBuffer.frameIntervalMs}ms`);
     },
     async stop(): Promise<void> {
+      calibrationCapture.stop();
       await receiver.stop();
       await control.stop();
       await discovery.stop();
@@ -196,6 +206,9 @@ export { ConfigurationError };
 
 const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, number | string> => ({
   imageSize: config.imageSize,
+  calibrationCaptureDirectory: config.calibrationCaptureDirectory,
+  calibrationCaptureEnabled: String(config.calibrationCaptureEnabled),
+  calibrationCaptureIntervalMs: config.calibrationCaptureIntervalMs,
   logLevel: config.logLevel,
   port: config.port,
   radarControlEnabled: String(config.radarControlEnabled),

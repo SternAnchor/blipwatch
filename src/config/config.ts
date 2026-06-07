@@ -4,6 +4,9 @@ export type LogVerbosity = "debug" | "info";
 export type RadarControlMode = "wake" | "transmit";
 
 const DEFAULTS = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10_000,
   imageSize: 1024,
   logLevel: "info",
   port: 8080,
@@ -26,6 +29,9 @@ const DEFAULTS = {
 } as const;
 
 export interface BlipWatchConfig {
+  readonly calibrationCaptureDirectory: string;
+  readonly calibrationCaptureEnabled: boolean;
+  readonly calibrationCaptureIntervalMs: number;
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
   readonly port: number;
@@ -55,6 +61,21 @@ export class ConfigurationError extends Error {
 }
 
 export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
+  calibrationCaptureDirectory: parseNonEmptyString(
+    env.CALIBRATION_CAPTURE_DIRECTORY,
+    "CALIBRATION_CAPTURE_DIRECTORY",
+    DEFAULTS.calibrationCaptureDirectory
+  ),
+  calibrationCaptureEnabled: parseBoolean(
+    env.CALIBRATION_CAPTURE_ENABLED,
+    "CALIBRATION_CAPTURE_ENABLED",
+    DEFAULTS.calibrationCaptureEnabled
+  ),
+  calibrationCaptureIntervalMs: parsePositiveInteger(
+    env.CALIBRATION_CAPTURE_INTERVAL_MS,
+    "CALIBRATION_CAPTURE_INTERVAL_MS",
+    DEFAULTS.calibrationCaptureIntervalMs
+  ),
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),

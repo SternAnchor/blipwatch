@@ -246,6 +246,7 @@ Capture checklist for future decoder work:
 - Laptop interface name and IP address.
 - Radar source IP address and UDP source/destination ports.
 - Whether traffic is broadcast, multicast, or unicast.
+- Chartplotter screenshot or photo from the same time window when tuning render calibration.
 - Short pcap file with timestamps preserved.
 - Debug log excerpt from the same capture window.
 
@@ -263,6 +264,19 @@ Troubleshooting decode failures or blank images:
 - If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/api/radar/status` and `/api/radar/latest.json` from the same test window.
 - If `/api/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
 - If the radar remains in standby, try the opt-in wake mode first, then transmit mode only when it is safe for the radar to radiate.
+
+### Calibration Capture
+
+Enable calibration capture when comparing BlipWatch output with chartplotter imagery. This writes timestamped bundles containing the latest rendered PNG, render metadata, radar status, replay metadata, replay frame list, and a manifest. Pair each bundle with a chartplotter screenshot or photo captured at the same moment.
+
+```bash
+CALIBRATION_CAPTURE_ENABLED=true \
+CALIBRATION_CAPTURE_DIRECTORY=captures/calibration \
+CALIBRATION_CAPTURE_INTERVAL_MS=10000 \
+npm start
+```
+
+Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
 
 ### Replay Saved UDP Payloads
 
@@ -297,6 +311,9 @@ BlipWatch is configured through environment variables.
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| `CALIBRATION_CAPTURE_ENABLED` | `false` | Enables periodic calibration bundles for chartplotter/render comparison. |
+| `CALIBRATION_CAPTURE_DIRECTORY` | `captures/calibration` | Directory where timestamped calibration bundles are written. |
+| `CALIBRATION_CAPTURE_INTERVAL_MS` | `10000` | Interval between calibration bundle captures when enabled. |
 | `PORT` | `8080` | HTTP API port. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
 | `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |

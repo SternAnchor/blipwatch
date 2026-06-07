@@ -5,6 +5,9 @@ import { ConfigurationError, loadConfig } from "../src/config/config.js";
 describe("loadConfig", () => {
   it("uses 1.0.0 defaults", () => {
     expect(loadConfig({})).toEqual({
+      calibrationCaptureDirectory: "captures/calibration",
+      calibrationCaptureEnabled: false,
+      calibrationCaptureIntervalMs: 10000,
       imageSize: 1024,
       logLevel: "info",
       port: 8080,
@@ -38,6 +41,9 @@ describe("loadConfig", () => {
   it("uses valid environment overrides", () => {
     expect(
       loadConfig({
+        CALIBRATION_CAPTURE_DIRECTORY: "tmp/calibration",
+        CALIBRATION_CAPTURE_ENABLED: "true",
+        CALIBRATION_CAPTURE_INTERVAL_MS: "5000",
         IMAGE_SIZE: "512",
         LOG_LEVEL: "debug",
         PORT: "9090",
@@ -59,6 +65,9 @@ describe("loadConfig", () => {
         REPLAY_RETENTION_SECONDS: "60"
       })
     ).toEqual({
+      calibrationCaptureDirectory: "tmp/calibration",
+      calibrationCaptureEnabled: true,
+      calibrationCaptureIntervalMs: 5000,
       imageSize: 512,
       logLevel: "debug",
       port: 9090,
@@ -88,6 +97,12 @@ describe("loadConfig", () => {
 
   it("rejects invalid ranges and enum values", () => {
     expect(() => loadConfig({ IMAGE_SIZE: "0" })).toThrow("IMAGE_SIZE must be greater than 0");
+    expect(() => loadConfig({ CALIBRATION_CAPTURE_INTERVAL_MS: "0" })).toThrow(
+      "CALIBRATION_CAPTURE_INTERVAL_MS must be greater than 0"
+    );
+    expect(() => loadConfig({ CALIBRATION_CAPTURE_DIRECTORY: "   " })).toThrow(
+      "CALIBRATION_CAPTURE_DIRECTORY must not be empty"
+    );
     expect(() => loadConfig({ RADAR_UDP_PORT: "70000" })).toThrow("RADAR_UDP_PORT must be between 0 and 65535");
     expect(() => loadConfig({ RADAR_DISCOVERY_ENABLED: "maybe" })).toThrow(
       'RADAR_DISCOVERY_ENABLED must be one of: true, false, 1, 0; received "maybe"'

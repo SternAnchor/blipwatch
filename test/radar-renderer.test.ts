@@ -8,6 +8,9 @@ import { createRadarImageRenderer } from "../src/radar/renderer.js";
 import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
   imageSize: 32,
   logLevel: "debug",
   port: 8080,

@@ -7,6 +7,9 @@ import { createReplayBuffer } from "../src/replay/replay-buffer.js";
 import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
   imageSize: 16,
   logLevel: "debug",
   port: 8080,
