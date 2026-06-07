@@ -3,7 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: ["dist/**", "coverage/**", "node_modules/**"]
+    ignores: ["commitlint.config.cjs", "eslint.config.js", "dist/**", "coverage/**", "node_modules/**"]
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -21,7 +21,10 @@ export default [
     }
   },
   {
-    files: ["*.js"],
-    ...tseslint.configs.disableTypeChecked
+    files: ["*.cjs", "*.js"],
+    ...tseslint.configs.disableTypeChecked,
+    rules: {
+      "no-undef": "off"
+    }
   }
 ];
