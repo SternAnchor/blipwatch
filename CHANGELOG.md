@@ -1,3 +1,9 @@
+## [1.1.0-develop.8](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.7...v1.1.0-develop.8) (2026-06-07)
+
+### Bug Fixes
+
+* join Navico image multicast by default ([22f733f](https://github.com/SternAnchor/blipwatch/commit/22f733fc3c9ab3adaf32ede0e2ea3a032a0b5b96)), closes [#55](https://github.com/SternAnchor/blipwatch/issues/55)
+
 ## [1.1.0-develop.7](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.6...v1.1.0-develop.7) (2026-06-07)
 
 ### Features
