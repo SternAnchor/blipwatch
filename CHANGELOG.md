@@ -1,3 +1,9 @@
+## [1.1.0-develop.14](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.13...v1.1.0-develop.14) (2026-06-07)
+
+### Bug Fixes
+
+* parse HALO location report endpoints ([5230e69](https://github.com/SternAnchor/blipwatch/commit/5230e692b58961e663ad9cd72c155fb61728dc60)), closes [#61](https://github.com/SternAnchor/blipwatch/issues/61)
+
 ## [1.1.0-develop.13](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.12...v1.1.0-develop.13) (2026-06-07)
 
 ### Bug Fixes
