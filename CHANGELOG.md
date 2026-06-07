@@ -1,3 +1,9 @@
+## [1.1.0-develop.3](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.2...v1.1.0-develop.3) (2026-06-07)
+
+### Features
+
+* add HALO multicast receiver configuration ([2358db1](https://github.com/SternAnchor/blipwatch/commit/2358db1cc2db6eea36fa57606f6d19e9a97500c9)), closes [#48](https://github.com/SternAnchor/blipwatch/issues/48)
+
 ## [1.1.0-develop.2](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.1...v1.1.0-develop.2) (2026-06-07)
 
 ### Features
