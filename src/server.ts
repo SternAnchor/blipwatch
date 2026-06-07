@@ -1,5 +1,5 @@
 import { createHttpApi } from "./api/http-api.js";
-import { loadConfig } from "./config/config.js";
+import { ConfigurationError, loadConfig } from "./config/config.js";
 import { createLogger, type Logger } from "./logging/logger.js";
 import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
@@ -12,9 +12,9 @@ export interface BlipWatchServer {
   stop(): Promise<void>;
 }
 
-export const createBlipWatchServer = (): BlipWatchServer => {
-  const config = loadConfig(process.env);
-  const logger = createLogger(config.logLevel);
+export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): BlipWatchServer => {
+  const config = loadConfig(env);
+  const logger = createLogger({ level: config.logLevel });
   const receiver = createRadarReceiver({ config, logger });
   const decoder = createRadarDecoder({ logger });
   const renderer = createRadarImageRenderer({ config, logger });
@@ -24,10 +24,13 @@ export const createBlipWatchServer = (): BlipWatchServer => {
   return {
     logger,
     async start(): Promise<void> {
+      logger.debug(`loaded config: ${JSON.stringify(redactConfig(config))}`);
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
       receiver.start();
       logger.debug(`decoder ready: ${decoder.name}`);
+      logger.debug(`renderer ready: ${renderer.imageSize}px`);
+      logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s`);
     },
     async stop(): Promise<void> {
       receiver.stop();
@@ -36,3 +39,15 @@ export const createBlipWatchServer = (): BlipWatchServer => {
     }
   };
 };
+
+export { ConfigurationError };
+
+const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, number | string> => ({
+  imageSize: config.imageSize,
+  logLevel: config.logLevel,
+  port: config.port,
+  radarInterface: config.radarInterface,
+  radarUdpPort: config.radarUdpPort,
+  replayFrameIntervalMs: config.replayFrameIntervalMs,
+  replayRetentionSeconds: config.replayRetentionSeconds
+});

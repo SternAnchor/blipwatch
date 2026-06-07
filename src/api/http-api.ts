@@ -18,12 +18,15 @@ interface HttpApiOptions {
   readonly replayBuffer: ReplayBuffer;
 }
 
-export const createHttpApi = ({ config, logger }: HttpApiOptions): HttpApi => {
+export const createHttpApi = ({ config, logger, renderer, replayBuffer }: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
 
   return {
     async start(): Promise<void> {
       server = createServer((_request, response) => {
+        logger.debug(
+          `HTTP request received; renderer=${renderer.imageSize}px replayRetention=${replayBuffer.retentionSeconds}s`
+        );
         response.writeHead(200, { "content-type": "application/json" });
         response.end(JSON.stringify({ ok: true, service: "blipwatch" }));
       });
@@ -32,6 +35,7 @@ export const createHttpApi = ({ config, logger }: HttpApiOptions): HttpApi => {
         server?.once("error", reject);
         server?.listen(config.port, () => {
           logger.info(`HTTP API listening on :${config.port}`);
+          logger.debug("HTTP API startup complete");
           resolve();
         });
       });
@@ -51,6 +55,7 @@ export const createHttpApi = ({ config, logger }: HttpApiOptions): HttpApi => {
           resolve();
         });
       });
+      logger.debug("HTTP API stopped");
       server = undefined;
     }
   };

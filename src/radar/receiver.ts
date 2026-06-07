@@ -14,6 +14,7 @@ interface RadarReceiverOptions {
 export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): RadarReceiver => ({
   start(): void {
     logger.info(`radar receiver placeholder ready on ${config.radarInterface}:${config.radarUdpPort}`);
+    logger.debug("radar receiver packet diagnostics enabled");
   },
   stop(): void {
     logger.debug("radar receiver stopped");
