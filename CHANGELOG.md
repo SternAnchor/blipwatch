@@ -1,3 +1,9 @@
+## [1.1.0-develop.16](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.15...v1.1.0-develop.16) (2026-06-07)
+
+### Bug Fixes
+
+* reflect observed radar operating state ([5911711](https://github.com/SternAnchor/blipwatch/commit/591171137d3d9b0f4a5bbe5caa8649cbc5933e87)), closes [#63](https://github.com/SternAnchor/blipwatch/issues/63)
+
 ## [1.1.0-develop.15](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.14...v1.1.0-develop.15) (2026-06-07)
 
 ### Features
