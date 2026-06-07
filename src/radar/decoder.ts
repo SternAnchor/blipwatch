@@ -1,4 +1,5 @@
 import type { Logger } from "../logging/logger.js";
+import { decodeNavicoHaloFrame } from "./halo-decoder.js";
 import { classifyRadarPacket } from "./packet-classifier.js";
 import type { RadarPacket } from "./receiver.js";
 
@@ -75,6 +76,11 @@ const decodePacket = (data: Buffer, receivedAt: Date | undefined): RadarDecodeRe
     return failure("empty-packet", "packet is empty");
   }
 
+  const classification = classifyRadarPacket(data);
+  if (classification.kind === "navico-halo-frame") {
+    return decodeNavicoHaloFrame(data, receivedAt);
+  }
+
   if (data.byteLength < PLACEHOLDER_HEADER_LENGTH) {
     return failure(
       "incomplete-packet",
@@ -84,7 +90,6 @@ const decodePacket = (data: Buffer, receivedAt: Date | undefined): RadarDecodeRe
 
   const magic = data.subarray(0, 4).toString("ascii");
   if (magic !== PLACEHOLDER_MAGIC) {
-    const classification = classifyRadarPacket(data);
     if (classification.kind === "halo-candidate") {
       return failure("unsupported-packet", `HALO packet candidate decoding is not implemented: ${classification.reason}`);
     }

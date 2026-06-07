@@ -169,6 +169,7 @@ Current protocol notes:
 - Real HALO multicast groups, control ports, and spoke packet layout are still being confirmed.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
+- The initial Navico/HALO frame decoder is based on high-level packet structure documented in the GPL-compatible OpenCPN `radar_pi` Navico receiver: an 8-byte frame header followed by 24-byte scan-line headers and packed 4-bit return samples. It currently decodes the first structurally valid scan line from a packet.
 - Keep explicit notes for observed packet sizes, repeated headers, counters, angle-like fields, and intensity-like payload regions.
 
 Capture checklist for future decoder work:

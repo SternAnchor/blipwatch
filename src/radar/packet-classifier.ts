@@ -1,4 +1,4 @@
-export type RadarPacketKind = "empty" | "halo-candidate" | "placeholder-spoke" | "unknown";
+export type RadarPacketKind = "empty" | "halo-candidate" | "navico-halo-frame" | "placeholder-spoke" | "unknown";
 
 export interface RadarPacketClassification {
   readonly kind: RadarPacketKind;
@@ -8,6 +8,8 @@ export interface RadarPacketClassification {
 const PLACEHOLDER_MAGIC = "BWS1";
 const HALO_ASCII_PREFIX = "HALO";
 const HALO_CANDIDATE_MIN_BYTES = 24;
+const FRAME_HEADER_BYTES = 8;
+const NAVICO_LINE_BYTES = 536;
 
 export const classifyRadarPacket = (data: Buffer): RadarPacketClassification => {
   if (data.byteLength === 0) {
@@ -21,6 +23,10 @@ export const classifyRadarPacket = (data: Buffer): RadarPacketClassification => 
 
   if (asciiPrefix === HALO_ASCII_PREFIX) {
     return { kind: "halo-candidate", reason: "starts with HALO ASCII marker" };
+  }
+
+  if (data.byteLength >= FRAME_HEADER_BYTES + NAVICO_LINE_BYTES && (data.byteLength - FRAME_HEADER_BYTES) % NAVICO_LINE_BYTES === 0) {
+    return { kind: "navico-halo-frame", reason: "matches expected Navico/HALO frame and scan-line sizing" };
   }
 
   if (data.byteLength >= HALO_CANDIDATE_MIN_BYTES) {
