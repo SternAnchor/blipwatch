@@ -190,7 +190,8 @@ Request transmit and keep the HALO active with periodic stay-alive commands:
 ```bash
 RADAR_CONTROL_ENABLED=true \
 RADAR_CONTROL_MODE=transmit \
-RADAR_CONTROL_HOST=236.6.8.36 \
+RADAR_CONTROL_HOST=auto \
+RADAR_CONTROL_FALLBACK_HOST=236.6.8.36 \
 RADAR_CONTROL_PORT=6516 \
 RADAR_CONTROL_WAKE_HOST=236.6.7.5 \
 RADAR_CONTROL_WAKE_PORT=6878 \
@@ -198,7 +199,7 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-The current control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit and stay-alive commands to `RADAR_CONTROL_HOST:RADAR_CONTROL_PORT` when `RADAR_CONTROL_MODE=transmit`. Control state, command counts, last command, and any socket errors are exposed through `/radar/status` and the root dashboard.
+The current control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit and stay-alive commands when `RADAR_CONTROL_MODE=transmit`. While control is enabled, BlipWatch repeats the wake/transmit/stay-alive cycle at `RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS` so the radar can transition after discovery reports or delayed network readiness. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, command counts, last command, target source, and any socket errors are exposed through `/radar/status` and the root dashboard.
 
 ### Capture Radar Traffic
 
@@ -230,7 +231,7 @@ Current protocol notes:
 - `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
 - Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; active wake/transmit commands require `RADAR_CONTROL_ENABLED=true`.
-- Real HALO control ports and exact report payload fields are still being confirmed. Override `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` if discovery or packet capture shows a different command endpoint.
+- Real HALO control ports and exact report payload fields are still being confirmed. Keep `RADAR_CONTROL_HOST=auto` to prefer discovered command endpoints, or set `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` explicitly if packet capture shows a different command endpoint.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
 - The initial Navico/HALO frame decoder is based on high-level packet structure documented in the GPL-compatible OpenCPN `radar_pi` Navico receiver: an 8-byte frame header followed by 24-byte scan-line headers and packed 4-bit return samples. It currently decodes the first structurally valid scan line from a packet.
@@ -300,9 +301,10 @@ BlipWatch is configured through environment variables.
 | `RADAR_CONTROL_MODE` | `wake` | Active control mode. Use `wake` to wake only or `transmit` to request transmit plus stay-alive. |
 | `RADAR_CONTROL_WAKE_HOST` | `236.6.7.5` | IPv4 destination for the Navico wake command. |
 | `RADAR_CONTROL_WAKE_PORT` | `6878` | UDP destination port for the Navico wake command. |
-| `RADAR_CONTROL_HOST` | `236.6.8.36` | IPv4 destination for transmit and stay-alive commands. Override when discovery or capture shows a different command endpoint. |
+| `RADAR_CONTROL_HOST` | `auto` | IPv4 destination for transmit and stay-alive commands, or `auto` to use discovery before falling back. |
+| `RADAR_CONTROL_FALLBACK_HOST` | `236.6.8.36` | Fallback IPv4 destination for transmit and stay-alive commands when `RADAR_CONTROL_HOST=auto` and no discovery command endpoint is available. |
 | `RADAR_CONTROL_PORT` | `6516` | UDP destination port for transmit and stay-alive commands. |
-| `RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS` | `1000` | Interval between transmit-mode stay-alive command cycles. |
+| `RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS` | `1000` | Interval between repeated control cycles while active control is enabled. |
 | `RADAR_INTERFACE` | `auto` | Local interface address used for UDP radar packet binding, or `auto` to choose a likely hardware interface. |
 | `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |

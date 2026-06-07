@@ -8,7 +8,8 @@ const DEFAULTS = {
   logLevel: "info",
   port: 8080,
   radarControlEnabled: false,
-  radarControlHost: "236.6.8.36",
+  radarControlFallbackHost: "236.6.8.36",
+  radarControlHost: "auto",
   radarControlMode: "wake",
   radarControlPort: 6516,
   radarControlStayAliveIntervalMs: 1000,
@@ -29,6 +30,7 @@ export interface BlipWatchConfig {
   readonly logLevel: LogVerbosity;
   readonly port: number;
   readonly radarControlEnabled: boolean;
+  readonly radarControlFallbackHost: string;
   readonly radarControlHost: string;
   readonly radarControlMode: RadarControlMode;
   readonly radarControlPort: number;
@@ -57,7 +59,12 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
   radarControlEnabled: parseBoolean(env.RADAR_CONTROL_ENABLED, "RADAR_CONTROL_ENABLED", DEFAULTS.radarControlEnabled),
-  radarControlHost: parseIpv4Address(env.RADAR_CONTROL_HOST, "RADAR_CONTROL_HOST", DEFAULTS.radarControlHost),
+  radarControlFallbackHost: parseIpv4Address(
+    env.RADAR_CONTROL_FALLBACK_HOST,
+    "RADAR_CONTROL_FALLBACK_HOST",
+    DEFAULTS.radarControlFallbackHost
+  ),
+  radarControlHost: parseRadarControlHost(env.RADAR_CONTROL_HOST),
   radarControlMode: parseRadarControlMode(env.RADAR_CONTROL_MODE),
   radarControlPort: parsePort(env.RADAR_CONTROL_PORT, "RADAR_CONTROL_PORT", DEFAULTS.radarControlPort),
   radarControlStayAliveIntervalMs: parsePositiveInteger(
@@ -161,6 +168,18 @@ const parseRadarControlMode = (value: string | undefined): RadarControlMode => {
   }
 
   throw new ConfigurationError(`RADAR_CONTROL_MODE must be one of: wake, transmit; received "${value}"`);
+};
+
+const parseRadarControlHost = (value: string | undefined): string => {
+  if (value === undefined || value === "") {
+    return DEFAULTS.radarControlHost;
+  }
+
+  if (value === "auto") {
+    return value;
+  }
+
+  return parseIpv4Address(value, "RADAR_CONTROL_HOST", DEFAULTS.radarControlFallbackHost);
 };
 
 const parseNonEmptyString = (value: string | undefined, name: string, defaultValue: string): string => {

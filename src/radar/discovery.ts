@@ -158,11 +158,13 @@ export const parseNavicoReport = ({
 
   const status = data[1] === 0xc4 && data.byteLength >= 3 ? data[2] : undefined;
   const strings = extractPrintableStrings(data);
-  const endpoints = extractCandidateEndpoints(data);
+  const endpointTargets = extractCandidateEndpointTargets(data);
+  const endpointAddresses = extractCandidateEndpoints(data);
 
   return {
     command: `0x${(data[1] ?? 0).toString(16).padStart(2, "0")}`,
-    dataEndpoint: endpoints[0] ?? null,
+    commandEndpoint: selectCommandEndpoint(endpointTargets)?.endpoint ?? null,
+    dataEndpoint: endpointAddresses[0] ?? null,
     firstSeenAt: receivedAt.toISOString(),
     lastSeenAt: receivedAt.toISOString(),
     model: strings.find((entry) => /halo|broadband|radar/i.test(entry)) ?? null,
@@ -181,6 +183,7 @@ const mergeRadarReport = (
   next: RadarDiscoveryRadar
 ): RadarDiscoveryRadar => ({
   ...next,
+  commandEndpoint: next.commandEndpoint ?? current?.commandEndpoint ?? null,
   dataEndpoint: next.dataEndpoint ?? current?.dataEndpoint ?? null,
   firstSeenAt: current?.firstSeenAt ?? next.firstSeenAt,
   model: next.model ?? current?.model ?? null,
@@ -227,4 +230,45 @@ const extractCandidateEndpoints = (data: Buffer): readonly string[] => {
   }
 
   return endpoints;
+};
+
+interface CandidateEndpointTarget {
+  readonly endpoint: string;
+  readonly host: string;
+  readonly port: number;
+}
+
+const extractCandidateEndpointTargets = (data: Buffer): readonly CandidateEndpointTarget[] => {
+  const endpoints: CandidateEndpointTarget[] = [];
+
+  for (let index = 0; index <= data.byteLength - 6; index += 1) {
+    const firstOctet = data[index];
+    if (firstOctet === undefined || firstOctet < 224 || firstOctet > 239) {
+      continue;
+    }
+
+    const host = `${data[index]}.${data[index + 1]}.${data[index + 2]}.${data[index + 3]}`;
+    const port = data.readUInt16BE(index + 4);
+    if (port <= 0 || port > 10_000) {
+      continue;
+    }
+
+    endpoints.push({
+      endpoint: `${host}:${port}`,
+      host,
+      port
+    });
+  }
+
+  return endpoints;
+};
+
+const selectCommandEndpoint = (
+  endpoints: readonly CandidateEndpointTarget[]
+): CandidateEndpointTarget | undefined => {
+  return (
+    endpoints.find((endpoint) => endpoint.port === 6516) ??
+    endpoints.find((endpoint) => endpoint.port !== 6678 && endpoint.port !== 6679 && endpoint.port !== 6878) ??
+    endpoints[0]
+  );
 };

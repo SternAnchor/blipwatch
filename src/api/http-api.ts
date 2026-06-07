@@ -506,7 +506,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(
             fields.control,
             status.control?.enabled
-              ? (status.control?.running ? status.control?.mode : "enabled")
+              ? (status.control?.running
+                ? status.control?.mode + "/" + (status.control?.commandTargetSource ?? "unknown")
+                : "enabled")
               : "disabled"
           );
           setText(fields.commands, status.control?.commandsSent);

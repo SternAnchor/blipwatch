@@ -17,6 +17,7 @@ export interface RadarDecoderStatus {
 
 export interface RadarControlStatus {
   readonly commandTarget: string;
+  readonly commandTargetSource: string;
   readonly commandsSent: number;
   readonly enabled: boolean;
   readonly lastCommandAt: string | null;
@@ -30,6 +31,7 @@ export interface RadarControlStatus {
 
 export interface RadarDiscoveryRadar {
   readonly command: string;
+  readonly commandEndpoint: string | null;
   readonly dataEndpoint: string | null;
   readonly firstSeenAt: string;
   readonly lastSeenAt: string;

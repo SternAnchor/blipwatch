@@ -35,7 +35,27 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   }
 
   const receiver = createRadarReceiver({ config, logger });
-  const control = createRadarControl({ config, logger });
+  const control = createRadarControl({
+    commandTargetProvider: () => {
+      const endpoint = discovery.getStatus().radar?.commandEndpoint;
+      if (!endpoint) {
+        return undefined;
+      }
+
+      const [host, port] = endpoint.split(":");
+      if (!host || !port) {
+        return undefined;
+      }
+
+      return {
+        host,
+        port: Number.parseInt(port, 10),
+        source: "discovered"
+      };
+    },
+    config,
+    logger
+  });
   const decoder = createRadarDecoder({ logger });
   const discovery = createRadarDiscovery({ config, logger });
   const renderer = createRadarImageRenderer({ config, logger });
@@ -128,6 +148,7 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   logLevel: config.logLevel,
   port: config.port,
   radarControlEnabled: String(config.radarControlEnabled),
+  radarControlFallbackHost: config.radarControlFallbackHost,
   radarControlHost: config.radarControlHost,
   radarControlMode: config.radarControlMode,
   radarControlPort: config.radarControlPort,

@@ -11,6 +11,7 @@ export interface RadarControl {
 }
 
 export interface RadarControlOptions {
+  readonly commandTargetProvider?: () => CommandTarget | undefined;
   readonly config: BlipWatchConfig;
   readonly logger: Logger;
 }
@@ -34,7 +35,7 @@ type CommandName =
   | "stay-alive-d"
   | "stay-alive-e";
 
-export const createRadarControl = ({ config, logger }: RadarControlOptions): RadarControl => {
+export const createRadarControl = ({ commandTargetProvider, config, logger }: RadarControlOptions): RadarControl => {
   let socket: Socket | undefined;
   let interval: NodeJS.Timeout | undefined;
   let lastCommandAt: Date | undefined;
@@ -60,15 +61,21 @@ export const createRadarControl = ({ config, logger }: RadarControlOptions): Rad
         lastCommandName = name;
         lastError = undefined;
         logger.info(
-          `radar control command sent name=${name} bytes=${payload.toString("hex")} target=${target.host}:${target.port}`
+          `radar control command sent name=${name} bytes=${payload.toString("hex")} target=${target.host}:${target.port} targetSource=${target.source}`
         );
         resolve();
       });
     });
   };
 
+  const sendTransmitOn = async (): Promise<void> => {
+    const target = getCommandTarget(config, commandTargetProvider);
+    await sendCommand("transmit-on-a", COMMAND_TX_ON_A, target);
+    await sendCommand("transmit-on-b", COMMAND_TX_ON_B, target);
+  };
+
   const sendStayAlive = async (): Promise<void> => {
-    const target = getCommandTarget(config);
+    const target = getCommandTarget(config, commandTargetProvider);
     const sequence = stayAliveSequence;
     stayAliveSequence = (stayAliveSequence + 1) % 4;
 
@@ -91,8 +98,10 @@ export const createRadarControl = ({ config, logger }: RadarControlOptions): Rad
 
   return {
     getStatus(): RadarControlStatus {
+      const commandTarget = getCommandTarget(config, commandTargetProvider);
       return {
-        commandTarget: `${config.radarControlHost}:${config.radarControlPort}`,
+        commandTarget: `${commandTarget.host}:${commandTarget.port}`,
+        commandTargetSource: commandTarget.source,
         commandsSent,
         enabled: config.radarControlEnabled,
         lastCommandAt: lastCommandAt?.toISOString() ?? null,
@@ -131,13 +140,14 @@ export const createRadarControl = ({ config, logger }: RadarControlOptions): Rad
         activeSocket.once("error", reject);
         activeSocket.bind(0, config.radarInterface, () => {
           activeSocket.off("error", reject);
+          const commandTarget = getCommandTarget(config, commandTargetProvider);
           try {
             activeSocket.setMulticastInterface(config.radarInterface);
           } catch (error) {
             logger.debug(`radar control multicast interface set skipped: ${String(error)}`);
           }
           logger.info(
-            `radar control enabled mode=${config.radarControlMode} interface=${config.radarInterface} wakeTarget=${config.radarControlWakeHost}:${config.radarControlWakePort} commandTarget=${config.radarControlHost}:${config.radarControlPort}`
+            `radar control enabled mode=${config.radarControlMode} interface=${config.radarInterface} wakeTarget=${config.radarControlWakeHost}:${config.radarControlWakePort} commandTarget=${commandTarget.host}:${commandTarget.port} commandTargetSource=${commandTarget.source}`
           );
           resolve();
         });
@@ -145,13 +155,23 @@ export const createRadarControl = ({ config, logger }: RadarControlOptions): Rad
 
       await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
       if (config.radarControlMode === "transmit") {
-        await sendCommand("transmit-on-a", COMMAND_TX_ON_A, getCommandTarget(config));
-        await sendCommand("transmit-on-b", COMMAND_TX_ON_B, getCommandTarget(config));
+        await sendTransmitOn();
         await sendStayAlive();
-        interval = setInterval(() => {
-          void sendStayAlive();
-        }, config.radarControlStayAliveIntervalMs);
       }
+      interval = setInterval(() => {
+        void (async () => {
+          try {
+            await sendCommand("wake", COMMAND_WAKE, getWakeTarget(config));
+            if (config.radarControlMode === "transmit") {
+              await sendTransmitOn();
+              await sendStayAlive();
+            }
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : String(error);
+            logger.error("radar control cycle failed", error);
+          }
+        })();
+      }, config.radarControlStayAliveIntervalMs);
     },
     async stop(): Promise<void> {
       if (interval) {
@@ -179,20 +199,41 @@ export const createRadarControl = ({ config, logger }: RadarControlOptions): Rad
   };
 };
 
-interface CommandTarget {
+export interface CommandTarget {
   readonly host: string;
   readonly port: number;
+  readonly source: "configured" | "default" | "discovered" | "wake";
 }
 
 const getWakeTarget = (config: BlipWatchConfig): CommandTarget => ({
   host: config.radarControlWakeHost,
-  port: config.radarControlWakePort
+  port: config.radarControlWakePort,
+  source: "wake"
 });
 
-const getCommandTarget = (config: BlipWatchConfig): CommandTarget => ({
-  host: config.radarControlHost,
-  port: config.radarControlPort
-});
+const getCommandTarget = (
+  config: BlipWatchConfig,
+  commandTargetProvider: RadarControlOptions["commandTargetProvider"]
+): CommandTarget => {
+  if (config.radarControlHost !== "auto") {
+    return {
+      host: config.radarControlHost,
+      port: config.radarControlPort,
+      source: "configured"
+    };
+  }
+
+  const discovered = commandTargetProvider?.();
+  if (discovered) {
+    return discovered;
+  }
+
+  return {
+    host: config.radarControlFallbackHost,
+    port: config.radarControlPort,
+    source: "default"
+  };
+};
 
 export const navicoControlCommands = {
   stayAlive: [COMMAND_STAY_ON_A, COMMAND_STAY_ON_B, COMMAND_STAY_ON_C, COMMAND_STAY_ON_D, COMMAND_STAY_ON_E],

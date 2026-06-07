@@ -14,7 +14,7 @@ const remote: RemoteInfo = {
 describe("parseNavicoReport", () => {
   it("extracts conservative metadata from Navico status reports", () => {
     const payload = Buffer.concat([
-      Buffer.from([0x01, 0xc4, 0x01, 0x00, 236, 6, 7, 8]),
+      Buffer.from([0x01, 0xc4, 0x01, 0x00, 236, 6, 7, 8, 0x1a, 0x16, 236, 6, 8, 36, 0x19, 0x74, 0x00]),
       Buffer.from("HALO-123456\0", "ascii")
     ]);
 
@@ -26,6 +26,7 @@ describe("parseNavicoReport", () => {
       })
     ).toMatchObject({
       command: "0xc4",
+      commandEndpoint: "236.6.8.36:6516",
       dataEndpoint: "236.6.7.8",
       firstSeenAt: "2026-06-07T00:00:00.000Z",
       lastSeenAt: "2026-06-07T00:00:00.000Z",

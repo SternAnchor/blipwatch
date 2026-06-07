@@ -11,6 +11,7 @@ const baseConfig: BlipWatchConfig = {
   logLevel: "debug",
   port: 8080,
   radarControlEnabled: false,
+  radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "236.6.8.36",
   radarControlMode: "wake",
   radarControlPort: 6516,

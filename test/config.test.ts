@@ -9,7 +9,8 @@ describe("loadConfig", () => {
       logLevel: "info",
       port: 8080,
       radarControlEnabled: false,
-      radarControlHost: "236.6.8.36",
+      radarControlFallbackHost: "236.6.8.36",
+      radarControlHost: "auto",
       radarControlMode: "wake",
       radarControlPort: 6516,
       radarControlStayAliveIntervalMs: 1000,
@@ -41,6 +42,7 @@ describe("loadConfig", () => {
         LOG_LEVEL: "debug",
         PORT: "9090",
         RADAR_CONTROL_ENABLED: "true",
+        RADAR_CONTROL_FALLBACK_HOST: "236.6.8.37",
         RADAR_CONTROL_HOST: "236.6.8.36",
         RADAR_CONTROL_MODE: "transmit",
         RADAR_CONTROL_PORT: "6516",
@@ -61,6 +63,7 @@ describe("loadConfig", () => {
       logLevel: "debug",
       port: 9090,
       radarControlEnabled: true,
+      radarControlFallbackHost: "236.6.8.37",
       radarControlHost: "236.6.8.36",
       radarControlMode: "transmit",
       radarControlPort: 6516,
@@ -97,6 +100,9 @@ describe("loadConfig", () => {
     );
     expect(() => loadConfig({ RADAR_CONTROL_HOST: "not-ip" })).toThrow(
       'RADAR_CONTROL_HOST must contain an IPv4 address; received "not-ip"'
+    );
+    expect(() => loadConfig({ RADAR_CONTROL_FALLBACK_HOST: "not-ip" })).toThrow(
+      'RADAR_CONTROL_FALLBACK_HOST must contain an IPv4 address; received "not-ip"'
     );
     expect(() => loadConfig({ RADAR_CONTROL_WAKE_HOST: "not-ip" })).toThrow(
       'RADAR_CONTROL_WAKE_HOST must contain an IPv4 address; received "not-ip"'

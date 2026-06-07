@@ -23,6 +23,7 @@ const config: BlipWatchConfig = {
   logLevel: "debug",
   port: 0,
   radarControlEnabled: false,
+  radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "236.6.8.36",
   radarControlMode: "wake",
   radarControlPort: 6516,
@@ -103,6 +104,7 @@ const createReplayBuffer = (): ReplayBuffer => ({
 const radarStatus = (): RadarStatus => ({
   control: {
     commandTarget: "236.6.8.36:6516",
+    commandTargetSource: "configured",
     commandsSent: 3,
     enabled: true,
     lastCommandAt: capturedAt,
@@ -132,6 +134,7 @@ const radarStatus = (): RadarStatus => ({
     multicastGroup: "236.6.7.5",
     radar: {
       command: "0xc4",
+      commandEndpoint: "236.6.8.36:6516",
       dataEndpoint: "236.6.7.8",
       firstSeenAt: capturedAt,
       lastSeenAt: capturedAt,
@@ -230,6 +233,7 @@ describe("HTTP API", () => {
       },
       control: {
         commandTarget: "236.6.8.36:6516",
+        commandTargetSource: "configured",
         commandsSent: 3,
         enabled: true,
         mode: "transmit",
