@@ -16,6 +16,7 @@
     "debug": "LOG_LEVEL=debug tsx watch src/index.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
+    "simulate:radar": "tsx src/sim/radar-simulator.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
