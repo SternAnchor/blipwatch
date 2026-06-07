@@ -1,3 +1,39 @@
+## [1.1.0-develop.1](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.5...v1.1.0-develop.1) (2026-06-07)
+
+### Features
+
+* include content length for PNG responses ([f143a9f](https://github.com/SternAnchor/blipwatch/commit/f143a9fd61d41cb46abd30ab26d688d93875a2b1)), closes [#41](https://github.com/SternAnchor/blipwatch/issues/41)
+
+## [1.0.1-develop.5](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.4...v1.0.1-develop.5) (2026-06-07)
+
+### Bug Fixes
+
+* force close lingering HTTP connections on shutdown ([1f78195](https://github.com/SternAnchor/blipwatch/commit/1f781955fcf013f1b2f78fd1e797f7f789f822fb)), closes [#39](https://github.com/SternAnchor/blipwatch/issues/39)
+
+## [1.0.1-develop.4](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.3...v1.0.1-develop.4) (2026-06-07)
+
+### Bug Fixes
+
+* clarify logger verbosity typing ([0c061da](https://github.com/SternAnchor/blipwatch/commit/0c061da24c61b5fd89b19425148396b55808679f)), closes [#37](https://github.com/SternAnchor/blipwatch/issues/37)
+
+## [1.0.1-develop.3](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.2...v1.0.1-develop.3) (2026-06-07)
+
+### Performance Improvements
+
+* optimize replay buffer trimming ([41d5c90](https://github.com/SternAnchor/blipwatch/commit/41d5c909a28ebe1ec9e303f787761a2b8b03dc38)), closes [#35](https://github.com/SternAnchor/blipwatch/issues/35)
+
+## [1.0.1-develop.2](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.1...v1.0.1-develop.2) (2026-06-07)
+
+### Bug Fixes
+
+* add HTTP server connection limits ([6010ea5](https://github.com/SternAnchor/blipwatch/commit/6010ea51a2eca4eada34719be93e79f8c6f79726)), closes [#34](https://github.com/SternAnchor/blipwatch/issues/34)
+
+## [1.0.1-develop.1](https://github.com/SternAnchor/blipwatch/compare/v1.0.0...v1.0.1-develop.1) (2026-06-07)
+
+### Performance Improvements
+
+* cache radar renderer PNG output ([9407537](https://github.com/SternAnchor/blipwatch/commit/940753757a287bfb5503b55ca5a00e7d2c460c40)), closes [#33](https://github.com/SternAnchor/blipwatch/issues/33)
+
 ## 1.0.0 (2026-06-07)
 
 ### Features

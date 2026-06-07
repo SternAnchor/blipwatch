@@ -1,4 +1,4 @@
-import { createSocket } from "node:dgram";
+import { createSocket, type Socket } from "node:dgram";
 
 import { createPlaceholderSpokePacket } from "./placeholder-fixture.js";
 
@@ -35,22 +35,17 @@ const sleep = async (ms: number): Promise<void> => {
   });
 };
 
-const sendPacket = async (host: string, port: number, packet: Buffer): Promise<void> => {
-  const socket = createSocket("udp4");
-  try {
-    await new Promise<void>((resolve, reject) => {
-      socket.send(packet, port, host, (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+const sendPacket = async (socket: Socket, host: string, port: number, packet: Buffer): Promise<void> => {
+  await new Promise<void>((resolve, reject) => {
+    socket.send(packet, port, host, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
 
-        resolve();
-      });
+      resolve();
     });
-  } finally {
-    socket.close();
-  }
+  });
 };
 
 const run = async (): Promise<void> => {
@@ -65,18 +60,23 @@ const run = async (): Promise<void> => {
     })
   );
 
-  for (let index = 0; index < config.count; index += 1) {
-    const packet = createPlaceholderSpokePacket({
-      angleDegrees: (index * 10) % 360,
-      intensities: [0, 64, 128, 255],
-      rangeMeters: 2000
-    });
-    await sendPacket(config.host, config.port, packet);
-    console.info(JSON.stringify({ bytes: packet.byteLength, event: "simulator_packet_sent", index }));
+  const socket = createSocket("udp4");
+  try {
+    for (let index = 0; index < config.count; index += 1) {
+      const packet = createPlaceholderSpokePacket({
+        angleDegrees: (index * 10) % 360,
+        intensities: [0, 64, 128, 255],
+        rangeMeters: 2000
+      });
+      await sendPacket(socket, config.host, config.port, packet);
+      console.info(JSON.stringify({ bytes: packet.byteLength, event: "simulator_packet_sent", index }));
 
-    if (index < config.count - 1) {
-      await sleep(config.intervalMs);
+      if (index < config.count - 1) {
+        await sleep(config.intervalMs);
+      }
     }
+  } finally {
+    socket.close();
   }
 
   console.info(JSON.stringify({ event: "simulator_finished" }));

@@ -1,26 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createLogger, type LogSink } from "../src/logging/logger.js";
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
-};
+import { createLogger } from "../src/logging/logger.js";
+import { createMemorySink } from "./support/logger.js";
 
 describe("createLogger", () => {
   it("suppresses debug messages at info level", () => {
@@ -42,5 +23,17 @@ describe("createLogger", () => {
 
     expect(messages).toHaveLength(1);
     expect(JSON.parse(messages[0] ?? "{}")).toMatchObject({ level: "debug", message: "visible" });
+  });
+
+  it("emits warn and error messages at info level", () => {
+    const { messages, sink } = createMemorySink();
+    const logger = createLogger({ level: "info", sink });
+
+    logger.warn("careful");
+    logger.error("broken");
+
+    expect(messages).toHaveLength(2);
+    expect(JSON.parse(messages[0] ?? "{}")).toMatchObject({ level: "warn", message: "careful" });
+    expect(JSON.parse(messages[1] ?? "{}")).toMatchObject({ level: "error", message: "broken" });
   });
 });

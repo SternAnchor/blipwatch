@@ -1,4 +1,4 @@
-import type { LogLevel } from "../config/config.js";
+import type { LogVerbosity } from "../config/config.js";
 
 export interface Logger {
   debug(message: string): void;
@@ -15,7 +15,7 @@ export interface LogSink {
 }
 
 export interface LoggerOptions {
-  readonly level: LogLevel;
+  readonly level: LogVerbosity;
   readonly sink?: LogSink;
 }
 

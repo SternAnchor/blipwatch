@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { BlipWatchConfig } from "../src/config/config.js";
-import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import { createRadarReceiver, type RadarPacket, type RadarReceiver } from "../src/radar/receiver.js";
+import { createMemorySink } from "./support/logger.js";
 import { sendUdpPacket } from "./support/udp.js";
 
 const baseConfig: BlipWatchConfig = {
@@ -14,26 +14,6 @@ const baseConfig: BlipWatchConfig = {
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
-};
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
 };
 
 const waitForPacket = (receiver: RadarReceiver): Promise<RadarPacket> =>

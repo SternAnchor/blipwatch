@@ -285,6 +285,7 @@ Branches:
 Release automation:
 
 - Runs validation before publishing.
+- Runs the `CI/CD / Validate` check on pull requests into `develop` and `main`; require this check in branch protection before allowing merges to `main`.
 - Publishes the Node package to npm using Actions secret `NPM_TOKEN` when it is available to the workflow.
 - Publishes Docker images to GitHub Container Registry.
 - Creates GitHub releases and release notes.

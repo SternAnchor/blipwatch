@@ -2,10 +2,10 @@ import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
 
 import type { BlipWatchConfig } from "../src/config/config.js";
-import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import type { RadarSpoke } from "../src/radar/decoder.js";
 import { createRadarImageRenderer } from "../src/radar/renderer.js";
+import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
   imageSize: 32,
@@ -15,26 +15,6 @@ const config: BlipWatchConfig = {
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
-};
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
 };
 
 const readPixel = (image: PNG, x: number, y: number): [number, number, number, number] => {
@@ -91,5 +71,27 @@ describe("createRadarImageRenderer", () => {
     const png = PNG.sync.read(renderer.getLatestPng());
     expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
     expect(messages.some((message) => message.includes("radar spoke rendered angle=90"))).toBe(true);
+  });
+
+  it("caches encoded PNG output until the rendered image changes", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+
+    const emptyPng = renderer.getLatestPng();
+    expect(renderer.getLatestPng()).toBe(emptyPng);
+
+    renderer.applySpoke({
+      angleDegrees: 180,
+      intensities: Uint8Array.from([0, 128, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 3,
+      type: "spoke"
+    });
+
+    const renderedPng = renderer.getLatestPng();
+    expect(renderedPng).not.toBe(emptyPng);
+    expect(renderer.getLatestPng()).toBe(renderedPng);
   });
 });

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { BlipWatchConfig } from "../src/config/config.js";
-import type { LogSink } from "../src/logging/logger.js";
 import { createLogger } from "../src/logging/logger.js";
 import type { RadarImageMetadata } from "../src/radar/renderer.js";
 import { createReplayBuffer } from "../src/replay/replay-buffer.js";
+import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
   imageSize: 16,
@@ -23,26 +23,6 @@ const metadata: RadarImageMetadata = {
   maxIntensity: 255,
   renderState: "ready",
   spokeCount: 1
-};
-
-const createMemorySink = (): { readonly messages: string[]; readonly sink: LogSink } => {
-  const messages: string[] = [];
-  const sink: LogSink = {
-    debug(message: string): void {
-      messages.push(message);
-    },
-    error(message: string): void {
-      messages.push(message);
-    },
-    info(message: string): void {
-      messages.push(message);
-    },
-    warn(message: string): void {
-      messages.push(message);
-    }
-  };
-
-  return { messages, sink };
 };
 
 const frame = (isoTimestamp: string, value: number) => ({
@@ -99,6 +79,18 @@ describe("createReplayBuffer", () => {
       "2026-06-07T00:00:01.000Z",
       "2026-06-07T00:00:04.000Z"
     ]);
+  });
+
+  it("evicts multiple expired frames in one trim pass", () => {
+    const { sink } = createMemorySink();
+    const replay = createReplayBuffer({ config, logger: createLogger({ level: "debug", sink }) });
+
+    replay.captureFrame(frame("2026-06-07T00:00:00.000Z", 1));
+    replay.captureFrame(frame("2026-06-07T00:00:01.000Z", 2));
+    replay.captureFrame(frame("2026-06-07T00:00:02.000Z", 3));
+    replay.captureFrame(frame("2026-06-07T00:00:06.000Z", 4));
+
+    expect(replay.listFrames().map((item) => item.capturedAt)).toEqual(["2026-06-07T00:00:06.000Z"]);
   });
 
   it("returns the closest frame for timestamp lookup", () => {

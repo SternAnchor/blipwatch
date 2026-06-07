@@ -109,7 +109,13 @@ export const createReplayBuffer = ({ config, logger }: ReplayBufferOptions): Rep
 
 const trimFrames = (frames: ReplayFrame[], now: Date, retentionSeconds: number): void => {
   const oldestAllowed = now.getTime() - retentionSeconds * 1000;
-  while (frames.length > 0 && (frames[0]?.capturedAt.getTime() ?? 0) < oldestAllowed) {
-    frames.shift();
+  let cutoff = 0;
+
+  while (cutoff < frames.length && (frames[cutoff]?.capturedAt.getTime() ?? 0) < oldestAllowed) {
+    cutoff += 1;
+  }
+
+  if (cutoff > 0) {
+    frames.splice(0, cutoff);
   }
 };

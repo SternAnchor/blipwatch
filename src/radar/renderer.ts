@@ -37,6 +37,7 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
   let lastFrameAt: Date | undefined;
   let lastSpokeAt: Date | undefined;
   let maxIntensity = 0;
+  let latestPng: Buffer | undefined;
   let spokeCount = 0;
 
   logger.debug(`radar renderer initialized at ${config.imageSize}px`);
@@ -49,6 +50,7 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
         maxIntensity = Math.max(maxIntensity, spoke.maxIntensity);
         lastSpokeAt = spoke.receivedAt ?? new Date();
         lastFrameAt = new Date();
+        latestPng = undefined;
         logger.debug(
           `radar spoke rendered angle=${spoke.angleDegrees} samples=${spoke.sampleCount} maxIntensity=${spoke.maxIntensity}`
         );
@@ -67,7 +69,8 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
       };
     },
     getLatestPng(): Buffer {
-      return PNG.sync.write(image);
+      latestPng ??= PNG.sync.write(image);
+      return latestPng;
     },
     imageSize: config.imageSize
   };
