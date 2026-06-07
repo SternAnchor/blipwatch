@@ -1,3 +1,9 @@
+## [1.1.0-develop.6](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.5...v1.1.0-develop.6) (2026-06-07)
+
+### Features
+
+* decode Navico HALO frame spokes ([4910150](https://github.com/SternAnchor/blipwatch/commit/4910150239c4456b692b15ec5283a96058320eb0)), closes [#51](https://github.com/SternAnchor/blipwatch/issues/51)
+
 ## [1.1.0-develop.5](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.4...v1.1.0-develop.5) (2026-06-07)
 
 ### Features
