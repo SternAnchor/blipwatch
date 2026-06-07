@@ -140,6 +140,7 @@ const radarStatus = (): RadarStatus => ({
       lastSeenAt: capturedAt,
       model: "HALO",
       name: "HALO",
+      reportEndpoint: "236.6.7.9:6679",
       reportType: "0x01",
       serial: "123456",
       sourceAddress: "192.0.2.11",

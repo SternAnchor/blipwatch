@@ -31,21 +31,22 @@ Attempted hardware so far:
 
 - Navico/B&G/Simrad HALO-family radar on the local Ethernet network. Exact model and firmware still need to be recorded from an observed report packet or vessel display.
 - Local laptop interface: macOS wired Ethernet `en7`, address `192.168.15.188`.
+- Observed HALO radar address: `192.168.15.182`, serial/name `129265451`.
 
 Most recent local hardware smoke test:
 
-- BlipWatch started successfully on `192.168.15.188`.
-- Passive discovery joined `236.6.7.5:6878`.
-- Radar spoke receiver bound `192.168.15.188:6678`.
-- `/radar/status` reported both listeners running.
-- No discovery reports or spoke packets arrived during the passive sample window.
-- macOS denied unprivileged `tcpdump` access to `/dev/bpf*` from this process; use a local terminal with `sudo tcpdump` or Wireshark for privileged capture.
+- BlipWatch started successfully on `192.168.15.188` with active control explicitly enabled.
+- Passive discovery joined `236.6.7.5:6878` and parsed `01b2` location reports from `192.168.15.182`.
+- Discovery reported primary data endpoint `236.6.7.8:6678`, command endpoint `236.6.7.10:6680`, and report endpoint `236.6.7.9:6679`.
+- Active transmit control switched from fallback to the discovered command endpoint after the first location report.
+- Radar spoke receiver bound `0.0.0.0:6678` with multicast interface `192.168.15.188`.
+- `/radar/status` reached `receiving-and-rendering` with 978 decoded spokes, 980 received packets, and `imageAvailable=true`.
+- `GET /radar/latest.png` returned a 1024x1024 rendered radar image with real returns.
 
 Known protocol gaps:
 
-- Confirm the real HALO report payload fields for model, serial, operating state, and data endpoints.
-- Confirm the spoke multicast group/port used by the available HALO hardware after discovery or wake.
-- Confirm the active control destination reported by the available HALO hardware before relying on transmit control outside diagnostic testing.
+- Confirm the real HALO report payload fields for model, firmware, and operating state beyond the currently parsed `01b2` location report.
+- Improve rendering persistence/decay so real returns are easier to inspect visually between spoke updates.
 - Add standby, range, gain, and other control commands after the wake/transmit path has been validated safely.
 - Add sanitized real packet fixtures once hardware traffic is captured.
 
@@ -231,7 +232,8 @@ Current protocol notes:
 - `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
 - Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; active wake/transmit commands require `RADAR_CONTROL_ENABLED=true`.
-- Real HALO control ports and exact report payload fields are still being confirmed. Keep `RADAR_CONTROL_HOST=auto` to prefer discovered command endpoints, or set `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` explicitly if packet capture shows a different command endpoint.
+- Real HALO control ports and exact report payload fields can vary by radar. Keep `RADAR_CONTROL_HOST=auto` to prefer discovered command endpoints, or set `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` explicitly if packet capture shows a different command endpoint.
+- Observed HALO location report `01b2` maps primary data to `236.6.7.8:6678`, primary command control to `236.6.7.10:6680`, and primary report/status traffic to `236.6.7.9:6679` for serial `129265451`.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
 - The initial Navico/HALO frame decoder is based on high-level packet structure documented in the GPL-compatible OpenCPN `radar_pi` Navico receiver: an 8-byte frame header followed by 24-byte scan-line headers and packed 4-bit return samples. It currently decodes the first structurally valid scan line from a packet.
@@ -403,7 +405,9 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
       "statusName": "standby",
       "sourceAddress": "192.0.2.11",
       "sourcePort": 6878,
-      "dataEndpoint": "236.6.7.8",
+      "commandEndpoint": "236.6.7.10:6680",
+      "dataEndpoint": "236.6.7.8:6678",
+      "reportEndpoint": "236.6.7.9:6679",
       "model": "HALO",
       "serial": "123456",
       "name": "HALO",

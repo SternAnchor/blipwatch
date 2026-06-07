@@ -17,7 +17,7 @@ export interface RadarDiscoveryOptions {
   readonly logger: Logger;
 }
 
-const REPORT_COMMANDS = new Set([0xc4, 0xf5]);
+const REPORT_COMMANDS = new Set([0xb2, 0xc4, 0xf5]);
 const REPORT_STATUS_NAMES = new Map<number, string>([
   [0x01, "standby"],
   [0x02, "transmit"],
@@ -156,6 +156,26 @@ export const parseNavicoReport = ({
     return undefined;
   }
 
+  const locationReport = parseNavicoLocationReport(data);
+  if (locationReport) {
+    return {
+      command: "0xb2",
+      commandEndpoint: locationReport.commandEndpoint,
+      dataEndpoint: locationReport.dataEndpoint,
+      firstSeenAt: receivedAt.toISOString(),
+      lastSeenAt: receivedAt.toISOString(),
+      model: null,
+      name: locationReport.serial,
+      reportEndpoint: locationReport.reportEndpoint,
+      reportType: "0x01",
+      serial: locationReport.serial,
+      sourceAddress: remote.address,
+      sourcePort: remote.port,
+      status: null,
+      statusName: null
+    };
+  }
+
   const status = data[1] === 0xc4 && data.byteLength >= 3 ? data[2] : undefined;
   const strings = extractPrintableStrings(data);
   const endpointTargets = extractCandidateEndpointTargets(data);
@@ -169,6 +189,7 @@ export const parseNavicoReport = ({
     lastSeenAt: receivedAt.toISOString(),
     model: strings.find((entry) => /halo|broadband|radar/i.test(entry)) ?? null,
     name: strings[0] ?? null,
+    reportEndpoint: null,
     reportType: `0x${(data[0] ?? 0).toString(16).padStart(2, "0")}`,
     serial: strings.find((entry) => /\d{4,}/.test(entry)) ?? null,
     sourceAddress: remote.address,
@@ -189,6 +210,7 @@ const mergeRadarReport = (
   model: next.model ?? current?.model ?? null,
   name: next.name ?? current?.name ?? null,
   serial: next.serial ?? current?.serial ?? null,
+  reportEndpoint: next.reportEndpoint ?? current?.reportEndpoint ?? null,
   status: next.status ?? current?.status ?? null,
   statusName: next.statusName ?? current?.statusName ?? null
 });
@@ -271,4 +293,38 @@ const selectCommandEndpoint = (
     endpoints.find((endpoint) => endpoint.port !== 6678 && endpoint.port !== 6679 && endpoint.port !== 6878) ??
     endpoints[0]
   );
+};
+
+interface NavicoLocationReport {
+  readonly commandEndpoint: string;
+  readonly dataEndpoint: string;
+  readonly reportEndpoint: string;
+  readonly serial: string | null;
+}
+
+const LOCATION_REPORT_MIN_BYTES = 114;
+
+const parseNavicoLocationReport = (data: Buffer): NavicoLocationReport | undefined => {
+  if (data[0] !== 0x01 || data[1] !== 0xb2 || data.byteLength < LOCATION_REPORT_MIN_BYTES) {
+    return undefined;
+  }
+
+  return {
+    commandEndpoint: readPackedEndpoint(data, 98),
+    dataEndpoint: readPackedEndpoint(data, 88),
+    reportEndpoint: readPackedEndpoint(data, 108),
+    serial: readNullTerminatedAscii(data.subarray(2, 18))
+  };
+};
+
+const readPackedEndpoint = (data: Buffer, offset: number): string => {
+  const host = `${data[offset]}.${data[offset + 1]}.${data[offset + 2]}.${data[offset + 3]}`;
+  const port = data.readUInt16BE(offset + 4);
+  return `${host}:${port}`;
+};
+
+const readNullTerminatedAscii = (data: Buffer): string | null => {
+  const terminator = data.indexOf(0);
+  const text = data.subarray(0, terminator >= 0 ? terminator : data.byteLength).toString("ascii").trim();
+  return text.length > 0 ? text : null;
 };

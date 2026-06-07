@@ -37,6 +37,7 @@ export interface RadarDiscoveryRadar {
   readonly lastSeenAt: string;
   readonly model: string | null;
   readonly name: string | null;
+  readonly reportEndpoint: string | null;
   readonly reportType: string;
   readonly serial: string | null;
   readonly sourceAddress: string;
