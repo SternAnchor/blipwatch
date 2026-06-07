@@ -11,7 +11,9 @@ interface ReplayBufferOptions {
 }
 
 export const createReplayBuffer = ({ config, logger }: ReplayBufferOptions): ReplayBuffer => {
-  logger.debug(`replay buffer initialized for ${config.replayRetentionSeconds}s`);
+  logger.debug(
+    `replay buffer initialized for ${config.replayRetentionSeconds}s at ${config.replayFrameIntervalMs}ms intervals`
+  );
   return {
     retentionSeconds: config.replayRetentionSeconds
   };
