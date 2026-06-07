@@ -1,3 +1,9 @@
+## [1.1.0-develop.15](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.14...v1.1.0-develop.15) (2026-06-07)
+
+### Features
+
+* add radar standby transmit controls ([4ea610a](https://github.com/SternAnchor/blipwatch/commit/4ea610a6cbc10137a1bdfec253fee6bbcbc9fa90)), closes [#62](https://github.com/SternAnchor/blipwatch/issues/62)
+
 ## [1.1.0-develop.14](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.13...v1.1.0-develop.14) (2026-06-07)
 
 ### Bug Fixes
