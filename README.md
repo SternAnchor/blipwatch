@@ -117,8 +117,11 @@ Use debug logging during hardware testing:
 
 ```bash
 PORT=8080 \
+RADAR_DISCOVERY_ENABLED=true \
 RADAR_INTERFACE=0.0.0.0 \
 RADAR_MULTICAST_GROUPS= \
+RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 LOG_LEVEL=debug \
@@ -129,15 +132,18 @@ Or from source during development:
 
 ```bash
 PORT=8080 \
+RADAR_DISCOVERY_ENABLED=true \
 RADAR_INTERFACE=0.0.0.0 \
 RADAR_MULTICAST_GROUPS= \
+RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 LOG_LEVEL=debug \
 npm run dev
 ```
 
-Debug logs should help identify UDP bind status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
+Debug logs should help identify UDP bind status, discovery report bind/join status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
 
 ### Capture Radar Traffic
 
@@ -166,6 +172,8 @@ Current protocol notes:
 
 - `RADAR_UDP_PORT=6678` is the current default receive port from Phase 1.
 - `RADAR_MULTICAST_GROUPS` can be set to a comma-separated list of IPv4 multicast groups once observed for the target radar.
+- Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
+- Passive discovery listens for report packets and exposes detected radar metadata through `/radar/status`; it does not send wake, standby, transmit, or control commands.
 - Real HALO multicast groups, control ports, and spoke packet layout are still being confirmed.
 - The `BWS1` simulator packet format is not a real HALO packet format.
 - Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
@@ -216,8 +224,11 @@ BlipWatch is configured through environment variables.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP API port. |
+| `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. No active wake or transmit commands are sent. |
 | `RADAR_INTERFACE` | `0.0.0.0` | Local interface address used for UDP radar packet binding. |
 | `RADAR_MULTICAST_GROUPS` | empty | Optional comma-separated IPv4 multicast groups to join after UDP bind. |
+| `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
+| `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
@@ -228,8 +239,11 @@ Example:
 
 ```bash
 PORT=8080 \
+RADAR_DISCOVERY_ENABLED=true \
 RADAR_INTERFACE=0.0.0.0 \
 RADAR_MULTICAST_GROUPS= \
+RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 REPLAY_RETENTION_SECONDS=300 \
@@ -279,10 +293,34 @@ When no radar data has arrived, `renderState` is `empty` and timestamps are `nul
 
 ### `GET /radar/status`
 
-Returns hardware-focused receiver, decoder, and renderer diagnostics.
+Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
 
 ```json
 {
+  "discovery": {
+    "enabled": true,
+    "running": true,
+    "reportsReceived": 1,
+    "lastReportAt": "2026-06-07T00:00:00.000Z",
+    "lastReportSource": "192.0.2.11:6878",
+    "multicastGroup": "236.6.7.5",
+    "boundInterface": "0.0.0.0",
+    "udpPort": 6878,
+    "radar": {
+      "reportType": "0x01",
+      "command": "0xc4",
+      "status": "0x01",
+      "statusName": "standby",
+      "sourceAddress": "192.0.2.11",
+      "sourcePort": 6878,
+      "dataEndpoint": "236.6.7.8",
+      "model": "HALO",
+      "serial": "123456",
+      "name": "HALO",
+      "firstSeenAt": "2026-06-07T00:00:00.000Z",
+      "lastSeenAt": "2026-06-07T00:00:00.000Z"
+    }
+  },
   "receiver": {
     "running": true,
     "packetsReceived": 1,

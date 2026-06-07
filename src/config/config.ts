@@ -6,8 +6,11 @@ const DEFAULTS = {
   imageSize: 1024,
   logLevel: "info",
   port: 8080,
+  radarDiscoveryEnabled: true,
   radarInterface: "0.0.0.0",
   radarMulticastGroups: [],
+  radarReportMulticastGroup: "236.6.7.5",
+  radarReportUdpPort: 6878,
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -17,8 +20,11 @@ export interface BlipWatchConfig {
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
   readonly port: number;
+  readonly radarDiscoveryEnabled: boolean;
   readonly radarInterface: string;
   readonly radarMulticastGroups: readonly string[];
+  readonly radarReportMulticastGroup: string;
+  readonly radarReportUdpPort: number;
   readonly radarUdpPort: number;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
@@ -35,8 +41,15 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
+  radarDiscoveryEnabled: parseBoolean(env.RADAR_DISCOVERY_ENABLED, "RADAR_DISCOVERY_ENABLED", DEFAULTS.radarDiscoveryEnabled),
   radarInterface: parseNonEmptyString(env.RADAR_INTERFACE, "RADAR_INTERFACE", DEFAULTS.radarInterface),
   radarMulticastGroups: parseMulticastGroups(env.RADAR_MULTICAST_GROUPS),
+  radarReportMulticastGroup: parseMulticastGroup(
+    env.RADAR_REPORT_MULTICAST_GROUP,
+    "RADAR_REPORT_MULTICAST_GROUP",
+    DEFAULTS.radarReportMulticastGroup
+  ),
+  radarReportUdpPort: parsePort(env.RADAR_REPORT_UDP_PORT, "RADAR_REPORT_UDP_PORT", DEFAULTS.radarReportUdpPort),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
   replayFrameIntervalMs: parsePositiveInteger(
     env.REPLAY_FRAME_INTERVAL_MS,
@@ -49,6 +62,22 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     DEFAULTS.replayRetentionSeconds
   )
 });
+
+const parseBoolean = (value: string | undefined, name: string, defaultValue: boolean): boolean => {
+  if (value === undefined || value === "") {
+    return defaultValue;
+  }
+
+  if (value === "true" || value === "1") {
+    return true;
+  }
+
+  if (value === "false" || value === "0") {
+    return false;
+  }
+
+  throw new ConfigurationError(`${name} must be one of: true, false, 1, 0; received "${value}"`);
+};
 
 const parsePositiveInteger = (value: string | undefined, name: string, defaultValue: number): number => {
   const parsed = parseInteger(value, name, defaultValue);
@@ -111,12 +140,17 @@ const parseMulticastGroups = (value: string | undefined): readonly string[] => {
   }
 
   return value.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
-    if (!isIpv4MulticastAddress(entry)) {
-      throw new ConfigurationError(`RADAR_MULTICAST_GROUPS must contain IPv4 multicast addresses; received "${entry}"`);
-    }
-
-    return entry;
+    return parseMulticastGroup(entry, "RADAR_MULTICAST_GROUPS", entry);
   });
+};
+
+const parseMulticastGroup = (value: string | undefined, name: string, defaultValue: string): string => {
+  const parsed = parseNonEmptyString(value, name, defaultValue);
+  if (!isIpv4MulticastAddress(parsed)) {
+    throw new ConfigurationError(`${name} must contain an IPv4 multicast address; received "${parsed}"`);
+  }
+
+  return parsed;
 };
 
 const isIpv4MulticastAddress = (value: string): boolean => {

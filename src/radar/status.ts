@@ -14,6 +14,33 @@ export interface RadarDecoderStatus {
   readonly packetsRejected: number;
 }
 
+export interface RadarDiscoveryRadar {
+  readonly command: string;
+  readonly dataEndpoint: string | null;
+  readonly firstSeenAt: string;
+  readonly lastSeenAt: string;
+  readonly model: string | null;
+  readonly name: string | null;
+  readonly reportType: string;
+  readonly serial: string | null;
+  readonly sourceAddress: string;
+  readonly sourcePort: number;
+  readonly status: string | null;
+  readonly statusName: string | null;
+}
+
+export interface RadarDiscoveryStatus {
+  readonly boundInterface: string | null;
+  readonly enabled: boolean;
+  readonly lastReportAt: string | null;
+  readonly lastReportSource: string | null;
+  readonly multicastGroup: string;
+  readonly radar: RadarDiscoveryRadar | null;
+  readonly reportsReceived: number;
+  readonly running: boolean;
+  readonly udpPort: number | null;
+}
+
 export interface RadarRendererStatus {
   readonly imageAvailable: boolean;
   readonly imageSize: number;
@@ -25,6 +52,7 @@ export interface RadarRendererStatus {
 
 export interface RadarStatus {
   readonly decoder: RadarDecoderStatus;
+  readonly discovery: RadarDiscoveryStatus;
   readonly receiver: RadarReceiverStatus;
   readonly renderer: RadarRendererStatus;
 }

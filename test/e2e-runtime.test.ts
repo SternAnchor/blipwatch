@@ -13,6 +13,7 @@ const startServer = async (): Promise<{ readonly baseUrl: string; readonly radar
     IMAGE_SIZE: "32",
     LOG_LEVEL: "debug",
     PORT: "0",
+    RADAR_DISCOVERY_ENABLED: "false",
     RADAR_INTERFACE: "127.0.0.1",
     RADAR_UDP_PORT: "0",
     REPLAY_FRAME_INTERVAL_MS: "1",

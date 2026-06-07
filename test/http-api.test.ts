@@ -22,8 +22,11 @@ const config: BlipWatchConfig = {
   imageSize: 32,
   logLevel: "debug",
   port: 0,
+  radarDiscoveryEnabled: false,
   radarInterface: "127.0.0.1",
   radarMulticastGroups: [],
+  radarReportMulticastGroup: "236.6.7.5",
+  radarReportUdpPort: 0,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1,
   replayRetentionSeconds: 300
@@ -96,6 +99,30 @@ const radarStatus = (): RadarStatus => ({
     packetsDecoded: 7,
     packetsRejected: 2
   },
+  discovery: {
+    boundInterface: "127.0.0.1",
+    enabled: true,
+    lastReportAt: capturedAt,
+    lastReportSource: "192.0.2.11:6878",
+    multicastGroup: "236.6.7.5",
+    radar: {
+      command: "0xc4",
+      dataEndpoint: "236.6.7.8",
+      firstSeenAt: capturedAt,
+      lastSeenAt: capturedAt,
+      model: "HALO",
+      name: "HALO",
+      reportType: "0x01",
+      serial: "123456",
+      sourceAddress: "192.0.2.11",
+      sourcePort: 6878,
+      status: "0x01",
+      statusName: "standby"
+    },
+    reportsReceived: 3,
+    running: true,
+    udpPort: 6878
+  },
   receiver: {
     boundInterface: "127.0.0.1",
     lastPacketAt: capturedAt,
@@ -162,6 +189,17 @@ describe("HTTP API", () => {
       decoder: {
         packetsDecoded: 7,
         packetsRejected: 2
+      },
+      discovery: {
+        lastReportSource: "192.0.2.11:6878",
+        multicastGroup: "236.6.7.5",
+        radar: {
+          dataEndpoint: "236.6.7.8",
+          statusName: "standby"
+        },
+        reportsReceived: 3,
+        running: true,
+        udpPort: 6878
       },
       receiver: {
         lastSourceAddress: "192.0.2.10:6678",

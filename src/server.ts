@@ -2,6 +2,7 @@ import { createHttpApi } from "./api/http-api.js";
 import { ConfigurationError, loadConfig } from "./config/config.js";
 import { createLogger, type Logger } from "./logging/logger.js";
 import { createRadarDecoder } from "./radar/decoder.js";
+import { createRadarDiscovery } from "./radar/discovery.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver } from "./radar/receiver.js";
 import type { RadarStatus } from "./radar/status.js";
@@ -24,6 +25,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const logger = createLogger({ level: config.logLevel });
   const receiver = createRadarReceiver({ config, logger });
   const decoder = createRadarDecoder({ logger });
+  const discovery = createRadarDiscovery({ config, logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
   let packetsDecoded = 0;
@@ -37,6 +39,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
         packetsDecoded,
         packetsRejected
       },
+      discovery: discovery.getStatus(),
       receiver: receiver.getStatus(),
       renderer: {
         imageAvailable: rendererMetadata.renderState === "ready",
@@ -62,6 +65,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.debug(`loaded config: ${JSON.stringify(redactConfig(config))}`);
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
+      await discovery.start();
       receiver.onPacket((packet) => {
         const result = decoder.decode(packet);
         if (result.ok) {
@@ -84,6 +88,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     },
     async stop(): Promise<void> {
       await receiver.stop();
+      await discovery.stop();
       await httpApi.stop();
       logger.info("BlipWatch stopped");
     }
@@ -96,8 +101,11 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   imageSize: config.imageSize,
   logLevel: config.logLevel,
   port: config.port,
+  radarDiscoveryEnabled: String(config.radarDiscoveryEnabled),
   radarInterface: config.radarInterface,
   radarMulticastGroups: config.radarMulticastGroups.join(","),
+  radarReportMulticastGroup: config.radarReportMulticastGroup,
+  radarReportUdpPort: config.radarReportUdpPort,
   radarUdpPort: config.radarUdpPort,
   replayFrameIntervalMs: config.replayFrameIntervalMs,
   replayRetentionSeconds: config.replayRetentionSeconds
