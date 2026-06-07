@@ -1,3 +1,9 @@
+## [1.0.1-develop.4](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.3...v1.0.1-develop.4) (2026-06-07)
+
+### Bug Fixes
+
+* clarify logger verbosity typing ([0c061da](https://github.com/SternAnchor/blipwatch/commit/0c061da24c61b5fd89b19425148396b55808679f)), closes [#37](https://github.com/SternAnchor/blipwatch/issues/37)
+
 ## [1.0.1-develop.3](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.2...v1.0.1-develop.3) (2026-06-07)
 
 ### Performance Improvements
