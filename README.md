@@ -12,15 +12,41 @@ It is not a certified navigation, collision-avoidance, watchkeeping, or safety-o
 
 ## Project Status
 
-This repository is in early 1.0.0 development.
+This repository is preparing the 1.1.0 hardware-integration release.
 
 Current limitations:
 
-- Real HALO/Navico packet decoding is not complete.
+- Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
+- Passive Navico report discovery is implemented, but active wake, standby, transmit, and range/control commands are not sent by BlipWatch.
 - Replay storage is in memory only and is lost on restart.
 - The HTTP API is intentionally minimal and unauthenticated.
 - Docker and npm publishing are configured through GitHub Actions using Actions secret `NPM_TOKEN`.
+
+## Phase 2 Validation Status
+
+Phase 2 adds the first real HALO hardware path: passive report discovery, UDP receive diagnostics, Navico/HALO frame-shaped packet classification, spoke decoding into the internal radar model, rendering of high-density HALO spokes, and replay/testing tools.
+
+Attempted hardware so far:
+
+- Navico/B&G/Simrad HALO-family radar on the local Ethernet network. Exact model and firmware still need to be recorded from an observed report packet or vessel display.
+- Local laptop interface: macOS wired Ethernet `en7`, address `192.168.15.188`.
+
+Most recent local hardware smoke test:
+
+- BlipWatch started successfully on `192.168.15.188`.
+- Passive discovery joined `236.6.7.5:6878`.
+- Radar spoke receiver bound `192.168.15.188:6678`.
+- `/radar/status` reported both listeners running.
+- No discovery reports or spoke packets arrived during the passive sample window.
+- macOS denied unprivileged `tcpdump` access to `/dev/bpf*` from this process; use a local terminal with `sudo tcpdump` or Wireshark for privileged capture.
+
+Known protocol gaps:
+
+- Confirm the real HALO report payload fields for model, serial, operating state, and data endpoints.
+- Confirm the spoke multicast group/port used by the available HALO hardware after discovery or wake.
+- Decide whether BlipWatch should implement opt-in active wake/standby/transmit commands in a later phase.
+- Add sanitized real packet fixtures once hardware traffic is captured.
 
 ## Requirements
 
@@ -189,6 +215,20 @@ Capture checklist for future decoder work:
 - Whether traffic is broadcast, multicast, or unicast.
 - Short pcap file with timestamps preserved.
 - Debug log excerpt from the same capture window.
+
+Troubleshooting no packets:
+
+- Confirm the laptop interface is on the radar subnet and use its concrete address for `RADAR_INTERFACE`.
+- Keep `RADAR_DISCOVERY_ENABLED=true` and check `/radar/status.discovery.running`.
+- Check whether `reportsReceived`, `packetsReceived`, or both remain zero.
+- Run a privileged capture such as `sudo tcpdump -i <interface> -n udp`.
+- If tcpdump shows packets but BlipWatch does not, compare destination address, UDP port, and multicast group against `RADAR_REPORT_*`, `RADAR_UDP_PORT`, and `RADAR_MULTICAST_GROUPS`.
+
+Troubleshooting decode failures or blank images:
+
+- If `receiver.packetsReceived` increases but `decoder.packetsRejected` also increases, save a short sanitized replay payload for decoder work.
+- If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/radar/status` and `/radar/latest.json` from the same test window.
+- If `/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
 
 ### Replay Saved UDP Payloads
 
@@ -407,9 +447,13 @@ Run with standard bridge networking:
 ```bash
 docker run --rm \
   -p 8080:8080/tcp \
+  -p 6878:6878/udp \
   -p 6678:6678/udp \
   -e PORT=8080 \
+  -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+  -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
   blipwatch:local
 ```
@@ -419,7 +463,10 @@ For onboard hardware directly connected to a radar Ethernet network, host networ
 ```bash
 docker run --rm --network host \
   -e PORT=8080 \
+  -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+  -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
   -e IMAGE_SIZE=1024 \
   -e REPLAY_RETENTION_SECONDS=300 \
