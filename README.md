@@ -20,7 +20,7 @@ Current limitations:
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
 - Replay storage is in memory only and is lost on restart.
 - The HTTP API is intentionally minimal and unauthenticated.
-- Docker publishing is configured, but npm publishing requires repository secret `NPM_TOKEN`.
+- Docker and npm publishing are configured through GitHub Actions using Actions secret `NPM_TOKEN`.
 
 ## Requirements
 
@@ -233,7 +233,7 @@ Build a multi-architecture image for AMD64 and ARM64:
 npm run docker:buildx
 ```
 
-The release workflows publish GHCR images for:
+The CI/CD workflow publishes GHCR images for:
 
 - `latest` for stable `main` releases
 - stable version tags from `main`
@@ -285,14 +285,14 @@ Branches:
 Release automation:
 
 - Runs validation before publishing.
-- Publishes the Node package to npm when `NPM_TOKEN` is configured.
+- Publishes the Node package to npm using Actions secret `NPM_TOKEN` when it is available to the workflow.
 - Publishes Docker images to GitHub Container Registry.
 - Creates GitHub releases and release notes.
 - Updates `CHANGELOG.md`, `package.json`, and `package-lock.json` during release commits.
 
 Repository setup required for real publishing:
 
-- Add `NPM_TOKEN` as a repository secret.
+- Ensure `NPM_TOKEN` is available as a repository or org Actions secret for this repository.
 - Ensure npm package publishing permissions are configured.
 - Ensure GHCR package permissions allow workflow publishing.
 
