@@ -1,3 +1,9 @@
+## [1.0.1-develop.5](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.4...v1.0.1-develop.5) (2026-06-07)
+
+### Bug Fixes
+
+* force close lingering HTTP connections on shutdown ([1f78195](https://github.com/SternAnchor/blipwatch/commit/1f781955fcf013f1b2f78fd1e797f7f789f822fb)), closes [#39](https://github.com/SternAnchor/blipwatch/issues/39)
+
 ## [1.0.1-develop.4](https://github.com/SternAnchor/blipwatch/compare/v1.0.1-develop.3...v1.0.1-develop.4) (2026-06-07)
 
 ### Bug Fixes
