@@ -1,3 +1,9 @@
+## [1.1.0-develop.12](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.11...v1.1.0-develop.12) (2026-06-07)
+
+### Features
+
+* add opt-in Navico radar control ([87ba9f0](https://github.com/SternAnchor/blipwatch/commit/87ba9f0285d30f1d6bc0c061a3e1311d1f5a6886)), closes [#59](https://github.com/SternAnchor/blipwatch/issues/59)
+
 ## [1.1.0-develop.11](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.10...v1.1.0-develop.11) (2026-06-07)
 
 ### Bug Fixes
