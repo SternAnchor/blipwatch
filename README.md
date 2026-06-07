@@ -168,6 +168,7 @@ Current protocol notes:
 - `RADAR_MULTICAST_GROUPS` can be set to a comma-separated list of IPv4 multicast groups once observed for the target radar.
 - Real HALO multicast groups, control ports, and spoke packet layout are still being confirmed.
 - The `BWS1` simulator packet format is not a real HALO packet format.
+- Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
 - Keep explicit notes for observed packet sizes, repeated headers, counters, angle-like fields, and intensity-like payload regions.
 
 Capture checklist for future decoder work:

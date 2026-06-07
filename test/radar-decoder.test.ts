@@ -42,7 +42,10 @@ describe("createRadarDecoder", () => {
       ok: false
     });
     expect(decoder.decode(Buffer.from("HALO00000000"))).toMatchObject({
-      error: { code: "unsupported-packet" },
+      error: {
+        code: "unsupported-packet",
+        message: "HALO packet candidate decoding is not implemented: starts with HALO ASCII marker"
+      },
       ok: false
     });
     expect(messages.some((message) => message.includes("radar packet decode skipped"))).toBe(true);
