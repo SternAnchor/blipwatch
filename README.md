@@ -471,12 +471,36 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastDecodedSpokeAt": "2026-06-07T00:00:00.000Z"
   },
   "renderer": {
+    "activePixelCount": 128,
     "imageAvailable": true,
     "imageSize": 1024,
     "lastRenderedImageAt": "2026-06-07T00:00:00.000Z",
     "lastSpokeAt": "2026-06-07T00:00:00.000Z",
+    "maxIntensity": 255,
+    "radarBrightnessScale": 100,
+    "radarRenderPalette": "chartplotter",
     "renderState": "ready",
-    "spokeCount": 1
+    "spokeCount": 1,
+    "targetExpansion": 100,
+    "targetMaxAgeMs": 15000
+  },
+  "replay": {
+    "frameCount": 10,
+    "frameIntervalMs": 1000,
+    "newestFrameAt": "2026-06-07T00:00:00.000Z",
+    "oldestFrameAt": "2026-06-07T00:00:00.000Z",
+    "retentionSeconds": 300,
+    "totalBytes": 40960
+  },
+  "process": {
+    "uptimeSeconds": 120,
+    "memory": {
+      "rss": 67108864,
+      "heapTotal": 18874368,
+      "heapUsed": 10485760,
+      "external": 2097152,
+      "arrayBuffers": 1048576
+    }
   },
   "streaming": {
     "clientsConnected": 1,

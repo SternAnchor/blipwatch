@@ -96,7 +96,8 @@ const replayBuffer: ReplayBuffer = {
       newestFrameAt: "2026-06-07T00:00:00.000Z",
       oldestFrameAt: "2026-06-07T00:00:00.000Z",
       playback: playbackState,
-      retentionSeconds: 300
+      retentionSeconds: 300,
+      totalBytes: png.byteLength
     };
   },
   getPlaybackState() {

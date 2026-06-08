@@ -1,3 +1,6 @@
+import type { RadarRenderPalette } from "../config/config.js";
+import type { ReplayMetadata } from "../replay/replay-buffer.js";
+
 export type RadarOperatingState = "standby" | "transmit" | "unknown" | "waking-up";
 export type RadarOperatingStateSource = "inferred" | "report" | "traffic";
 
@@ -104,12 +107,18 @@ export interface RadarDiscoveryStatus {
 }
 
 export interface RadarRendererStatus {
+  readonly activePixelCount: number;
   readonly imageAvailable: boolean;
   readonly imageSize: number;
   readonly lastRenderedImageAt: string | null;
   readonly lastSpokeAt: string | null;
+  readonly maxIntensity: number;
+  readonly radarBrightnessScale: number;
+  readonly radarRenderPalette: RadarRenderPalette;
   readonly renderState: "empty" | "ready";
   readonly spokeCount: number;
+  readonly targetExpansion: number;
+  readonly targetMaxAgeMs: number;
 }
 
 export type RadarStatusPhase =
@@ -135,12 +144,25 @@ export interface RadarStreamingStatus {
   readonly updatesDropped: number;
 }
 
+export interface ProcessStatus {
+  readonly memory: {
+    readonly arrayBuffers: number;
+    readonly external: number;
+    readonly heapTotal: number;
+    readonly heapUsed: number;
+    readonly rss: number;
+  };
+  readonly uptimeSeconds: number;
+}
+
 export interface RadarStatus {
   readonly control: RadarControlStatus;
   readonly decoder: RadarDecoderStatus;
   readonly diagnostics: RadarStatusDiagnostics;
   readonly discovery: RadarDiscoveryStatus;
+  readonly process: ProcessStatus;
   readonly receiver: RadarReceiverStatus;
   readonly renderer: RadarRendererStatus;
+  readonly replay: ReplayMetadata;
   readonly streaming: RadarStreamingStatus;
 }

@@ -80,7 +80,8 @@ describe("createReplayBuffer", () => {
         speed: 1,
         status: "live"
       },
-      retentionSeconds: 3
+      retentionSeconds: 3,
+      totalBytes: 1
     });
     expect(replay.getMetadata().playback.updatedAt).toEqual(expect.any(String));
     expect(replay.listFrames()).toEqual([

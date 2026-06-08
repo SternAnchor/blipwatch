@@ -78,13 +78,20 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     const discoveryStatus = discovery.getStatus();
     const receiverStatus = receiver.getStatus();
     const rendererStatus = {
+      activePixelCount: rendererMetadata.activePixelCount,
       imageAvailable: rendererMetadata.renderState === "ready",
       imageSize: rendererMetadata.imageSize,
       lastRenderedImageAt: rendererMetadata.lastFrameAt,
       lastSpokeAt: rendererMetadata.lastSpokeAt,
+      maxIntensity: rendererMetadata.maxIntensity,
+      radarBrightnessScale: rendererMetadata.radarBrightnessScale,
+      radarRenderPalette: rendererMetadata.radarRenderPalette,
       renderState: rendererMetadata.renderState,
-      spokeCount: rendererMetadata.spokeCount
+      spokeCount: rendererMetadata.spokeCount,
+      targetExpansion: rendererMetadata.targetExpansion,
+      targetMaxAgeMs: rendererMetadata.targetMaxAgeMs
     } as const;
+    const replayStatus = replayBuffer.getMetadata();
 
     return {
       control: control.getStatus(),
@@ -96,8 +103,10 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
         renderer: rendererStatus
       }),
       discovery: discoveryStatus,
+      process: getProcessStatus(),
       receiver: receiverStatus,
       renderer: rendererStatus,
+      replay: replayStatus,
       streaming: httpApi.getStreamingStats()
     };
   };
@@ -226,6 +235,20 @@ const getObservedRadarOperatingState = (
     observedAt: null,
     source: null,
     state: null
+  };
+};
+
+const getProcessStatus = (): RadarStatus["process"] => {
+  const memory = process.memoryUsage();
+  return {
+    memory: {
+      arrayBuffers: memory.arrayBuffers,
+      external: memory.external,
+      heapTotal: memory.heapTotal,
+      heapUsed: memory.heapUsed,
+      rss: memory.rss
+    },
+    uptimeSeconds: Math.round(process.uptime())
   };
 };
 

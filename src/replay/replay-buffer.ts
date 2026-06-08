@@ -43,6 +43,7 @@ export interface ReplayMetadata {
   readonly oldestFrameAt: string | null;
   readonly playback: ReplayPlaybackState;
   readonly retentionSeconds: number;
+  readonly totalBytes: number;
 }
 
 export interface ReplayFrameListOptions {
@@ -126,7 +127,8 @@ export const createReplayBuffer = ({ config, logger }: ReplayBufferOptions): Rep
         newestFrameAt: frames.at(-1)?.capturedAt.toISOString() ?? null,
         oldestFrameAt: frames[0]?.capturedAt.toISOString() ?? null,
         playback: playbackState,
-        retentionSeconds: config.replayRetentionSeconds
+        retentionSeconds: config.replayRetentionSeconds,
+        totalBytes: getTotalFrameBytes(frames)
       };
     },
     getPlaybackState(): ReplayPlaybackState {
@@ -233,6 +235,9 @@ const getClosestFrame = (frames: readonly ReplayFrame[], target: Date): ReplayFr
     const candidateDistance = Math.abs(candidate.capturedAt.getTime() - target.getTime());
     return candidateDistance < closestDistance ? candidate : closest;
   }, undefined);
+
+const getTotalFrameBytes = (frames: readonly ReplayFrame[]): number =>
+  frames.reduce((total, frame) => total + frame.png.byteLength, 0);
 
 const trimFrames = (frames: ReplayFrame[], now: Date, retentionSeconds: number): void => {
   const oldestAllowed = now.getTime() - retentionSeconds * 1000;

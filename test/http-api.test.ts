@@ -159,7 +159,8 @@ const createReplayBuffer = (): ReplayBuffer => ({
       newestFrameAt: capturedAt,
       oldestFrameAt: capturedAt,
       playback: playbackState,
-      retentionSeconds: 300
+      retentionSeconds: 300,
+      totalBytes: png.byteLength
     };
   },
   getPlaybackState() {
@@ -256,12 +257,37 @@ const radarStatus = (): RadarStatus => ({
     udpPort: 6678
   },
   renderer: {
+    activePixelCount: 10,
     imageAvailable: true,
     imageSize: 32,
     lastRenderedImageAt: capturedAt,
     lastSpokeAt: capturedAt,
+    maxIntensity: 255,
+    radarBrightnessScale: 100,
+    radarRenderPalette: "chartplotter",
     renderState: "ready",
-    spokeCount: 7
+    spokeCount: 7,
+    targetExpansion: 100,
+    targetMaxAgeMs: 15000
+  },
+  process: {
+    memory: {
+      arrayBuffers: 4,
+      external: 5,
+      heapTotal: 2,
+      heapUsed: 1,
+      rss: 3
+    },
+    uptimeSeconds: 12
+  },
+  replay: {
+    frameCount: 1,
+    frameIntervalMs: 1,
+    newestFrameAt: capturedAt,
+    oldestFrameAt: capturedAt,
+    playback: playbackState,
+    retentionSeconds: 300,
+    totalBytes: png.byteLength
   },
   streaming: {
     clientsConnected: 0,
@@ -336,6 +362,10 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("Radar State");
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
+    expect(dashboardBody).toContain("Active Pixels");
+    expect(dashboardBody).toContain("Replay Memory");
+    expect(dashboardBody).toContain("Heap Used");
+    expect(dashboardBody).toContain("Stream Clients");
     expect(dashboardBody).toContain("Gain");
     expect(dashboardBody).toContain("Sea Clutter");
     expect(dashboardBody).toContain("Rain Clutter");

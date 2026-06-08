@@ -1086,6 +1086,12 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <div class="stat"><span>Radar State</span><strong id="radar-state">-</strong></div>
               <div class="stat"><span>Control</span><strong id="control">-</strong></div>
               <div class="stat"><span>Commands Sent</span><strong id="commands">0</strong></div>
+              <div class="stat"><span>Active Pixels</span><strong id="active-pixels">0</strong></div>
+              <div class="stat"><span>Replay Frames</span><strong id="replay-frames">0</strong></div>
+              <div class="stat"><span>Replay Memory</span><strong id="replay-memory">0 B</strong></div>
+              <div class="stat"><span>Heap Used</span><strong id="heap-used">0 B</strong></div>
+              <div class="stat"><span>Uptime</span><strong id="uptime">0s</strong></div>
+              <div class="stat"><span>Stream Clients</span><strong id="stream-clients">0</strong></div>
               <div class="stat"><span>Gain</span><strong id="gain">-</strong></div>
               <div class="stat"><span>Sea Clutter</span><strong id="sea-clutter">-</strong></div>
               <div class="stat"><span>Rain Clutter</span><strong id="rain-clutter">-</strong></div>
@@ -1168,19 +1174,25 @@ const renderDashboardHtml = (): string => `<!doctype html>
         status: "live"
       };
       const fields = {
+        activePixels: document.getElementById("active-pixels"),
         commands: document.getElementById("commands"),
         control: document.getElementById("control"),
         decoded: document.getElementById("decoded"),
         gain: document.getElementById("gain"),
+        heapUsed: document.getElementById("heap-used"),
         imageGroup: document.getElementById("image-group"),
         interface: document.getElementById("interface"),
         packets: document.getElementById("packets"),
         radarState: document.getElementById("radar-state"),
         rainClutter: document.getElementById("rain-clutter"),
         rangeControl: document.getElementById("range-control"),
+        replayFrames: document.getElementById("replay-frames"),
+        replayMemory: document.getElementById("replay-memory"),
         rendered: document.getElementById("rendered"),
         reportGroup: document.getElementById("report-group"),
-        reports: document.getElementById("reports")
+        reports: document.getElementById("reports"),
+        streamClients: document.getElementById("stream-clients"),
+        uptime: document.getElementById("uptime")
       };
 
       const setText = (element, value) => {
@@ -1199,6 +1211,30 @@ const renderDashboardHtml = (): string => `<!doctype html>
         }
 
         return setting?.rangeMeters ? setting.rangeMeters + " m" : "auto";
+      };
+      const formatBytes = (value) => {
+        if (typeof value !== "number") {
+          return "-";
+        }
+
+        if (value < 1024) {
+          return value + " B";
+        }
+
+        if (value < 1024 * 1024) {
+          return (value / 1024).toFixed(1) + " KiB";
+        }
+
+        return (value / 1024 / 1024).toFixed(1) + " MiB";
+      };
+      const formatDuration = (seconds) => {
+        if (typeof seconds !== "number") {
+          return "-";
+        }
+
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return minutes > 0 ? minutes + "m " + remainingSeconds + "s" : remainingSeconds + "s";
       };
 
       const setControlButtons = (control) => {
@@ -1357,6 +1393,12 @@ const renderDashboardHtml = (): string => `<!doctype html>
           );
           setControlButtons(status.control);
           setText(fields.commands, status.control?.commandsSent);
+          setText(fields.activePixels, status.renderer?.activePixelCount);
+          setText(fields.replayFrames, status.replay?.frameCount);
+          setText(fields.replayMemory, formatBytes(status.replay?.totalBytes));
+          setText(fields.heapUsed, formatBytes(status.process?.memory?.heapUsed));
+          setText(fields.uptime, formatDuration(status.process?.uptimeSeconds));
+          setText(fields.streamClients, status.streaming?.clientsConnected);
           setText(fields.gain, formatTuningSetting(status.control?.capabilities?.gain, status.control?.tuning?.gain));
           setText(
             fields.seaClutter,
