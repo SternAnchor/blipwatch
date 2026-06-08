@@ -97,7 +97,8 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       }),
       discovery: discoveryStatus,
       receiver: receiverStatus,
-      renderer: rendererStatus
+      renderer: rendererStatus,
+      streaming: httpApi.getStreamingStats()
     };
   };
   const calibrationCapture = createCalibrationCapture({
@@ -148,6 +149,12 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
                 metadata: renderer.getLatestMetadata(),
                 png: renderer.getLatestPng()
               });
+              if (replayFrame) {
+                httpApi.publishRadarUpdate({
+                  reason: "frame",
+                  replayFrameAt: replayFrame.capturedAt.toISOString()
+                });
+              }
               lastReplayCaptureAt = replayFrame?.capturedAt ?? lastReplayCaptureAt;
             }
           }

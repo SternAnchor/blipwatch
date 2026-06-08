@@ -2,16 +2,20 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
+import { WebSocket, WebSocketServer } from "ws";
+
 import type { BlipWatchConfig } from "../config/config.js";
 import type { CalibrationCaptureStatus } from "../calibration/calibration-capture.js";
 import type { Logger } from "../logging/logger.js";
 import type { RadarControl } from "../radar/control.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
-import type { RadarStatus } from "../radar/status.js";
+import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
 import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
 
 export interface HttpApi {
   address(): AddressInfo | undefined;
+  getStreamingStats(): RadarStreamingStatus;
+  publishRadarUpdate(update: RadarStreamUpdate): void;
   start(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -24,6 +28,11 @@ interface HttpApiOptions {
   readonly renderer: RadarImageRenderer;
   readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
+}
+
+export interface RadarStreamUpdate {
+  readonly reason: "control" | "frame" | "playback" | "status";
+  readonly replayFrameAt?: string;
 }
 
 export const HTTP_SERVER_LIMITS = {
@@ -46,6 +55,7 @@ export const createHttpApi = ({
   replayBuffer
 }: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
+  const stream = createRadarStream({ logger, radarStatus, renderer, replayBuffer });
 
   return {
     address(): AddressInfo | undefined {
@@ -56,6 +66,12 @@ export const createHttpApi = ({
 
       return currentAddress;
     },
+    getStreamingStats(): RadarStreamingStatus {
+      return stream.getStats();
+    },
+    publishRadarUpdate(update: RadarStreamUpdate): void {
+      stream.publish(update);
+    },
     async start(): Promise<void> {
       server = createServer((request, response) => {
         logger.debug(
@@ -65,17 +81,17 @@ export const createHttpApi = ({
         const url = new URL(request.url ?? "/", "http://localhost");
 
         if (request.method === "POST" && url.pathname === apiPath("/radar/control/standby")) {
-          void handleRadarControlRequest(response, radarControl, "standby");
+          void handleRadarControlRequest(response, radarControl, "standby", stream);
           return;
         }
 
         if (request.method === "POST" && url.pathname === apiPath("/radar/control/transmit")) {
-          void handleRadarControlRequest(response, radarControl, "transmit");
+          void handleRadarControlRequest(response, radarControl, "transmit", stream);
           return;
         }
 
         if (request.method === "POST" && url.pathname === apiPath("/radar/replay/playback")) {
-          void handleReplayPlaybackRequest(request, response, replayBuffer);
+          void handleReplayPlaybackRequest(request, response, replayBuffer, stream);
           return;
         }
 
@@ -158,6 +174,7 @@ export const createHttpApi = ({
         sendJson(response, 404, { error: "not_found" });
       });
       configureHttpServerLimits(server);
+      stream.attach(server);
 
       await new Promise<void>((resolve, reject) => {
         server?.once("error", reject);
@@ -173,6 +190,7 @@ export const createHttpApi = ({
         return;
       }
 
+      await stream.close();
       await closeHttpServer(server);
       logger.debug("HTTP API stopped");
       server = undefined;
@@ -183,6 +201,130 @@ export const createHttpApi = ({
 const REPLAY_PLAYBACK_ACTIONS = new Set<ReplayPlaybackAction>(["jump", "live", "pause", "resume", "scrub"]);
 const REPLAY_PLAYBACK_SPEEDS = new Set<ReplayPlaybackSpeed>([1, 2, 5, 10]);
 const MAX_JSON_BODY_BYTES = 64 * 1024;
+const STREAM_THROTTLE_MS = 250;
+
+interface RadarStream {
+  attach(server: Server): void;
+  close(): Promise<void>;
+  getStats(): RadarStreamingStatus;
+  publish(update: RadarStreamUpdate): void;
+}
+
+interface RadarStreamOptions {
+  readonly logger: Logger;
+  readonly radarStatus: () => RadarStatus;
+  readonly renderer: RadarImageRenderer;
+  readonly replayBuffer: ReplayBuffer;
+}
+
+const createRadarStream = ({ logger, radarStatus, renderer, replayBuffer }: RadarStreamOptions): RadarStream => {
+  const webSocketServer = new WebSocketServer({ noServer: true });
+  let lastBroadcastAt = 0;
+  let lastClientConnectedAt: string | null = null;
+  let lastMessageAt: string | null = null;
+  let messagesSent = 0;
+  let totalClientsConnected = 0;
+  let updatesDropped = 0;
+
+  webSocketServer.on("connection", (socket) => {
+    totalClientsConnected += 1;
+    lastClientConnectedAt = new Date().toISOString();
+    logger.debug(`radar stream client connected clients=${webSocketServer.clients.size}`);
+    sendStreamMessage(socket, createStreamMessage("radar.snapshot", { reason: "status" }, radarStatus, renderer, replayBuffer));
+  });
+
+  return {
+    attach(server: Server): void {
+      server.on("upgrade", (request, socket, head) => {
+        const url = new URL(request.url ?? "/", "http://localhost");
+        if (url.pathname !== apiPath("/radar/stream")) {
+          socket.destroy();
+          return;
+        }
+
+        webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
+          webSocketServer.emit("connection", webSocket, request);
+        });
+      });
+    },
+    async close(): Promise<void> {
+      for (const client of webSocketServer.clients) {
+        client.close(1001, "server shutting down");
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        webSocketServer.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    },
+    getStats(): RadarStreamingStatus {
+      return {
+        clientsConnected: webSocketServer.clients.size,
+        lastClientConnectedAt,
+        lastMessageAt,
+        messagesSent,
+        totalClientsConnected,
+        updatesDropped
+      };
+    },
+    publish(update: RadarStreamUpdate): void {
+      if (webSocketServer.clients.size === 0) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastBroadcastAt < STREAM_THROTTLE_MS) {
+        updatesDropped += 1;
+        return;
+      }
+
+      lastBroadcastAt = now;
+      const message = createStreamMessage("radar.update", update, radarStatus, renderer, replayBuffer);
+      for (const client of webSocketServer.clients) {
+        if (client.readyState !== WebSocket.OPEN || client.bufferedAmount > 1_000_000) {
+          updatesDropped += 1;
+          continue;
+        }
+
+        sendStreamMessage(client, message);
+        messagesSent += 1;
+        lastMessageAt = new Date().toISOString();
+      }
+    }
+  };
+};
+
+const sendStreamMessage = (socket: WebSocket, message: unknown): void => {
+  socket.send(JSON.stringify(message));
+};
+
+const createStreamMessage = (
+  type: "radar.snapshot" | "radar.update",
+  update: RadarStreamUpdate,
+  radarStatus: () => RadarStatus,
+  renderer: RadarImageRenderer,
+  replayBuffer: ReplayBuffer
+): Record<string, unknown> => ({
+  image: {
+    latestUrl: apiPath("/radar/latest.png"),
+    replayFrameAt: update.replayFrameAt ?? null,
+    replayFrameUrl: update.replayFrameAt
+      ? `${apiPath("/radar/replay/frame")}?at=${encodeURIComponent(update.replayFrameAt)}`
+      : null
+  },
+  reason: update.reason,
+  replay: replayBuffer.getMetadata(),
+  renderer: renderer.getLatestMetadata(),
+  status: radarStatus(),
+  timestamp: new Date().toISOString(),
+  type
+});
 
 export const configureHttpServerLimits = (server: Server): void => {
   server.requestTimeout = HTTP_SERVER_LIMITS.requestTimeoutMs;
@@ -244,7 +386,8 @@ const sendPng = (
 const handleRadarControlRequest = async (
   response: ServerResponse,
   radarControl: HttpApiOptions["radarControl"],
-  desiredState: "standby" | "transmit"
+  desiredState: "standby" | "transmit",
+  stream: RadarStream
 ): Promise<void> => {
   if (!radarControl) {
     sendJson(response, 503, {
@@ -262,6 +405,7 @@ const handleRadarControlRequest = async (
     }
 
     sendJson(response, 200, { ok: true, desiredState });
+    stream.publish({ reason: "control" });
   } catch (error) {
     sendJson(response, 409, {
       error: "radar_control_failed",
@@ -273,7 +417,8 @@ const handleRadarControlRequest = async (
 const handleReplayPlaybackRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
-  replayBuffer: ReplayBuffer
+  replayBuffer: ReplayBuffer,
+  stream: RadarStream
 ): Promise<void> => {
   try {
     const body = await readJsonBody(request);
@@ -283,7 +428,9 @@ const handleReplayPlaybackRequest = async (
       return;
     }
 
-    sendJson(response, 200, replayBuffer.updatePlayback(command.value));
+    const playbackState = replayBuffer.updatePlayback(command.value);
+    sendJson(response, 200, playbackState);
+    stream.publish({ reason: "playback", replayFrameAt: playbackState.currentFrameAt ?? undefined });
   } catch (error) {
     if (error instanceof RequestBodyError) {
       sendJson(response, error.statusCode, { error: error.code, message: error.message });

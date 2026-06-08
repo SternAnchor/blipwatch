@@ -476,6 +476,14 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "renderState": "ready",
     "spokeCount": 1
   },
+  "streaming": {
+    "clientsConnected": 1,
+    "lastClientConnectedAt": "2026-06-07T00:00:00.000Z",
+    "lastMessageAt": "2026-06-07T00:00:01.000Z",
+    "messagesSent": 10,
+    "totalClientsConnected": 2,
+    "updatesDropped": 1
+  },
   "control": {
     "enabled": true,
     "running": true,
@@ -498,6 +506,39 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
 ```
 
 This endpoint is intended for Phase 2 hardware testing and troubleshooting. It helps confirm whether BlipWatch is receiving UDP packets, decoding radar spokes, and rendering current imagery.
+
+### `GET /api/radar/stream`
+
+Opens a WebSocket stream for live radar notifications. The server sends an initial `radar.snapshot` message when a client connects, then throttled `radar.update` messages when a replay frame is captured or control/replay state changes.
+
+Messages include current status, renderer metadata, replay metadata, and image URLs:
+
+```json
+{
+  "type": "radar.update",
+  "timestamp": "2026-06-07T00:00:01.000Z",
+  "reason": "frame",
+  "image": {
+    "latestUrl": "/api/radar/latest.png",
+    "replayFrameAt": "2026-06-07T00:00:01.000Z",
+    "replayFrameUrl": "/api/radar/replay/frame?at=2026-06-07T00%3A00%3A01.000Z"
+  },
+  "renderer": {
+    "imageSize": 1024,
+    "renderState": "ready"
+  },
+  "replay": {
+    "frameCount": 10
+  },
+  "status": {
+    "diagnostics": {
+      "phase": "receiving-and-rendering"
+    }
+  }
+}
+```
+
+The stream applies lightweight throttling and skips clients with excessive buffered data. Connection counts, messages sent, and dropped update counts are exposed through `/api/radar/status.streaming`.
 
 ### `GET /api/radar/replay`
 

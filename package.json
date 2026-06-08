@@ -36,7 +36,8 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
@@ -50,6 +51,7 @@
     "@semantic-release/release-notes-generator": "^14.1.1",
     "@types/node": "^24.10.1",
     "@types/pngjs": "^6.0.5",
+    "@types/ws": "^8.18.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "eslint": "^9.39.1",
     "semantic-release": "^25.0.3",

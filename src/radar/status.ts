@@ -90,6 +90,15 @@ export interface RadarStatusDiagnostics {
   readonly nextActions: readonly string[];
 }
 
+export interface RadarStreamingStatus {
+  readonly clientsConnected: number;
+  readonly lastClientConnectedAt: string | null;
+  readonly lastMessageAt: string | null;
+  readonly messagesSent: number;
+  readonly totalClientsConnected: number;
+  readonly updatesDropped: number;
+}
+
 export interface RadarStatus {
   readonly control: RadarControlStatus;
   readonly decoder: RadarDecoderStatus;
@@ -97,4 +106,5 @@ export interface RadarStatus {
   readonly discovery: RadarDiscoveryStatus;
   readonly receiver: RadarReceiverStatus;
   readonly renderer: RadarRendererStatus;
+  readonly streaming: RadarStreamingStatus;
 }

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { WebSocket } from "ws";
 
 import {
   closeHttpServer,
@@ -215,6 +216,14 @@ const radarStatus = (): RadarStatus => ({
     lastSpokeAt: capturedAt,
     renderState: "ready",
     spokeCount: 7
+  },
+  streaming: {
+    clientsConnected: 0,
+    lastClientConnectedAt: null,
+    lastMessageAt: null,
+    messagesSent: 0,
+    totalClientsConnected: 0,
+    updatesDropped: 0
   }
 });
 
@@ -245,6 +254,21 @@ const startApi = async (): Promise<string> => {
 
   return `http://127.0.0.1:${port}`;
 };
+
+const readWebSocketMessage = async (socket: WebSocket): Promise<Record<string, unknown>> =>
+  new Promise((resolve, reject) => {
+    socket.once("error", reject);
+    socket.once("message", (data) => {
+      const text =
+        typeof data === "string"
+          ? data
+          : Buffer.concat(Array.isArray(data) ? data : [toBuffer(data)]).toString("utf8");
+      resolve(JSON.parse(text) as Record<string, unknown>);
+    });
+  });
+
+const toBuffer = (data: ArrayBuffer | Buffer): Buffer =>
+  Buffer.isBuffer(data) ? data : Buffer.from(new Uint8Array(data));
 
 describe("HTTP API", () => {
   afterEach(async () => {
@@ -433,6 +457,37 @@ describe("HTTP API", () => {
     });
     expect(invalidSpeed.status).toBe(400);
     await expect(invalidSpeed.json()).resolves.toMatchObject({ error: "invalid_speed" });
+  });
+
+  it("streams radar snapshots and updates over WebSockets", async () => {
+    const baseUrl = await startApi();
+    const socket = new WebSocket(baseUrl.replace("http://", "ws://") + "/api/radar/stream");
+
+    const snapshot = await readWebSocketMessage(socket);
+    expect(snapshot).toMatchObject({
+      image: {
+        latestUrl: "/api/radar/latest.png"
+      },
+      reason: "status",
+      type: "radar.snapshot"
+    });
+
+    api?.publishRadarUpdate({ reason: "status" });
+    const update = await readWebSocketMessage(socket);
+    expect(update).toMatchObject({
+      replay: {
+        frameCount: 1
+      },
+      type: "radar.update"
+    });
+
+    expect(api?.getStreamingStats()).toMatchObject({
+      clientsConnected: 1,
+      messagesSent: 1,
+      totalClientsConnected: 1
+    });
+
+    socket.close();
   });
 
   it("exposes explicit radar standby and transmit control endpoints", async () => {
