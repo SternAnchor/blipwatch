@@ -1,3 +1,9 @@
+## [1.1.0-develop.25](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.24...v1.1.0-develop.25) (2026-06-08)
+
+### Features
+
+* add replay controls to dashboard ([ce910e3](https://github.com/SternAnchor/blipwatch/commit/ce910e357a88dbf8dc07c13ec816b25641f23656))
+
 ## [1.1.0-develop.24](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.23...v1.1.0-develop.24) (2026-06-08)
 
 ### Features
