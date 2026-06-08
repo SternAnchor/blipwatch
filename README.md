@@ -19,7 +19,7 @@ Current limitations:
 - Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
 - Passive Navico report discovery is implemented. Active wake/transmit control is available as an explicit opt-in diagnostic path and is disabled by default.
-- Gain, sea clutter, rain clutter, and range have status/API models, but BlipWatch does not send those unverified HALO command payloads yet.
+- Gain, sea clutter, rain clutter, and range controls send documented Navico/HALO UDP command payloads when `RADAR_CONTROL_ENABLED=true`; validate these carefully against your hardware.
 - Replay storage is in memory only and is lost on restart.
 - WebSocket streaming sends live notifications and image URLs, not binary image frames.
 - The HTTP API is intentionally minimal and unauthenticated.
@@ -223,7 +223,7 @@ npm run dev
 
 The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, tuning capabilities, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
 
-Gain, sea clutter, rain clutter, and range control have an API/status model, but BlipWatch does not yet send those HALO command payloads. Requests to those settings are accepted for validation and tracking, then return an explicit unsupported response until the real command bytes are verified from captures or authoritative protocol notes.
+Gain, sea clutter, rain clutter, and range control are available through both the API and dashboard advanced controls when active radar control is enabled. The payloads are based on the published Navico control interface and the GPL-compatible OpenCPN radar_pi Navico implementation, then implemented in BlipWatch as small TypeScript packet builders. Treat them as active hardware commands: confirm the radar can transmit safely, keep another display available, and validate behavior on your specific HALO model before relying on them operationally.
 
 ### Capture Radar Traffic
 
@@ -293,7 +293,7 @@ Troubleshooting Phase 3 features:
 - If replay is empty, confirm `renderer.imageAvailable=true`, `replay.frameCount`, and `REPLAY_FRAME_INTERVAL_MS`. Replay frames are captured only after rendered spokes exist.
 - If the dashboard stays in replay mode, click `Live` or call `POST /api/radar/replay/playback` with `{"action":"live"}`.
 - If WebSocket clients do not update, check `/api/radar/status.streaming.clientsConnected`, `messagesSent`, and `updatesDropped`.
-- If control settings return `radar_control_setting_unsupported`, that is expected for gain, sea clutter, rain clutter, and range until their HALO command payloads are implemented.
+- If control settings return `radar_control_setting_failed`, confirm `RADAR_CONTROL_ENABLED=true`, the control socket is running, and the discovered or configured command endpoint matches the radar.
 - If CPU or memory pressure is high, compare `/api/radar/status.process`, `/api/radar/status.replay.totalBytes`, and `npm run profile:radar` output before reducing image size or replay retention.
 
 ### Calibration Capture
@@ -380,7 +380,11 @@ BlipWatch is configured through environment variables.
 | `CALIBRATION_CAPTURE_DIRECTORY` | `captures/calibration` | Directory where timestamped calibration bundles are written. `CALIBRATION_CAPTURE_DIR` is also accepted as a shorter alias. |
 | `CALIBRATION_CAPTURE_INTERVAL_MS` | `10000` | Interval between calibration bundle captures when enabled. |
 | `CALIBRATION_CAPTURE_PACKET_LIMIT` | `250` | Maximum number of recent raw UDP payloads to include in each calibration bundle. Set to `0` to disable packet payload capture. |
+| `HEADLESS` | `false` | Disables desktop browser launch when `true`. `BLIPWATCH_HEADLESS` is also accepted. Docker sets this to `true` by default. |
+| `OPEN_BROWSER` | `true` unless headless | Opens the dashboard in the local desktop browser after startup. `BLIPWATCH_OPEN_BROWSER` is also accepted. |
 | `PORT` | `8080` | HTTP API port. |
+| `PORT_FALLBACK_ENABLED` | `true` | When the configured HTTP port is busy, try sequential fallback ports. `BLIPWATCH_PORT_FALLBACK_ENABLED` is also accepted. |
+| `PORT_FALLBACK_MAX_ATTEMPTS` | `5` | Number of sequential HTTP ports to try, so the default probes `8080` through `8084`. `BLIPWATCH_PORT_FALLBACK_MAX_ATTEMPTS` is also accepted. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
 | `RADAR_BRIGHTNESS_SCALE` | `100` | Percentage multiplier applied to radar return intensity before rendering. Increase for dim targets or decrease for saturated returns. |
 | `RADAR_DISPLAY_RANGE_METERS` | `auto` | Render display range in meters. `auto` uses the decoded packet sweep range; set a value such as `463` to match a 1/4 NM chartplotter view. |
@@ -438,7 +442,7 @@ Returns the browser dashboard with the current radar image, live diagnostics, pa
 
 The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
 
-The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. In the current HALO implementation these controls validate and record requested values, then show the explicit unsupported response because the real HALO tuning command payloads have not yet been verified. Standby and transmit controls do send the validated HALO operating-state command path.
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled until `RADAR_CONTROL_ENABLED=true` starts the active command socket. Standby, transmit, tuning, and range commands are active hardware commands.
 
 ### `GET /api/health`
 
@@ -634,20 +638,20 @@ Returns radar tuning capabilities and the latest requested tuning state.
 {
   "capabilities": {
     "gain": {
-      "supported": false,
-      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+      "supported": true,
+      "reason": null
     },
     "seaClutter": {
-      "supported": false,
-      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+      "supported": true,
+      "reason": null
     },
     "rainClutter": {
-      "supported": false,
-      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+      "supported": true,
+      "reason": null
     },
     "range": {
-      "supported": false,
-      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+      "supported": true,
+      "reason": null
     }
   },
   "tuning": {
@@ -668,7 +672,9 @@ Returns radar tuning capabilities and the latest requested tuning state.
 
 ### `POST /api/radar/control/settings`
 
-Validates and records a requested tuning control change from the API or dashboard advanced controls panel. Current HALO tuning commands are not sent to hardware; the endpoint returns `501` with `radar_control_setting_unsupported` until protocol payloads are implemented.
+Validates, sends, and records a requested tuning control change from the API or dashboard advanced controls panel. Radar control must be enabled and running. Range values must be between `50` and `72704` meters.
+
+Successful responses return `200` with the updated tuning status. If the control socket is unavailable or a UDP send fails, the endpoint returns `500` with `radar_control_setting_failed`.
 
 Examples:
 
@@ -791,6 +797,7 @@ docker run --rm \
   -p 6878:6878/udp \
   -p 6678:6678/udp \
   -e PORT=8080 \
+  -e HEADLESS=true \
   -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=auto \
   -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
@@ -805,6 +812,7 @@ For onboard hardware directly connected to a radar Ethernet network, host networ
 ```bash
 docker run --rm --network host \
   -e PORT=8080 \
+  -e HEADLESS=true \
   -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=auto \
   -e RADAR_MULTICAST_GROUPS=236.6.7.8 \

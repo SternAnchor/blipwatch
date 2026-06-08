@@ -26,9 +26,13 @@ const config: BlipWatchConfig = {
   calibrationCaptureEnabled: false,
   calibrationCaptureIntervalMs: 10000,
   calibrationCapturePacketLimit: 250,
+  headless: true,
   imageSize: 32,
   logLevel: "debug",
+  openBrowser: false,
   port: 0,
+  portFallbackEnabled: true,
+  portFallbackMaxAttempts: 5,
   radarBrightnessScale: 100,
   radarControlEnabled: false,
   radarControlFallbackHost: "236.6.8.36",
@@ -342,6 +346,36 @@ const readWebSocketMessage = async (socket: WebSocket): Promise<Record<string, u
 const toBuffer = (data: ArrayBuffer | Buffer): Buffer =>
   Buffer.isBuffer(data) ? data : Buffer.from(new Uint8Array(data));
 
+const listenOnPort = async (port: number): Promise<ReturnType<typeof createServer>> => {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  return server;
+};
+
+const findAdjacentPortPair = async (): Promise<number> => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const server = await listenOnPort(0);
+    const port = (server.address() as AddressInfo).port;
+    try {
+      const nextServer = await listenOnPort(port + 1);
+      await closeHttpServer(nextServer, 1);
+      return port;
+    } catch {
+      // Try another random base port.
+    } finally {
+      await closeHttpServer(server, 1);
+    }
+  }
+
+  throw new Error("could not find adjacent free ports for fallback test");
+};
+
 describe("HTTP API", () => {
   afterEach(async () => {
     await api?.stop();
@@ -546,6 +580,40 @@ describe("HTTP API", () => {
     });
     expect(invalidSpeed.status).toBe(400);
     await expect(invalidSpeed.json()).resolves.toMatchObject({ error: "invalid_speed" });
+  });
+
+  it("falls back to the next HTTP port when the configured port is already in use", async () => {
+    const blockedPort = await findAdjacentPortPair();
+    const blocker = await listenOnPort(blockedPort);
+    const { messages, sink } = createMemorySink();
+    api = createHttpApi({
+      calibrationCaptureStatus: () => ({
+        directory: "captures/calibration",
+        enabled: false,
+        intervalMs: 10000,
+        lastCaptureAt: null,
+        lastCaptureDirectory: null,
+        resolvedDirectory: resolve("captures/calibration"),
+        running: false
+      }),
+      config: {
+        ...config,
+        port: blockedPort,
+        portFallbackMaxAttempts: 2
+      },
+      logger: createLogger({ level: "debug", sink }),
+      renderer: createRenderer(),
+      radarStatus,
+      replayBuffer: createReplayBuffer()
+    });
+
+    try {
+      await api.start();
+      expect(api.address()?.port).toBe(blockedPort + 1);
+      expect(messages.some((message) => message.includes(`using fallback port ${blockedPort + 1}`))).toBe(true);
+    } finally {
+      await closeHttpServer(blocker, 1);
+    }
   });
 
   it("streams radar snapshots and updates over WebSockets", async () => {

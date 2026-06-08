@@ -9,9 +9,13 @@ const DEFAULTS = {
   calibrationCaptureEnabled: false,
   calibrationCaptureIntervalMs: 10_000,
   calibrationCapturePacketLimit: 250,
+  headless: false,
   imageSize: 1024,
   logLevel: "info",
+  openBrowser: true,
   port: 8080,
+  portFallbackEnabled: true,
+  portFallbackMaxAttempts: 5,
   radarBrightnessScale: 100,
   radarControlEnabled: false,
   radarControlFallbackHost: "236.6.8.36",
@@ -42,9 +46,13 @@ export interface BlipWatchConfig {
   readonly calibrationCaptureEnabled: boolean;
   readonly calibrationCaptureIntervalMs: number;
   readonly calibrationCapturePacketLimit: number;
+  readonly headless: boolean;
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
+  readonly openBrowser: boolean;
   readonly port: number;
+  readonly portFallbackEnabled: boolean;
+  readonly portFallbackMaxAttempts: number;
   readonly radarBrightnessScale: number;
   readonly radarControlEnabled: boolean;
   readonly radarControlFallbackHost: string;
@@ -98,9 +106,21 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     "CALIBRATION_CAPTURE_PACKET_LIMIT",
     DEFAULTS.calibrationCapturePacketLimit
   ),
+  headless: parseBoolean(env.HEADLESS ?? env.BLIPWATCH_HEADLESS, "HEADLESS", DEFAULTS.headless),
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
+  openBrowser: parseOpenBrowser(env.OPEN_BROWSER ?? env.BLIPWATCH_OPEN_BROWSER, env.HEADLESS ?? env.BLIPWATCH_HEADLESS),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
+  portFallbackEnabled: parseBoolean(
+    env.PORT_FALLBACK_ENABLED ?? env.BLIPWATCH_PORT_FALLBACK_ENABLED,
+    "PORT_FALLBACK_ENABLED",
+    DEFAULTS.portFallbackEnabled
+  ),
+  portFallbackMaxAttempts: parsePositiveInteger(
+    env.PORT_FALLBACK_MAX_ATTEMPTS ?? env.BLIPWATCH_PORT_FALLBACK_MAX_ATTEMPTS,
+    "PORT_FALLBACK_MAX_ATTEMPTS",
+    DEFAULTS.portFallbackMaxAttempts
+  ),
   radarBrightnessScale: parsePositiveInteger(
     env.RADAR_BRIGHTNESS_SCALE,
     "RADAR_BRIGHTNESS_SCALE",
@@ -188,6 +208,15 @@ const parseBoolean = (value: string | undefined, name: string, defaultValue: boo
   }
 
   throw new ConfigurationError(`${name} must be one of: true, false, 1, 0; received "${value}"`);
+};
+
+const parseOpenBrowser = (value: string | undefined, headlessValue: string | undefined): boolean => {
+  if (value !== undefined && value !== "") {
+    return parseBoolean(value, "OPEN_BROWSER", DEFAULTS.openBrowser);
+  }
+
+  const headless = parseBoolean(headlessValue, "HEADLESS", DEFAULTS.headless);
+  return headless ? false : DEFAULTS.openBrowser;
 };
 
 const parsePositiveInteger = (value: string | undefined, name: string, defaultValue: number): number => {

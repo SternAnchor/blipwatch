@@ -34,9 +34,9 @@ export interface RadarRangeRequest {
 
 export interface RadarTuningRequestResult {
   readonly message: string;
-  readonly ok: false;
+  readonly ok: boolean;
   readonly setting: keyof RadarControlTuningStatus;
-  readonly supported: false;
+  readonly supported: boolean;
 }
 
 export interface RadarControlOptions {
@@ -64,25 +64,26 @@ const COMMAND_STAY_ON_C = Buffer.from([0x04, 0xc2]);
 const COMMAND_STAY_ON_D = Buffer.from([0x05, 0xc2]);
 const COMMAND_STAY_ON_E = Buffer.from([0x0a, 0xc2]);
 const OBSERVED_STATE_REQUEST_GRACE_MS = 5_000;
-const UNSUPPORTED_TUNING_MESSAGE =
-  "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet.";
+const SUPPORTED_TUNING_MESSAGE = "HALO tuning command sent.";
+const MIN_RANGE_METERS = 50;
+const MAX_RANGE_METERS = 72_704;
 
 const TUNING_CAPABILITIES: RadarControlCapabilities = {
   gain: {
-    reason: UNSUPPORTED_TUNING_MESSAGE,
-    supported: false
+    reason: null,
+    supported: true
   },
   rainClutter: {
-    reason: UNSUPPORTED_TUNING_MESSAGE,
-    supported: false
+    reason: null,
+    supported: true
   },
   range: {
-    reason: UNSUPPORTED_TUNING_MESSAGE,
-    supported: false
+    reason: null,
+    supported: true
   },
   seaClutter: {
-    reason: UNSUPPORTED_TUNING_MESSAGE,
-    supported: false
+    reason: null,
+    supported: true
   }
 };
 
@@ -96,7 +97,11 @@ type CommandName =
   | "stay-alive-b"
   | "stay-alive-c"
   | "stay-alive-d"
-  | "stay-alive-e";
+  | "stay-alive-e"
+  | "set-gain"
+  | "set-rain-clutter"
+  | "set-range"
+  | "set-sea-clutter";
 
 const createTuningSettingStatus = (
   mode: RadarControlTuningMode
@@ -203,6 +208,13 @@ export const createRadarControl = ({
     }
   };
 
+  const sendTuningCommands = async (name: CommandName, payloads: readonly Buffer[]): Promise<void> => {
+    const target = getCommandTarget(config, commandTargetProvider);
+    for (const payload of payloads) {
+      await sendCommand(name, payload, target);
+    }
+  };
+
   const sendTransmitCycle = async (): Promise<void> => {
     reconcileObservedState();
     if (desiredState !== "transmit") {
@@ -271,34 +283,49 @@ export const createRadarControl = ({
     }
   };
 
-  const recordUnsupportedSettingRequest = (
+  const requestTuningSetting = async (
     setting: "gain" | "rainClutter" | "seaClutter",
     request: RadarTuningSettingRequest
-  ): RadarTuningRequestResult => {
+  ): Promise<RadarTuningRequestResult> => {
+    assertSocketActive();
     const status = tuningStatus[setting];
-    status.lastError = UNSUPPORTED_TUNING_MESSAGE;
+    status.lastError = null;
     status.lastRequestAt = new Date().toISOString();
     status.mode = request.mode;
     status.value = request.mode === "manual" ? request.value ?? null : null;
-    logger.info(`radar tuning request unsupported setting=${setting} mode=${request.mode}`);
+    const payloads = buildTuningSettingPayloads(setting, request);
+    try {
+      await sendTuningCommands(getTuningCommandName(setting), payloads);
+    } catch (error) {
+      status.lastError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+    logger.info(`radar tuning request sent setting=${setting} mode=${request.mode}`);
     return {
-      message: UNSUPPORTED_TUNING_MESSAGE,
-      ok: false,
+      message: SUPPORTED_TUNING_MESSAGE,
+      ok: true,
       setting,
-      supported: false
+      supported: true
     };
   };
 
-  const recordUnsupportedRangeRequest = (request: RadarRangeRequest): RadarTuningRequestResult => {
-    tuningStatus.range.lastError = UNSUPPORTED_TUNING_MESSAGE;
+  const requestRange = async (request: RadarRangeRequest): Promise<RadarTuningRequestResult> => {
+    assertSocketActive();
+    tuningStatus.range.lastError = null;
     tuningStatus.range.lastRequestAt = new Date().toISOString();
     tuningStatus.range.rangeMeters = request.rangeMeters;
-    logger.info(`radar tuning request unsupported setting=range rangeMeters=${request.rangeMeters}`);
+    try {
+      await sendTuningCommands("set-range", [buildRangePayload(request.rangeMeters)]);
+    } catch (error) {
+      tuningStatus.range.lastError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+    logger.info(`radar tuning request sent setting=range rangeMeters=${request.rangeMeters}`);
     return {
-      message: UNSUPPORTED_TUNING_MESSAGE,
-      ok: false,
+      message: SUPPORTED_TUNING_MESSAGE,
+      ok: true,
       setting: "range",
-      supported: false
+      supported: true
     };
   };
 
@@ -328,16 +355,16 @@ export const createRadarControl = ({
       };
     },
     requestGain(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult> {
-      return Promise.resolve(recordUnsupportedSettingRequest("gain", request));
+      return requestTuningSetting("gain", request);
     },
     requestRainClutter(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult> {
-      return Promise.resolve(recordUnsupportedSettingRequest("rainClutter", request));
+      return requestTuningSetting("rainClutter", request);
     },
     requestRange(request: RadarRangeRequest): Promise<RadarTuningRequestResult> {
-      return Promise.resolve(recordUnsupportedRangeRequest(request));
+      return requestRange(request);
     },
     requestSeaClutter(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult> {
-      return Promise.resolve(recordUnsupportedSettingRequest("seaClutter", request));
+      return requestTuningSetting("seaClutter", request);
     },
     requestStandby,
     requestTransmit,
@@ -462,14 +489,77 @@ const getCommandTarget = (
   };
 };
 
+const getTuningCommandName = (setting: "gain" | "rainClutter" | "seaClutter"): CommandName => {
+  switch (setting) {
+    case "gain":
+      return "set-gain";
+    case "rainClutter":
+      return "set-rain-clutter";
+    case "seaClutter":
+      return "set-sea-clutter";
+  }
+};
+
+const buildTuningSettingPayloads = (
+  setting: "gain" | "rainClutter" | "seaClutter",
+  request: RadarTuningSettingRequest
+): readonly Buffer[] => {
+  switch (setting) {
+    case "gain":
+      return [buildGenericTuningPayload(0x00, request)];
+    case "rainClutter":
+      return [buildGenericTuningPayload(0x04, request)];
+    case "seaClutter":
+      return buildHaloSeaClutterPayloads(request);
+  }
+};
+
+const buildGenericTuningPayload = (controlId: number, request: RadarTuningSettingRequest): Buffer => {
+  const autoValue = request.mode === "auto" ? 1 : 0;
+  const value = request.mode === "manual" ? scalePercentToNavicoByte(request.value ?? 0) : 0;
+  return Buffer.from([0x06, 0xc1, controlId, 0, 0, 0, autoValue, 0, 0, 0, value]);
+};
+
+const buildHaloSeaClutterPayloads = (request: RadarTuningSettingRequest): readonly Buffer[] => {
+  const modeByte = request.mode === "auto" ? 0x01 : 0x00;
+  const value = request.mode === "manual" ? request.value ?? 0 : 0;
+  const modePayload = Buffer.from([0x11, 0xc1, modeByte, 0, 0, 0x01]);
+  const valuePayload = Buffer.from([0x11, 0xc1, modeByte, value > 0 ? value : 0, value, request.mode === "auto" ? 0x04 : 0x02]);
+  return [modePayload, valuePayload];
+};
+
+const buildRangePayload = (rangeMeters: number): Buffer => {
+  const decimeters = rangeMeters * 10;
+  const payload = Buffer.alloc(6);
+  payload[0] = 0x03;
+  payload[1] = 0xc1;
+  payload.writeUInt32LE(decimeters, 2);
+  return payload;
+};
+
+const scalePercentToNavicoByte = (value: number): number => Math.min(Math.trunc(((value + 1) * 255) / 100), 255);
+
 export const navicoControlCommands = {
+  buildGain: (request: RadarTuningSettingRequest): Buffer => buildGenericTuningPayload(0x00, request),
+  buildRainClutter: (request: RadarTuningSettingRequest): Buffer => buildGenericTuningPayload(0x04, request),
+  buildRange: buildRangePayload,
+  buildSeaClutter: buildHaloSeaClutterPayloads,
   stayAlive: [COMMAND_STAY_ON_A, COMMAND_STAY_ON_B, COMMAND_STAY_ON_C, COMMAND_STAY_ON_D, COMMAND_STAY_ON_E],
   transmitOff: [COMMAND_TX_OFF_A, COMMAND_TX_OFF_B],
   transmitOn: [COMMAND_TX_ON_A, COMMAND_TX_ON_B],
   wake: COMMAND_WAKE
 } as const satisfies {
+  buildGain(request: RadarTuningSettingRequest): Buffer;
+  buildRainClutter(request: RadarTuningSettingRequest): Buffer;
+  buildRange(rangeMeters: number): Buffer;
+  buildSeaClutter(request: RadarTuningSettingRequest): readonly Buffer[];
   readonly stayAlive: readonly Buffer[];
   readonly transmitOff: readonly Buffer[];
   readonly transmitOn: readonly Buffer[];
   readonly wake: Buffer;
 };
+
+export const navicoControlRangeLimits = {
+  maxMeters: MAX_RANGE_METERS,
+  minMeters: MIN_RANGE_METERS
+} as const;

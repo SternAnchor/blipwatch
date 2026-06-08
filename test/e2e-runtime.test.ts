@@ -17,6 +17,7 @@ const startServer = async (
   env: NodeJS.ProcessEnv = {}
 ): Promise<{ readonly baseUrl: string; readonly radarPort: number }> => {
   server = createBlipWatchServer({
+    HEADLESS: "true",
     IMAGE_SIZE: "32",
     LOG_LEVEL: "debug",
     PORT: "0",

@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+
 import { createCalibrationCapture } from "./calibration/calibration-capture.js";
 import { createHttpApi } from "./api/http-api.js";
 import { ConfigurationError, loadConfig } from "./config/config.js";
@@ -183,6 +185,11 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.debug(`decoder ready: ${decoder.name}`);
       logger.debug(`renderer ready: ${renderer.imageSize}px`);
       logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s interval=${replayBuffer.frameIntervalMs}ms`);
+      const dashboardUrl = getDashboardUrl(httpApi.address()?.port);
+      if (dashboardUrl) {
+        logger.info(`BlipWatch dashboard available at ${dashboardUrl}`);
+        openDashboardInBrowser(dashboardUrl, config, logger);
+      }
     },
     async stop(): Promise<void> {
       calibrationCapture.stop();
@@ -193,6 +200,36 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.info("BlipWatch stopped");
     }
   };
+};
+
+const getDashboardUrl = (port: number | undefined): string | undefined => (port ? `http://127.0.0.1:${port}/` : undefined);
+
+const openDashboardInBrowser = (url: string, config: ReturnType<typeof loadConfig>, logger: Logger): void => {
+  if (config.headless || !config.openBrowser) {
+    logger.debug(`browser launch skipped headless=${config.headless} openBrowser=${config.openBrowser}`);
+    return;
+  }
+
+  const command = getBrowserOpenCommand(url);
+  const child = spawn(command.command, command.args, {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.on("error", (error) => {
+    logger.warn(`failed to open dashboard browser: ${error.message}`);
+  });
+  child.unref();
+};
+
+const getBrowserOpenCommand = (url: string): { readonly args: readonly string[]; readonly command: string } => {
+  switch (process.platform) {
+    case "darwin":
+      return { args: [url], command: "open" };
+    case "win32":
+      return { args: ["/c", "start", "", url], command: "cmd" };
+    default:
+      return { args: [url], command: "xdg-open" };
+  }
 };
 
 const RADAR_TRAFFIC_ACTIVE_WINDOW_MS = 3_000;

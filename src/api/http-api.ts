@@ -7,7 +7,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { BlipWatchConfig } from "../config/config.js";
 import type { CalibrationCaptureStatus } from "../calibration/calibration-capture.js";
 import type { Logger } from "../logging/logger.js";
-import type { RadarControl, RadarRangeRequest, RadarTuningSettingRequest } from "../radar/control.js";
+import { navicoControlRangeLimits, type RadarControl, type RadarRangeRequest, type RadarTuningSettingRequest } from "../radar/control.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
 import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
@@ -82,7 +82,69 @@ export const createHttpApi = ({
       stream.publish(update);
     },
     async start(): Promise<void> {
-      server = createServer((request, response) => {
+      const candidatePorts = getCandidateHttpPorts(config);
+      let lastBindError: unknown;
+      for (const candidatePort of candidatePorts) {
+        server = createBlipWatchHttpServer({
+          calibrationCaptureStatus,
+          logger,
+          radarControl,
+          radarStatus,
+          renderer,
+          replayBuffer,
+          stream
+        });
+
+        try {
+          await listenHttpServer(server, candidatePort);
+          const boundPort = getBoundHttpPort(server) ?? candidatePort;
+          if (boundPort !== config.port) {
+            logger.warn(`configured HTTP port ${config.port} is in use; using fallback port ${boundPort}`);
+          }
+          logger.info(`HTTP API listening on :${boundPort}`);
+          logger.debug("HTTP API startup complete");
+          return;
+        } catch (error) {
+          lastBindError = error;
+          await closeFailedHttpServer(server);
+          server = undefined;
+          if (!isAddressInUseError(error) || candidatePort === candidatePorts.at(-1)) {
+            throw error;
+          }
+
+          logger.warn(`HTTP port ${candidatePort} is already in use; trying ${candidatePort + 1}`);
+        }
+      }
+
+      throw lastBindError instanceof Error ? lastBindError : new Error("HTTP API failed to bind to a port");
+    },
+    async stop(): Promise<void> {
+      if (!server) {
+        return;
+      }
+
+      await stream.close();
+      await closeHttpServer(server);
+      logger.debug("HTTP API stopped");
+      server = undefined;
+    }
+  };
+};
+
+interface HttpServerOptions extends Omit<HttpApiOptions, "config"> {
+  readonly stream: RadarStream;
+}
+
+const createBlipWatchHttpServer = ({
+  calibrationCaptureStatus,
+  logger,
+  radarControl,
+  radarStatus,
+  renderer,
+  replayBuffer,
+  stream
+}: HttpServerOptions): Server => {
+  const server = createServer((request, response) => {
         logger.debug(
           `HTTP request received method=${request.method ?? "UNKNOWN"} url=${request.url ?? "/"} renderer=${renderer.imageSize}px replayRetention=${replayBuffer.retentionSeconds}s`
         );
@@ -213,30 +275,59 @@ export const createHttpApi = ({
 
         sendJson(response, 404, { error: "not_found" });
       });
-      configureHttpServerLimits(server);
-      stream.attach(server);
-
-      await new Promise<void>((resolve, reject) => {
-        server?.once("error", reject);
-        server?.listen(config.port, () => {
-          logger.info(`HTTP API listening on :${config.port}`);
-          logger.debug("HTTP API startup complete");
-          resolve();
-        });
-      });
-    },
-    async stop(): Promise<void> {
-      if (!server) {
-        return;
-      }
-
-      await stream.close();
-      await closeHttpServer(server);
-      logger.debug("HTTP API stopped");
-      server = undefined;
-    }
-  };
+  configureHttpServerLimits(server);
+  stream.attach(server);
+  return server;
 };
+
+const getCandidateHttpPorts = (config: BlipWatchConfig): number[] => {
+  if (config.port === 0 || !config.portFallbackEnabled) {
+    return [config.port];
+  }
+
+  const ports: number[] = [];
+  for (let offset = 0; offset < config.portFallbackMaxAttempts; offset += 1) {
+    const port = config.port + offset;
+    if (port > 65535) {
+      break;
+    }
+
+    ports.push(port);
+  }
+
+  return ports.length > 0 ? ports : [config.port];
+};
+
+const listenHttpServer = async (server: Server, port: number): Promise<void> => {
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+};
+
+const getBoundHttpPort = (server: Server): number | undefined => {
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    return undefined;
+  }
+
+  return address.port;
+};
+
+const closeFailedHttpServer = async (server: Server): Promise<void> => {
+  if (!server.listening) {
+    server.removeAllListeners();
+    return;
+  }
+
+  await closeHttpServer(server, 1);
+};
+
+const isAddressInUseError = (error: unknown): boolean =>
+  error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EADDRINUSE";
 
 const REPLAY_PLAYBACK_ACTIONS = new Set<ReplayPlaybackAction>(["jump", "live", "pause", "resume", "scrub"]);
 const REPLAY_PLAYBACK_SPEEDS = new Set<ReplayPlaybackSpeed>([1, 2, 5, 10]);
@@ -478,8 +569,16 @@ const handleRadarControlSettingsRequest = async (
 
     const result = await requestRadarControlSetting(radarControl, parsed.value);
     stream.publish({ reason: "control" });
-    sendJson(response, 501, {
-      error: "radar_control_setting_unsupported",
+    if (!result.supported) {
+      sendJson(response, 501, {
+        error: "radar_control_setting_unsupported",
+        ...result,
+        status: radarControl.getStatus().tuning
+      });
+      return;
+    }
+
+    sendJson(response, 200, {
       ...result,
       status: radarControl.getStatus().tuning
     });
@@ -533,6 +632,14 @@ const parseRadarControlSettingsRequest = (
   if (body.setting === "range") {
     if (typeof body.rangeMeters !== "number" || !Number.isInteger(body.rangeMeters) || body.rangeMeters <= 0) {
       return { error: "invalid_range", message: "Field `rangeMeters` must be a positive integer.", ok: false };
+    }
+
+    if (body.rangeMeters < navicoControlRangeLimits.minMeters || body.rangeMeters > navicoControlRangeLimits.maxMeters) {
+      return {
+        error: "invalid_range",
+        message: `Field \`rangeMeters\` must be between ${navicoControlRangeLimits.minMeters} and ${navicoControlRangeLimits.maxMeters}.`,
+        ok: false
+      };
     }
 
     return {
@@ -1370,7 +1477,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
         transmitButton.classList.toggle("active", visibleState === "transmit");
       };
       const setTuningControls = (control) => {
-        const disabled = controlRequestPending || !control;
+        const active = Boolean(control?.enabled && control?.running);
+        const disabled = controlRequestPending || !active;
         tuningButtons.forEach((button) => {
           button.disabled = disabled;
         });
@@ -1395,7 +1503,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
         const unsupported = control?.capabilities
           ? ["gain", "seaClutter", "rainClutter", "range"].filter((setting) => !control.capabilities[setting]?.supported)
           : [];
-        if (unsupported.length === 4) {
+        if (!active) {
+          setTuningFeedback("Enable radar control to adjust gain, clutter, and range.");
+        } else if (unsupported.length === 4) {
           setTuningFeedback("HALO tuning commands are not implemented yet; requests are validated and recorded only.");
         } else if (control) {
           setTuningFeedback("Advanced controls ready.");
