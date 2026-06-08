@@ -1,3 +1,7 @@
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -7,8 +11,11 @@ import { createNavicoHaloFramePacket } from "./support/halo-frame.js";
 import { sendUdpPacket } from "./support/udp.js";
 
 let server: BlipWatchServer | undefined;
+let temporaryDirectories: string[] = [];
 
-const startServer = async (): Promise<{ readonly baseUrl: string; readonly radarPort: number }> => {
+const startServer = async (
+  env: NodeJS.ProcessEnv = {}
+): Promise<{ readonly baseUrl: string; readonly radarPort: number }> => {
   server = createBlipWatchServer({
     IMAGE_SIZE: "32",
     LOG_LEVEL: "debug",
@@ -18,7 +25,8 @@ const startServer = async (): Promise<{ readonly baseUrl: string; readonly radar
     RADAR_MULTICAST_GROUPS: "",
     RADAR_UDP_PORT: "0",
     REPLAY_FRAME_INTERVAL_MS: "1",
-    REPLAY_RETENTION_SECONDS: "300"
+    REPLAY_RETENTION_SECONDS: "300",
+    ...env
   });
   await server.start();
 
@@ -52,6 +60,8 @@ describe("runtime data path", () => {
   afterEach(async () => {
     await server?.stop();
     server = undefined;
+    await Promise.all(temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })));
+    temporaryDirectories = [];
   });
 
   it("receives a simulated radar packet, renders imagery, and captures replay", async () => {
@@ -124,4 +134,40 @@ describe("runtime data path", () => {
     expect(latestPng.status).toBe(200);
     expect(latestPng.headers.get("content-type")).toBe("image/png");
   });
+
+  it("writes a calibration bundle with raw packets after the first decoded spoke", async () => {
+    const calibrationDirectory = await mkdtemp(join(tmpdir(), "blipwatch-e2e-calibration-"));
+    temporaryDirectories.push(calibrationDirectory);
+    const { radarPort } = await startServer({
+      CALIBRATION_CAPTURE_DIRECTORY: calibrationDirectory,
+      CALIBRATION_CAPTURE_ENABLED: "true",
+      CALIBRATION_CAPTURE_INTERVAL_MS: "60000"
+    });
+
+    await sendUdpPacket(
+      radarPort,
+      createPlaceholderSpokePacket({
+        angleDegrees: 90,
+        intensities: [0, 64, 128, 255],
+        rangeMeters: 2000
+      })
+    );
+
+    await waitFor(async () => {
+      return (await readCalibrationPacketBundles(calibrationDirectory)).some((content) => content.length > 0);
+    });
+
+    expect((await readCalibrationPacketBundles(calibrationDirectory)).some((content) => content.includes("payloadHex"))).toBe(
+      true
+    );
+  });
 });
+
+const readCalibrationPacketBundles = async (directory: string): Promise<string[]> => {
+  const entries = await readdir(directory, { withFileTypes: true });
+  return Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) => readFile(join(directory, entry.name, "packets.ndjson"), "utf8").catch(() => ""))
+  );
+};

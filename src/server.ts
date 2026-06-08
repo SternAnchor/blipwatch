@@ -63,6 +63,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
   const calibrationPackets: CalibrationPacketSnapshot[] = [];
+  let capturedFirstDecodedPacket = false;
   let packetsDecoded = 0;
   let packetsRejected = 0;
   let lastDecodedSpokeAt: Date | undefined;
@@ -142,6 +143,12 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
             replayBuffer.captureFrame({
               metadata: renderer.getLatestMetadata(),
               png: renderer.getLatestPng()
+            });
+          }
+          if (!capturedFirstDecodedPacket) {
+            capturedFirstDecodedPacket = true;
+            void calibrationCapture.captureNow().catch((error) => {
+              logger.error("first decoded packet calibration capture failed", error);
             });
           }
           return;

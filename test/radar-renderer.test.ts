@@ -85,7 +85,8 @@ describe("createRadarImageRenderer", () => {
     expect(metadata.spokeCount).toBe(1);
 
     const png = PNG.sync.read(renderer.getLatestPng());
-    expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
+    expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
+    expect(readPixel(png, 30, 16)).not.toEqual([0, 0, 0, 255]);
     expect(messages.some((message) => message.includes("radar spoke rendered angle=90"))).toBe(true);
   });
 
@@ -128,7 +129,8 @@ describe("createRadarImageRenderer", () => {
     });
 
     const png = PNG.sync.read(renderer.getLatestPng());
-    expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
+    expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
+    expect(readPixel(png, 30, 16)).not.toEqual([0, 0, 0, 255]);
     expect(renderer.getLatestMetadata()).toMatchObject({
       maxIntensity: 255,
       renderState: "ready",
