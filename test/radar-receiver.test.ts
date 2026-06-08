@@ -7,10 +7,27 @@ import { createMemorySink } from "./support/logger.js";
 import { sendUdpPacket } from "./support/udp.js";
 
 const baseConfig: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 1024,
   logLevel: "debug",
   port: 8080,
+  radarControlEnabled: false,
+  radarControlFallbackHost: "236.6.8.36",
+  radarControlHost: "236.6.8.36",
+  radarControlMode: "wake",
+  radarControlPort: 6516,
+  radarControlStayAliveIntervalMs: 1000,
+  radarControlWakeHost: "236.6.7.5",
+  radarControlWakePort: 6878,
+  radarDiscoveryEnabled: false,
+  radarDisplayRangeMeters: "auto",
   radarInterface: "127.0.0.1",
+  radarMulticastGroups: [],
+  radarReportMulticastGroup: "236.6.7.5",
+  radarReportUdpPort: 0,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -37,10 +54,26 @@ describe("createRadarReceiver", () => {
     const logger = createLogger({ level: "debug", sink });
     receiver = createRadarReceiver({ config: baseConfig, logger });
 
+    expect(receiver.getStatus()).toMatchObject({
+      boundInterface: null,
+      lastPacketAt: null,
+      lastSourceAddress: null,
+      multicastGroups: [],
+      packetsReceived: 0,
+      running: false,
+      udpPort: null
+    });
+
     await receiver.start();
     const address = receiver.address();
     expect(address?.address).toBe("127.0.0.1");
     expect(address?.port).toBeGreaterThan(0);
+    expect(receiver.getStatus()).toMatchObject({
+      boundInterface: "127.0.0.1",
+      packetsReceived: 0,
+      running: true,
+      udpPort: address?.port
+    });
 
     const expectedData = Buffer.from([0xde, 0xad, 0xbe, 0xef]);
     const packetPromise = waitForPacket(receiver);
@@ -51,6 +84,12 @@ describe("createRadarReceiver", () => {
     expect(packet.data).toEqual(expectedData);
     expect(packet.remote.address).toBe("127.0.0.1");
     expect(packet.receivedAt).toBeInstanceOf(Date);
+    expect(receiver.getStatus()).toMatchObject({
+      lastPacketAt: packet.receivedAt.toISOString(),
+      lastSourceAddress: `${packet.remote.address}:${packet.remote.port}`,
+      packetsReceived: 1,
+      running: true
+    });
     expect(messages.some((message) => message.includes("radar packet received count=1 bytes=4"))).toBe(true);
   });
 

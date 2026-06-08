@@ -1,6 +1,6 @@
 {
   "name": "blipwatch",
-  "version": "1.1.0-develop.1",
+  "version": "1.1.0-develop.21",
   "description": "Server-based interface for HALO-based radars.",
   "license": "GPL-3.0-only",
   "repository": {
@@ -23,6 +23,7 @@
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
     "release": "semantic-release",
+    "replay:packets": "tsx src/sim/packet-replay-cli.ts",
     "simulate:radar": "tsx src/sim/radar-simulator.ts",
     "start": "node dist/index.js",
     "test": "vitest run",

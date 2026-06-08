@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createLogger } from "../src/logging/logger.js";
 import { createRadarDecoder } from "../src/radar/decoder.js";
 import { createPlaceholderSpokePacket } from "../src/sim/placeholder-fixture.js";
+import { createNavicoHaloFramePacket } from "./support/halo-frame.js";
 import { createMemorySink } from "./support/logger.js";
 
 describe("createRadarDecoder", () => {
@@ -42,7 +43,10 @@ describe("createRadarDecoder", () => {
       ok: false
     });
     expect(decoder.decode(Buffer.from("HALO00000000"))).toMatchObject({
-      error: { code: "unsupported-packet" },
+      error: {
+        code: "unsupported-packet",
+        message: "HALO packet candidate decoding is not implemented: starts with HALO ASCII marker"
+      },
       ok: false
     });
     expect(messages.some((message) => message.includes("radar packet decode skipped"))).toBe(true);
@@ -60,5 +64,40 @@ describe("createRadarDecoder", () => {
       },
       ok: false
     });
+  });
+
+  it("decodes every valid Navico/HALO frame scan line into radar spokes", () => {
+    const { messages, sink } = createMemorySink();
+    const decoder = createRadarDecoder({ logger: createLogger({ level: "debug", sink }) });
+    const receivedAt = new Date("2026-06-07T00:00:00.000Z");
+
+    const result = decoder.decode({
+      data: createNavicoHaloFramePacket({ lineCount: 3 }),
+      receivedAt,
+      remote: {
+        address: "192.0.2.10",
+        family: "IPv4",
+        port: 6678,
+        size: 544
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    expect(result.spoke).toMatchObject({
+      angleDegrees: 90,
+      maxIntensity: 255,
+      rangeMeters: 2000,
+      receivedAt,
+      sampleCount: 1024,
+      type: "spoke"
+    });
+    expect(result.spokes).toHaveLength(3);
+    expect(result.spokes.map((spoke) => spoke.angleDegrees)).toEqual([90, 90.087890625, 90.17578125]);
+    expect(Array.from(result.spoke.intensities.slice(0, 4))).toEqual([0, 255, 17, 238]);
+    expect(messages.some((message) => message.includes("kind=navico-halo-frame"))).toBe(true);
   });
 });

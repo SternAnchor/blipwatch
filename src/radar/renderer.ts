@@ -33,6 +33,7 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
     inputHasAlpha: true,
     width: config.imageSize
   });
+  const intensityMap = new Uint8Array(config.imageSize * config.imageSize);
   clearImage(image);
   let lastFrameAt: Date | undefined;
   let lastSpokeAt: Date | undefined;
@@ -45,7 +46,7 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
   return {
     applySpoke(spoke: RadarSpoke): void {
       try {
-        drawSpoke(image, spoke);
+        drawSpoke(image, intensityMap, spoke, getDisplayRangeMeters(config.radarDisplayRangeMeters, spoke));
         spokeCount += 1;
         maxIntensity = Math.max(maxIntensity, spoke.maxIntensity);
         lastSpokeAt = spoke.receivedAt ?? new Date();
@@ -85,28 +86,95 @@ const clearImage = (image: PNG): void => {
   }
 };
 
-const drawSpoke = (image: PNG, spoke: RadarSpoke): void => {
+const getDisplayRangeMeters = (configuredRange: number | "auto", spoke: RadarSpoke): number => {
+  if (configuredRange === "auto") {
+    return spoke.rangeMeters;
+  }
+
+  return configuredRange;
+};
+
+const drawSpoke = (image: PNG, intensityMap: Uint8Array, spoke: RadarSpoke, displayRangeMeters: number): void => {
   const center = Math.floor(image.width / 2);
   const maxRadius = Math.max(Math.floor(image.width / 2) - 1, 1);
   const angleRadians = (spoke.angleDegrees * Math.PI) / 180;
   const sampleDenominator = Math.max(spoke.intensities.length - 1, 1);
+  const metersPerSample = spoke.rangeMeters / sampleDenominator;
+  const footprintRadius = getFootprintRadius(image.width);
 
   for (const [sampleIndex, intensity] of spoke.intensities.entries()) {
-    const radius = (sampleIndex / sampleDenominator) * maxRadius;
+    if (intensity === 0) {
+      continue;
+    }
+
+    const sampleRangeMeters = sampleIndex * metersPerSample;
+    if (sampleRangeMeters > displayRangeMeters) {
+      continue;
+    }
+
+    const radius = (sampleRangeMeters / displayRangeMeters) * maxRadius;
     const x = Math.round(center + Math.sin(angleRadians) * radius);
     const y = Math.round(center - Math.cos(angleRadians) * radius);
-    setPixel(image, x, y, intensity);
+    drawReturn(image, intensityMap, x, y, intensity, footprintRadius);
   }
 };
 
-const setPixel = (image: PNG, x: number, y: number, intensity: number): void => {
+const getFootprintRadius = (imageSize: number): number => Math.max(1, Math.round(imageSize / 256));
+
+const drawReturn = (
+  image: PNG,
+  intensityMap: Uint8Array,
+  centerX: number,
+  centerY: number,
+  intensity: number,
+  footprintRadius: number
+): void => {
+  const radius = intensity >= 192 ? footprintRadius * 2 : footprintRadius;
+  for (let y = centerY - radius; y <= centerY + radius; y += 1) {
+    for (let x = centerX - radius; x <= centerX + radius; x += 1) {
+      const distanceSquared = (x - centerX) ** 2 + (y - centerY) ** 2;
+      if (distanceSquared > radius ** 2) {
+        continue;
+      }
+
+      const falloff = radius > 1 ? 1 - Math.sqrt(distanceSquared) / (radius + 1) : 1;
+      setPixel(image, intensityMap, x, y, Math.max(1, Math.round(intensity * falloff)));
+    }
+  }
+};
+
+const setPixel = (image: PNG, intensityMap: Uint8Array, x: number, y: number, intensity: number): void => {
   if (x < 0 || x >= image.width || y < 0 || y >= image.height) {
     return;
   }
 
+  const pixelIndex = y * image.width + x;
+  const currentIntensity = intensityMap[pixelIndex] ?? 0;
+  if (intensity <= currentIntensity) {
+    return;
+  }
+
+  intensityMap[pixelIndex] = intensity;
   const offset = (y * image.width + x) * 4;
-  image.data[offset] = 0;
-  image.data[offset + 1] = intensity;
-  image.data[offset + 2] = 0;
+  const color = colorizeIntensity(intensity);
+  image.data[offset] = color.red;
+  image.data[offset + 1] = color.green;
+  image.data[offset + 2] = color.blue;
   image.data[offset + 3] = 255;
+};
+
+const colorizeIntensity = (intensity: number): { readonly blue: number; readonly green: number; readonly red: number } => {
+  if (intensity >= 192) {
+    return { blue: 48, green: 96, red: 255 };
+  }
+
+  if (intensity >= 128) {
+    return { blue: 32, green: 176, red: 255 };
+  }
+
+  if (intensity >= 64) {
+    return { blue: 64, green: 224, red: 220 };
+  }
+
+  return { blue: 192, green: 192, red: 0 };
 };

@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
+import type { RadarReceiverStatus } from "./status.js";
 
 export interface RadarPacket {
   readonly data: Buffer;
@@ -13,6 +14,7 @@ export interface RadarPacket {
 
 export interface RadarReceiver {
   address(): AddressInfo | undefined;
+  getStatus(): RadarReceiverStatus;
   onPacket(listener: (packet: RadarPacket) => void): () => void;
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -26,6 +28,8 @@ export interface RadarReceiverOptions {
 export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): RadarReceiver => {
   const events = new EventEmitter();
   let socket: Socket | undefined;
+  let lastPacketAt: Date | undefined;
+  let lastSourceAddress: string | undefined;
   let packetCount = 0;
 
   return {
@@ -36,6 +40,19 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
       }
 
       return currentAddress;
+    },
+    getStatus(): RadarReceiverStatus {
+      const currentAddress = this.address();
+      return {
+        boundInterface: currentAddress?.address ?? (socket ? config.radarInterface : null),
+        lastPacketAt: lastPacketAt?.toISOString() ?? null,
+        lastSourceAddress: lastSourceAddress ?? null,
+        multicastInterface: getMulticastInterface(config) ?? null,
+        multicastGroups: config.radarMulticastGroups,
+        packetsReceived: packetCount,
+        running: socket !== undefined,
+        udpPort: currentAddress?.port ?? (socket ? config.radarUdpPort : null)
+      };
     },
     onPacket(listener: (packet: RadarPacket) => void): () => void {
       events.on("packet", listener);
@@ -49,16 +66,18 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         return;
       }
 
-      socket = createSocket("udp4");
+      socket = createSocket({ reuseAddr: true, type: "udp4" });
 
       socket.on("message", (data, remote) => {
         packetCount += 1;
+        lastPacketAt = new Date();
+        lastSourceAddress = `${remote.address}:${remote.port}`;
         logger.debug(
           `radar packet received count=${packetCount} bytes=${data.byteLength} from=${remote.address}:${remote.port}`
         );
         events.emit("packet", {
           data: Buffer.from(data),
-          receivedAt: new Date(),
+          receivedAt: lastPacketAt,
           remote
         });
       });
@@ -75,9 +94,19 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
         }
 
         activeSocket.once("error", reject);
-        activeSocket.bind(config.radarUdpPort, config.radarInterface, () => {
+        const bindAddress = getBindAddress(config);
+        activeSocket.bind(config.radarUdpPort, bindAddress, () => {
           activeSocket.off("error", reject);
-          logger.info(`radar receiver listening on ${config.radarInterface}:${config.radarUdpPort}`);
+          try {
+            joinConfiguredMulticastGroups(activeSocket, config, logger);
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+            return;
+          }
+
+          logger.info(
+            `radar receiver listening on ${bindAddress}:${config.radarUdpPort} multicastInterface=${getMulticastInterface(config) ?? "default"}`
+          );
           logger.debug("radar receiver packet diagnostics enabled");
           resolve();
         });
@@ -103,4 +132,20 @@ export const createRadarReceiver = ({ config, logger }: RadarReceiverOptions): R
       });
     }
   };
+};
+
+const joinConfiguredMulticastGroups = (socket: Socket, config: BlipWatchConfig, logger: Logger): void => {
+  for (const group of config.radarMulticastGroups) {
+    const multicastInterface = getMulticastInterface(config);
+    socket.addMembership(group, multicastInterface);
+    logger.info(`radar receiver joined multicast group ${group} interface=${multicastInterface ?? "default"}`);
+  }
+};
+
+const getBindAddress = (config: BlipWatchConfig): string => {
+  return config.radarMulticastGroups.length > 0 ? "0.0.0.0" : config.radarInterface;
+};
+
+const getMulticastInterface = (config: BlipWatchConfig): string | undefined => {
+  return config.radarInterface === "0.0.0.0" ? undefined : config.radarInterface;
 };

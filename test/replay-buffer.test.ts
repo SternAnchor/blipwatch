@@ -7,10 +7,27 @@ import { createReplayBuffer } from "../src/replay/replay-buffer.js";
 import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 16,
   logLevel: "debug",
   port: 8080,
+  radarControlEnabled: false,
+  radarControlFallbackHost: "236.6.8.36",
+  radarControlHost: "236.6.8.36",
+  radarControlMode: "wake",
+  radarControlPort: 6516,
+  radarControlStayAliveIntervalMs: 1000,
+  radarControlWakeHost: "236.6.7.5",
+  radarControlWakePort: 6878,
+  radarDiscoveryEnabled: false,
+  radarDisplayRangeMeters: "auto",
   radarInterface: "127.0.0.1",
+  radarMulticastGroups: [],
+  radarReportMulticastGroup: "236.6.7.5",
+  radarReportUdpPort: 0,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 3

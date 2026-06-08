@@ -12,15 +12,43 @@ It is not a certified navigation, collision-avoidance, watchkeeping, or safety-o
 
 ## Project Status
 
-This repository is in early 1.0.0 development.
+This repository is preparing the 1.1.0 hardware-integration release.
 
 Current limitations:
 
-- Real HALO/Navico packet decoding is not complete.
+- Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
+- Passive Navico report discovery is implemented. Active wake/transmit control is available as an explicit opt-in diagnostic path and is disabled by default.
 - Replay storage is in memory only and is lost on restart.
 - The HTTP API is intentionally minimal and unauthenticated.
 - Docker and npm publishing are configured through GitHub Actions using Actions secret `NPM_TOKEN`.
+
+## Phase 2 Validation Status
+
+Phase 2 adds the first real HALO hardware path: passive report discovery, UDP receive diagnostics, Navico/HALO frame-shaped packet classification, spoke decoding into the internal radar model, rendering of high-density HALO spokes, and replay/testing tools.
+
+Attempted hardware so far:
+
+- Navico/B&G/Simrad HALO-family radar on the local Ethernet network. Exact model and firmware still need to be recorded from an observed report packet or vessel display.
+- Local laptop interface: macOS wired Ethernet `en7`, address `192.168.15.188`.
+- Observed HALO radar address: `192.168.15.182`, serial/name `129265451`.
+
+Most recent local hardware smoke test:
+
+- BlipWatch started successfully on `192.168.15.188` with active control explicitly enabled.
+- Passive discovery joined `236.6.7.5:6878` and parsed `01b2` location reports from `192.168.15.182`.
+- Discovery reported primary data endpoint `236.6.7.8:6678`, command endpoint `236.6.7.10:6680`, and report endpoint `236.6.7.9:6679`.
+- Active transmit control switched from fallback to the discovered command endpoint after the first location report.
+- Radar spoke receiver bound `0.0.0.0:6678` with multicast interface `192.168.15.188`.
+- `/api/radar/status` reached `receiving-and-rendering` with 978 decoded spokes, 980 received packets, and `imageAvailable=true`.
+- `GET /api/radar/latest.png` returned a 1024x1024 rendered radar image with real returns.
+
+Known protocol gaps:
+
+- Confirm the real HALO report payload fields for model, firmware, and operating state beyond the currently parsed `01b2` location report.
+- Improve rendering persistence/decay so real returns are easier to inspect visually between spoke updates.
+- Add range, gain, and other control commands after the wake/transmit/standby path has been validated safely.
+- Add sanitized real packet fixtures once hardware traffic is captured.
 
 ## Requirements
 
@@ -81,14 +109,229 @@ npm run simulate:radar
 
 The simulator logs JSON events for start, packet send, and finish. The placeholder packet format is for local development only and is not the real HALO wire format.
 
+## Phase 2 HALO Hardware Testing
+
+Phase 2 focuses on laptop-based testing against real Navico/B&G/Simrad HALO radar hardware. Start with a macOS, Linux, or Windows laptop connected to the same Ethernet/IP network as the radar. Raspberry Pi and Docker appliance deployment remain useful later, but the first hardware goal is direct laptop execution and packet visibility.
+
+Keep the safety notice in mind during all testing. BlipWatch is experimental diagnostic software, not a certified navigation or collision-avoidance display.
+
+### Connect a Laptop
+
+1. Connect the laptop to the radar Ethernet network or to the same switch as the HALO radar.
+2. Disable VPNs or firewall rules that may block local UDP traffic while testing.
+3. Identify the local interface address assigned on the radar network if you want to override automatic selection.
+4. Run BlipWatch with `RADAR_INTERFACE=auto`, or set a concrete interface address such as `192.168.15.188`.
+5. Open `http://localhost:8080/` for the live radar dashboard, or `http://localhost:8080/api/radar/latest.png` for the raw image.
+
+Useful interface discovery commands:
+
+```bash
+# macOS
+networksetup -listallhardwareports
+ifconfig
+
+# Linux
+ip addr
+ip route
+
+# Windows PowerShell
+Get-NetAdapter
+Get-NetIPAddress
+```
+
+### Run With Hardware Diagnostics
+
+Use debug logging during hardware testing:
+
+```bash
+PORT=8080 \
+RADAR_DISCOVERY_ENABLED=true \
+RADAR_INTERFACE=auto \
+RADAR_MULTICAST_GROUPS=236.6.7.8 \
+RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+RADAR_REPORT_UDP_PORT=6878 \
+RADAR_UDP_PORT=6678 \
+IMAGE_SIZE=1024 \
+LOG_LEVEL=debug \
+npm start
+```
+
+Or from source during development:
+
+```bash
+PORT=8080 \
+RADAR_DISCOVERY_ENABLED=true \
+RADAR_INTERFACE=auto \
+RADAR_MULTICAST_GROUPS=236.6.7.8 \
+RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+RADAR_REPORT_UDP_PORT=6878 \
+RADAR_UDP_PORT=6678 \
+IMAGE_SIZE=1024 \
+LOG_LEVEL=debug \
+npm run dev
+```
+
+Debug logs should help identify UDP bind status, discovery report bind/join status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
+
+### Optional HALO Wake/Transmit Control
+
+Active control is disabled by default because it can change radar operating state. Only enable it when the radar can transmit safely and you have confirmed the vessel/test area is appropriate.
+
+Wake the radar without requesting transmit:
+
+```bash
+RADAR_CONTROL_ENABLED=true \
+RADAR_CONTROL_MODE=wake \
+RADAR_INTERFACE=auto \
+npm run dev
+```
+
+Request transmit on startup and keep the HALO active with periodic stay-alive commands:
+
+```bash
+RADAR_CONTROL_ENABLED=true \
+RADAR_CONTROL_MODE=transmit \
+RADAR_CONTROL_HOST=auto \
+RADAR_CONTROL_FALLBACK_HOST=236.6.8.36 \
+RADAR_CONTROL_PORT=6516 \
+RADAR_CONTROL_WAKE_HOST=236.6.7.5 \
+RADAR_CONTROL_WAKE_PORT=6878 \
+RADAR_INTERFACE=auto \
+npm run dev
+```
+
+The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
+
+### Capture Radar Traffic
+
+Packet captures are the most useful artifact when hardware is available but decoder work needs to continue later. Save captures in a private location first, then sanitize or trim them before committing fixtures.
+
+Use `tcpdump` on macOS or Linux:
+
+```bash
+sudo tcpdump -i <interface> -n udp -w halo-capture.pcap
+```
+
+To focus on the current default receive port:
+
+```bash
+sudo tcpdump -i <interface> -n udp port 6678 -w halo-6678.pcap
+```
+
+Use Wireshark when a visual packet view is easier:
+
+1. Select the radar-network interface.
+2. Capture with display filter `udp`.
+3. Note source IPs, destination IPs, UDP ports, multicast addresses, packet sizes, and packet rates.
+4. Save a short capture around radar startup, standby/transmit changes, and visible target returns.
+
+Current protocol notes:
+
+- `RADAR_UDP_PORT=6678` is the current default image/spoke receive port.
+- `RADAR_INTERFACE=auto` selects a likely non-virtual IPv4 interface before joining multicast groups. Set it to a concrete local address if auto-selection picks the wrong network.
+- `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
+- Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
+- Passive discovery listens for report packets and exposes detected radar metadata through `/api/radar/status`; active wake/transmit commands require `RADAR_CONTROL_ENABLED=true`.
+- Real HALO control ports and exact report payload fields can vary by radar. Keep `RADAR_CONTROL_HOST=auto` to prefer discovered command endpoints, or set `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` explicitly if packet capture shows a different command endpoint.
+- Observed HALO location report `01b2` maps primary data to `236.6.7.8:6678`, primary command control to `236.6.7.10:6680`, and primary report/status traffic to `236.6.7.9:6679` for serial `129265451`.
+- The `BWS1` simulator packet format is not a real HALO packet format.
+- Current HALO packet classification is provisional: packets with a `HALO` ASCII prefix or larger unknown UDP payloads are reported as HALO candidates until real captures are decoded.
+- The initial Navico/HALO frame decoder is based on high-level packet structure documented in the GPL-compatible OpenCPN `radar_pi` Navico receiver: an 8-byte frame header followed by 24-byte scan-line headers and packed 4-bit return samples. It currently decodes the first structurally valid scan line from a packet.
+- Keep explicit notes for observed packet sizes, repeated headers, counters, angle-like fields, and intensity-like payload regions.
+
+Capture checklist for future decoder work:
+
+- Laptop OS and version.
+- HALO model, firmware version if available, and transmit/standby state.
+- Laptop interface name and IP address.
+- Radar source IP address and UDP source/destination ports.
+- Whether traffic is broadcast, multicast, or unicast.
+- Chartplotter screenshot or photo from the same time window when tuning render calibration.
+- Short pcap file with timestamps preserved.
+- Debug log excerpt from the same capture window.
+
+Troubleshooting no packets:
+
+- Confirm the laptop interface is on the radar subnet and use its concrete address for `RADAR_INTERFACE`.
+- Keep `RADAR_DISCOVERY_ENABLED=true` and check `/api/radar/status.discovery.running`.
+- Check whether `reportsReceived`, `packetsReceived`, or both remain zero.
+- Run a privileged capture such as `sudo tcpdump -i <interface> -n udp`.
+- If tcpdump shows packets but BlipWatch does not, compare destination address, UDP port, and multicast group against `RADAR_REPORT_*`, `RADAR_UDP_PORT`, and `RADAR_MULTICAST_GROUPS`.
+
+Troubleshooting decode failures or blank images:
+
+- If `receiver.packetsReceived` increases but `decoder.packetsRejected` also increases, save a short sanitized replay payload for decoder work.
+- If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/api/radar/status` and `/api/radar/latest.json` from the same test window.
+- If `/api/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
+- If the radar remains in standby, try the opt-in wake mode first, then transmit mode only when it is safe for the radar to radiate.
+
+### Calibration Capture
+
+Enable calibration capture when comparing BlipWatch output with chartplotter imagery. This writes a bundle at startup, then continues writing timestamped bundles at the configured interval. Each bundle contains the latest rendered PNG, render metadata, radar status, replay metadata, replay frame list, recent raw UDP payloads, and a manifest. Pair each bundle with a chartplotter screenshot or photo captured at the same moment.
+
+```bash
+CALIBRATION_CAPTURE_ENABLED=true \
+CALIBRATION_CAPTURE_DIRECTORY=captures/calibration \
+CALIBRATION_CAPTURE_INTERVAL_MS=10000 \
+CALIBRATION_CAPTURE_PACKET_LIMIT=250 \
+RADAR_DISPLAY_RANGE_METERS=463 \
+npm start
+```
+
+The `packets.ndjson` file uses the same `payloadHex` line format accepted by `npm run replay:packets`, with receive timing and source metadata included for calibration. Set `RADAR_DISPLAY_RANGE_METERS` to the chartplotter range when comparing screenshots, for example `463` for 1/4 NM. Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
+
+### Replay Saved UDP Payloads
+
+For decoder development, save sanitized UDP payloads in a newline-delimited replay file. Each non-empty line can be either raw hexadecimal:
+
+```text
+425753310101000a03e80004004080ff
+```
+
+or JSON with a payload and delay before sending that packet:
+
+```json
+{"payloadHex":"42 57 53 31 01 01 00 14 03 e8 00 02 40 ff","delayMs":25}
+```
+
+Lines beginning with `#` are ignored. The replay format stores UDP payload bytes only; it does not preserve Ethernet/IP/UDP headers from a pcap.
+
+Start BlipWatch in one terminal, then replay packets into its UDP receiver:
+
+```bash
+REPLAY_PACKET_FILE=captures/halo-sample.ndjson \
+REPLAY_RADAR_HOST=127.0.0.1 \
+REPLAY_RADAR_PORT=6678 \
+npm run replay:packets
+```
+
+Use this format for small sanitized fixtures. Keep raw pcaps private until they have been reviewed for vessel, marina, and network details.
+
 ## Configuration
 
 BlipWatch is configured through environment variables.
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| `CALIBRATION_CAPTURE_ENABLED` | `false` | Enables periodic calibration bundles for chartplotter/render comparison. |
+| `CALIBRATION_CAPTURE_DIRECTORY` | `captures/calibration` | Directory where timestamped calibration bundles are written. `CALIBRATION_CAPTURE_DIR` is also accepted as a shorter alias. |
+| `CALIBRATION_CAPTURE_INTERVAL_MS` | `10000` | Interval between calibration bundle captures when enabled. |
+| `CALIBRATION_CAPTURE_PACKET_LIMIT` | `250` | Maximum number of recent raw UDP payloads to include in each calibration bundle. Set to `0` to disable packet payload capture. |
 | `PORT` | `8080` | HTTP API port. |
-| `RADAR_INTERFACE` | `0.0.0.0` | Local interface address used for UDP radar packet binding. |
+| `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
+| `RADAR_DISPLAY_RANGE_METERS` | `auto` | Render display range in meters. `auto` uses the decoded packet sweep range; set a value such as `463` to match a 1/4 NM chartplotter view. |
+| `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |
+| `RADAR_CONTROL_MODE` | `wake` | Active control mode. Use `wake` to wake only or `transmit` to request transmit plus stay-alive. |
+| `RADAR_CONTROL_WAKE_HOST` | `236.6.7.5` | IPv4 destination for the Navico wake command. |
+| `RADAR_CONTROL_WAKE_PORT` | `6878` | UDP destination port for the Navico wake command. |
+| `RADAR_CONTROL_HOST` | `auto` | IPv4 destination for transmit and stay-alive commands, or `auto` to use discovery before falling back. |
+| `RADAR_CONTROL_FALLBACK_HOST` | `236.6.8.36` | Fallback IPv4 destination for transmit and stay-alive commands when `RADAR_CONTROL_HOST=auto` and no discovery command endpoint is available. |
+| `RADAR_CONTROL_PORT` | `6516` | UDP destination port for transmit and stay-alive commands. |
+| `RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS` | `1000` | Interval between repeated control cycles while active control is enabled. |
+| `RADAR_INTERFACE` | `auto` | Local interface address used for UDP radar packet binding, or `auto` to choose a likely hardware interface. |
+| `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
+| `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
+| `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
@@ -99,7 +342,11 @@ Example:
 
 ```bash
 PORT=8080 \
-RADAR_INTERFACE=0.0.0.0 \
+RADAR_DISCOVERY_ENABLED=true \
+RADAR_INTERFACE=auto \
+RADAR_MULTICAST_GROUPS=236.6.7.8 \
+RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+RADAR_REPORT_UDP_PORT=6878 \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 REPLAY_RETENTION_SECONDS=300 \
@@ -110,7 +357,11 @@ npm start
 
 ## HTTP API
 
-### `GET /health`
+### `GET /`
+
+Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes the status and image automatically.
+
+### `GET /api/health`
 
 Returns service health and basic renderer/replay state.
 
@@ -121,7 +372,7 @@ Returns service health and basic renderer/replay state.
 }
 ```
 
-### `GET /radar/latest.png`
+### `GET /api/radar/latest.png`
 
 Returns the latest rendered radar image.
 
@@ -130,7 +381,7 @@ Returns the latest rendered radar image.
 
 Before radar data arrives, this returns a valid empty image.
 
-### `GET /radar/latest.json`
+### `GET /api/radar/latest.json`
 
 Returns latest render metadata.
 
@@ -147,7 +398,91 @@ Returns latest render metadata.
 
 When no radar data has arrived, `renderState` is `empty` and timestamps are `null`.
 
-### `GET /radar/replay`
+### `GET /api/radar/status`
+
+Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
+
+```json
+{
+  "diagnostics": {
+    "phase": "receiving-and-rendering",
+    "summary": "Radar spokes are decoding and rendering.",
+    "nextActions": ["Open /api/radar/latest.png or /api/radar/latest.json to inspect current rendered imagery."]
+  },
+  "discovery": {
+    "enabled": true,
+    "running": true,
+    "reportsReceived": 1,
+    "lastReportAt": "2026-06-07T00:00:00.000Z",
+    "lastReportSource": "192.0.2.11:6878",
+    "multicastGroup": "236.6.7.5",
+    "boundInterface": "0.0.0.0",
+    "multicastInterface": "192.168.15.188",
+    "udpPort": 6878,
+    "radar": {
+      "reportType": "0x01",
+      "command": "0xc4",
+      "status": "0x01",
+      "statusName": "standby",
+      "sourceAddress": "192.0.2.11",
+      "sourcePort": 6878,
+      "commandEndpoint": "236.6.7.10:6680",
+      "dataEndpoint": "236.6.7.8:6678",
+      "reportEndpoint": "236.6.7.9:6679",
+      "model": "HALO",
+      "serial": "123456",
+      "name": "HALO",
+      "firstSeenAt": "2026-06-07T00:00:00.000Z",
+      "lastSeenAt": "2026-06-07T00:00:00.000Z"
+    }
+  },
+  "receiver": {
+    "running": true,
+    "packetsReceived": 1,
+    "lastPacketAt": "2026-06-07T00:00:00.000Z",
+    "lastSourceAddress": "192.0.2.10:6678",
+    "multicastGroups": ["236.6.7.8"],
+    "boundInterface": "0.0.0.0",
+    "multicastInterface": "192.168.15.188",
+    "udpPort": 6678
+  },
+  "decoder": {
+    "packetsDecoded": 1,
+    "packetsRejected": 0,
+    "lastDecodedSpokeAt": "2026-06-07T00:00:00.000Z"
+  },
+  "renderer": {
+    "imageAvailable": true,
+    "imageSize": 1024,
+    "lastRenderedImageAt": "2026-06-07T00:00:00.000Z",
+    "lastSpokeAt": "2026-06-07T00:00:00.000Z",
+    "renderState": "ready",
+    "spokeCount": 1
+  },
+  "control": {
+    "enabled": true,
+    "running": true,
+    "mode": "transmit",
+    "desiredState": "transmit",
+    "observedState": "standby",
+    "observedStateAt": "2026-06-07T00:00:00.000Z",
+    "observedStateSource": "report",
+    "commandTarget": "236.6.7.10:6680",
+    "commandTargetSource": "discovered",
+    "wakeTarget": "236.6.7.5:6878",
+    "commandsSent": 3,
+    "lastCommandAt": "2026-06-07T00:00:00.000Z",
+    "lastCommandName": "stay-alive-a",
+    "lastRequestAt": "2026-06-07T00:00:00.000Z",
+    "lastError": null,
+    "stayAliveIntervalMs": 1000
+  }
+}
+```
+
+This endpoint is intended for Phase 2 hardware testing and troubleshooting. It helps confirm whether BlipWatch is receiving UDP packets, decoding radar spokes, and rendering current imagery.
+
+### `GET /api/radar/replay`
 
 Returns replay buffer metadata.
 
@@ -161,7 +496,7 @@ Returns replay buffer metadata.
 }
 ```
 
-### `GET /radar/replay/frames`
+### `GET /api/radar/replay/frames`
 
 Returns available replay frame metadata.
 
@@ -180,7 +515,7 @@ Returns available replay frame metadata.
 }
 ```
 
-### `GET /radar/replay/frame?at=<timestamp>`
+### `GET /api/radar/replay/frame?at=<timestamp>`
 
 Returns the closest replay frame to the requested timestamp.
 
@@ -206,9 +541,14 @@ Run with standard bridge networking:
 ```bash
 docker run --rm \
   -p 8080:8080/tcp \
+  -p 6878:6878/udp \
   -p 6678:6678/udp \
   -e PORT=8080 \
-  -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_DISCOVERY_ENABLED=true \
+  -e RADAR_INTERFACE=auto \
+  -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
+  -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+  -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
   blipwatch:local
 ```
@@ -218,7 +558,11 @@ For onboard hardware directly connected to a radar Ethernet network, host networ
 ```bash
 docker run --rm --network host \
   -e PORT=8080 \
-  -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_DISCOVERY_ENABLED=true \
+  -e RADAR_INTERFACE=auto \
+  -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
+  -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+  -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
   -e IMAGE_SIZE=1024 \
   -e REPLAY_RETENTION_SECONDS=300 \
@@ -248,15 +592,17 @@ Use a Raspberry Pi or similar Linux host with Ethernet access to the radar netwo
 1. Connect the host to the radar Ethernet network.
 2. Confirm the host can receive UDP traffic from the radar.
 3. Run the container with host networking.
-4. Open `http://<host>:8080/health` to confirm the server is running.
-5. Open `http://<host>:8080/radar/latest.png` to inspect the current image.
+4. Open `http://<host>:8080/` to confirm the server is running and inspect the current image/status.
 
 Example:
 
 ```bash
 docker run -d --name blipwatch --restart unless-stopped --network host \
   -e PORT=8080 \
-  -e RADAR_INTERFACE=0.0.0.0 \
+  -e RADAR_INTERFACE=auto \
+  -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
+  -e RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
+  -e RADAR_REPORT_UDP_PORT=6878 \
   -e RADAR_UDP_PORT=6678 \
   -e LOG_LEVEL=info \
   ghcr.io/sternanchor/blipwatch:latest

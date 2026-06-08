@@ -1,20 +1,57 @@
+import { isIP } from "node:net";
+
 export type LogVerbosity = "debug" | "info";
+export type RadarControlMode = "wake" | "transmit";
 
 const DEFAULTS = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10_000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 1024,
   logLevel: "info",
   port: 8080,
-  radarInterface: "0.0.0.0",
+  radarControlEnabled: false,
+  radarControlFallbackHost: "236.6.8.36",
+  radarControlHost: "auto",
+  radarControlMode: "wake",
+  radarControlPort: 6516,
+  radarControlStayAliveIntervalMs: 1000,
+  radarControlWakeHost: "236.6.7.5",
+  radarControlWakePort: 6878,
+  radarDiscoveryEnabled: true,
+  radarDisplayRangeMeters: "auto",
+  radarInterface: "auto",
+  radarMulticastGroups: ["236.6.7.8"],
+  radarReportMulticastGroup: "236.6.7.5",
+  radarReportUdpPort: 6878,
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
 } as const;
 
 export interface BlipWatchConfig {
+  readonly calibrationCaptureDirectory: string;
+  readonly calibrationCaptureEnabled: boolean;
+  readonly calibrationCaptureIntervalMs: number;
+  readonly calibrationCapturePacketLimit: number;
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
   readonly port: number;
+  readonly radarControlEnabled: boolean;
+  readonly radarControlFallbackHost: string;
+  readonly radarControlHost: string;
+  readonly radarControlMode: RadarControlMode;
+  readonly radarControlPort: number;
+  readonly radarControlStayAliveIntervalMs: number;
+  readonly radarControlWakeHost: string;
+  readonly radarControlWakePort: number;
+  readonly radarDiscoveryEnabled: boolean;
+  readonly radarDisplayRangeMeters: number | "auto";
   readonly radarInterface: string;
+  readonly radarMulticastGroups: readonly string[];
+  readonly radarReportMulticastGroup: string;
+  readonly radarReportUdpPort: number;
   readonly radarUdpPort: number;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
@@ -28,10 +65,63 @@ export class ConfigurationError extends Error {
 }
 
 export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
+  calibrationCaptureDirectory: parseNonEmptyString(
+    env.CALIBRATION_CAPTURE_DIRECTORY ?? env.CALIBRATION_CAPTURE_DIR,
+    "CALIBRATION_CAPTURE_DIRECTORY",
+    DEFAULTS.calibrationCaptureDirectory
+  ),
+  calibrationCaptureEnabled: parseBoolean(
+    env.CALIBRATION_CAPTURE_ENABLED,
+    "CALIBRATION_CAPTURE_ENABLED",
+    DEFAULTS.calibrationCaptureEnabled
+  ),
+  calibrationCaptureIntervalMs: parsePositiveInteger(
+    env.CALIBRATION_CAPTURE_INTERVAL_MS,
+    "CALIBRATION_CAPTURE_INTERVAL_MS",
+    DEFAULTS.calibrationCaptureIntervalMs
+  ),
+  calibrationCapturePacketLimit: parseNonNegativeInteger(
+    env.CALIBRATION_CAPTURE_PACKET_LIMIT,
+    "CALIBRATION_CAPTURE_PACKET_LIMIT",
+    DEFAULTS.calibrationCapturePacketLimit
+  ),
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
+  radarControlEnabled: parseBoolean(env.RADAR_CONTROL_ENABLED, "RADAR_CONTROL_ENABLED", DEFAULTS.radarControlEnabled),
+  radarControlFallbackHost: parseIpv4Address(
+    env.RADAR_CONTROL_FALLBACK_HOST,
+    "RADAR_CONTROL_FALLBACK_HOST",
+    DEFAULTS.radarControlFallbackHost
+  ),
+  radarControlHost: parseRadarControlHost(env.RADAR_CONTROL_HOST),
+  radarControlMode: parseRadarControlMode(env.RADAR_CONTROL_MODE),
+  radarControlPort: parsePort(env.RADAR_CONTROL_PORT, "RADAR_CONTROL_PORT", DEFAULTS.radarControlPort),
+  radarControlStayAliveIntervalMs: parsePositiveInteger(
+    env.RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS,
+    "RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS",
+    DEFAULTS.radarControlStayAliveIntervalMs
+  ),
+  radarControlWakeHost: parseIpv4Address(
+    env.RADAR_CONTROL_WAKE_HOST,
+    "RADAR_CONTROL_WAKE_HOST",
+    DEFAULTS.radarControlWakeHost
+  ),
+  radarControlWakePort: parsePort(env.RADAR_CONTROL_WAKE_PORT, "RADAR_CONTROL_WAKE_PORT", DEFAULTS.radarControlWakePort),
+  radarDiscoveryEnabled: parseBoolean(env.RADAR_DISCOVERY_ENABLED, "RADAR_DISCOVERY_ENABLED", DEFAULTS.radarDiscoveryEnabled),
+  radarDisplayRangeMeters: parseAutoOrPositiveInteger(
+    env.RADAR_DISPLAY_RANGE_METERS,
+    "RADAR_DISPLAY_RANGE_METERS",
+    DEFAULTS.radarDisplayRangeMeters
+  ),
   radarInterface: parseNonEmptyString(env.RADAR_INTERFACE, "RADAR_INTERFACE", DEFAULTS.radarInterface),
+  radarMulticastGroups: parseMulticastGroups(env.RADAR_MULTICAST_GROUPS),
+  radarReportMulticastGroup: parseMulticastGroup(
+    env.RADAR_REPORT_MULTICAST_GROUP,
+    "RADAR_REPORT_MULTICAST_GROUP",
+    DEFAULTS.radarReportMulticastGroup
+  ),
+  radarReportUdpPort: parsePort(env.RADAR_REPORT_UDP_PORT, "RADAR_REPORT_UDP_PORT", DEFAULTS.radarReportUdpPort),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
   replayFrameIntervalMs: parsePositiveInteger(
     env.REPLAY_FRAME_INTERVAL_MS,
@@ -45,10 +135,51 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   )
 });
 
+const parseBoolean = (value: string | undefined, name: string, defaultValue: boolean): boolean => {
+  if (value === undefined || value === "") {
+    return defaultValue;
+  }
+
+  if (value === "true" || value === "1") {
+    return true;
+  }
+
+  if (value === "false" || value === "0") {
+    return false;
+  }
+
+  throw new ConfigurationError(`${name} must be one of: true, false, 1, 0; received "${value}"`);
+};
+
 const parsePositiveInteger = (value: string | undefined, name: string, defaultValue: number): number => {
   const parsed = parseInteger(value, name, defaultValue);
   if (parsed <= 0) {
     throw new ConfigurationError(`${name} must be greater than 0; received ${parsed}`);
+  }
+
+  return parsed;
+};
+
+const parseAutoOrPositiveInteger = (
+  value: string | undefined,
+  name: string,
+  defaultValue: number | "auto"
+): number | "auto" => {
+  if (value === undefined || value === "") {
+    return defaultValue;
+  }
+
+  if (value === "auto") {
+    return value;
+  }
+
+  return parsePositiveInteger(value, name, typeof defaultValue === "number" ? defaultValue : 1);
+};
+
+const parseNonNegativeInteger = (value: string | undefined, name: string, defaultValue: number): number => {
+  const parsed = parseInteger(value, name, defaultValue);
+  if (parsed < 0) {
+    throw new ConfigurationError(`${name} must be greater than or equal to 0; received ${parsed}`);
   }
 
   return parsed;
@@ -87,6 +218,30 @@ const parseLogLevel = (value: string | undefined): LogVerbosity => {
   throw new ConfigurationError(`LOG_LEVEL must be one of: debug, info; received "${value}"`);
 };
 
+const parseRadarControlMode = (value: string | undefined): RadarControlMode => {
+  if (value === undefined || value === "") {
+    return DEFAULTS.radarControlMode;
+  }
+
+  if (value === "wake" || value === "transmit") {
+    return value;
+  }
+
+  throw new ConfigurationError(`RADAR_CONTROL_MODE must be one of: wake, transmit; received "${value}"`);
+};
+
+const parseRadarControlHost = (value: string | undefined): string => {
+  if (value === undefined || value === "") {
+    return DEFAULTS.radarControlHost;
+  }
+
+  if (value === "auto") {
+    return value;
+  }
+
+  return parseIpv4Address(value, "RADAR_CONTROL_HOST", DEFAULTS.radarControlFallbackHost);
+};
+
 const parseNonEmptyString = (value: string | undefined, name: string, defaultValue: string): string => {
   if (value === undefined) {
     return defaultValue;
@@ -98,4 +253,45 @@ const parseNonEmptyString = (value: string | undefined, name: string, defaultVal
   }
 
   return trimmed;
+};
+
+const parseMulticastGroups = (value: string | undefined): readonly string[] => {
+  if (value === undefined) {
+    return DEFAULTS.radarMulticastGroups;
+  }
+
+  if (value.trim().length === 0) {
+    return [];
+  }
+
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+    return parseMulticastGroup(entry, "RADAR_MULTICAST_GROUPS", entry);
+  });
+};
+
+const parseMulticastGroup = (value: string | undefined, name: string, defaultValue: string): string => {
+  const parsed = parseNonEmptyString(value, name, defaultValue);
+  if (!isIpv4MulticastAddress(parsed)) {
+    throw new ConfigurationError(`${name} must contain an IPv4 multicast address; received "${parsed}"`);
+  }
+
+  return parsed;
+};
+
+const parseIpv4Address = (value: string | undefined, name: string, defaultValue: string): string => {
+  const parsed = parseNonEmptyString(value, name, defaultValue);
+  if (isIP(parsed) !== 4) {
+    throw new ConfigurationError(`${name} must contain an IPv4 address; received "${parsed}"`);
+  }
+
+  return parsed;
+};
+
+const isIpv4MulticastAddress = (value: string): boolean => {
+  if (isIP(value) !== 4) {
+    return false;
+  }
+
+  const firstOctet = Number.parseInt(value.split(".")[0] ?? "", 10);
+  return firstOctet >= 224 && firstOctet <= 239;
 };

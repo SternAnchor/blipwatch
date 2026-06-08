@@ -8,10 +8,27 @@ import { createRadarImageRenderer } from "../src/radar/renderer.js";
 import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 32,
   logLevel: "debug",
   port: 8080,
+  radarControlEnabled: false,
+  radarControlFallbackHost: "236.6.8.36",
+  radarControlHost: "236.6.8.36",
+  radarControlMode: "wake",
+  radarControlPort: 6516,
+  radarControlStayAliveIntervalMs: 1000,
+  radarControlWakeHost: "236.6.7.5",
+  radarControlWakePort: 6878,
+  radarDiscoveryEnabled: false,
+  radarDisplayRangeMeters: "auto",
   radarInterface: "127.0.0.1",
+  radarMulticastGroups: [],
+  radarReportMulticastGroup: "236.6.7.5",
+  radarReportUdpPort: 0,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -69,7 +86,8 @@ describe("createRadarImageRenderer", () => {
     expect(metadata.spokeCount).toBe(1);
 
     const png = PNG.sync.read(renderer.getLatestPng());
-    expect(readPixel(png, 31, 16)).toEqual([0, 255, 0, 255]);
+    expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
+    expect(readPixel(png, 30, 16)).not.toEqual([0, 0, 0, 255]);
     expect(messages.some((message) => message.includes("radar spoke rendered angle=90"))).toBe(true);
   });
 
@@ -93,5 +111,53 @@ describe("createRadarImageRenderer", () => {
     const renderedPng = renderer.getLatestPng();
     expect(renderedPng).not.toBe(emptyPng);
     expect(renderer.getLatestPng()).toBe(renderedPng);
+  });
+
+  it("renders high-density HALO spokes without exceeding image bounds", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+    const intensities = new Uint8Array(1024);
+    intensities[1023] = 255;
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities,
+      maxIntensity: 255,
+      rangeMeters: 2000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: intensities.length,
+      type: "spoke"
+    });
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
+    expect(readPixel(png, 30, 16)).not.toEqual([0, 0, 0, 255]);
+    expect(renderer.getLatestMetadata()).toMatchObject({
+      maxIntensity: 255,
+      renderState: "ready",
+      spokeCount: 1
+    });
+  });
+
+  it("clips and scales spokes to the configured display range", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({
+      config: { ...config, radarDisplayRangeMeters: 1000 },
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 255, 255]),
+      maxIntensity: 255,
+      rangeMeters: 2000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 3,
+      type: "spoke"
+    });
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
+    expect(readPixel(png, 24, 16)).toEqual([0, 0, 0, 255]);
   });
 });

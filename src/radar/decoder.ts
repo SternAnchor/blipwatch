@@ -1,4 +1,6 @@
 import type { Logger } from "../logging/logger.js";
+import { decodeNavicoHaloFrame } from "./halo-decoder.js";
+import { classifyRadarPacket } from "./packet-classifier.js";
 import type { RadarPacket } from "./receiver.js";
 
 export interface RadarDecoder {
@@ -30,6 +32,7 @@ export interface RadarDecodeError {
 export interface RadarDecodeSuccess {
   readonly ok: true;
   readonly spoke: RadarSpoke;
+  readonly spokes: readonly RadarSpoke[];
 }
 
 export interface RadarDecodeFailure {
@@ -50,25 +53,33 @@ export const createRadarDecoder = ({ logger }: RadarDecoderOptions): RadarDecode
     decode(packet: RadarPacket | Buffer): RadarDecodeResult {
       const data = Buffer.isBuffer(packet) ? packet : packet.data;
       const receivedAt = Buffer.isBuffer(packet) ? undefined : packet.receivedAt;
-      const result = decodePlaceholderPacket(data, receivedAt);
+      const classification = classifyRadarPacket(data);
+      const result = decodePacket(data, receivedAt);
 
       if (result.ok) {
         logger.debug(
-          `radar packet decoded type=spoke angle=${result.spoke.angleDegrees} rangeMeters=${result.spoke.rangeMeters} samples=${result.spoke.sampleCount} maxIntensity=${result.spoke.maxIntensity}`
+          `radar packet decoded type=spoke kind=${classification.kind} spokes=${result.spokes.length} angle=${result.spoke.angleDegrees} rangeMeters=${result.spoke.rangeMeters} samples=${result.spoke.sampleCount} maxIntensity=${result.spoke.maxIntensity}`
         );
       } else {
-        logger.debug(`radar packet decode skipped code=${result.error.code} message=${result.error.message}`);
+        logger.debug(
+          `radar packet decode skipped kind=${classification.kind} code=${result.error.code} reason=${classification.reason} message=${result.error.message}`
+        );
       }
 
       return result;
     },
-    name: "halo-placeholder-decoder"
+    name: "halo-scaffold-decoder"
   };
 };
 
-const decodePlaceholderPacket = (data: Buffer, receivedAt: Date | undefined): RadarDecodeResult => {
+const decodePacket = (data: Buffer, receivedAt: Date | undefined): RadarDecodeResult => {
   if (data.byteLength === 0) {
     return failure("empty-packet", "packet is empty");
+  }
+
+  const classification = classifyRadarPacket(data);
+  if (classification.kind === "navico-halo-frame") {
+    return decodeNavicoHaloFrame(data, receivedAt);
   }
 
   if (data.byteLength < PLACEHOLDER_HEADER_LENGTH) {
@@ -80,6 +91,10 @@ const decodePlaceholderPacket = (data: Buffer, receivedAt: Date | undefined): Ra
 
   const magic = data.subarray(0, 4).toString("ascii");
   if (magic !== PLACEHOLDER_MAGIC) {
+    if (classification.kind === "halo-candidate") {
+      return failure("unsupported-packet", `HALO packet candidate decoding is not implemented: ${classification.reason}`);
+    }
+
     return failure("unsupported-packet", `unsupported packet magic "${magic}"`);
   }
 
@@ -115,17 +130,20 @@ const decodePlaceholderPacket = (data: Buffer, receivedAt: Date | undefined): Ra
 
   const intensities = Uint8Array.from(data.subarray(PLACEHOLDER_HEADER_LENGTH, expectedLength));
 
+  const spoke = {
+    angleDegrees: angleTenths / 10,
+    intensities,
+    maxIntensity: Math.max(...intensities),
+    rangeMeters,
+    receivedAt,
+    sampleCount,
+    type: "spoke"
+  } satisfies RadarSpoke;
+
   return {
     ok: true,
-    spoke: {
-      angleDegrees: angleTenths / 10,
-      intensities,
-      maxIntensity: Math.max(...intensities),
-      rangeMeters,
-      receivedAt,
-      sampleCount,
-      type: "spoke"
-    }
+    spoke,
+    spokes: [spoke]
   };
 };
 
