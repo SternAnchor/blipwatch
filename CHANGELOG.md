@@ -1,3 +1,9 @@
+## [1.1.0-develop.29](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.28...v1.1.0-develop.29) (2026-06-08)
+
+### Bug Fixes
+
+* expose phase 3 advanced controls ([ffca95a](https://github.com/SternAnchor/blipwatch/commit/ffca95add79813547ac3c83a40e56ba7e8dedfb9))
+
 ## [1.1.0-develop.28](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.27...v1.1.0-develop.28) (2026-06-08)
 
 ### Features
