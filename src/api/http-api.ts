@@ -513,6 +513,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       .viewer,
       .status-panel,
+      .replay-panel,
       .details {
         background: var(--panel);
         border: 1px solid var(--border);
@@ -572,7 +573,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       .side {
         display: grid;
         gap: 16px;
-        grid-template-rows: auto minmax(260px, 1fr);
+        grid-template-rows: auto auto minmax(260px, 1fr);
       }
 
       .status-panel {
@@ -616,6 +617,20 @@ const renderDashboardHtml = (): string => `<!doctype html>
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .replay-actions,
+      .speed-actions {
+        display: grid;
+        gap: 8px;
+      }
+
+      .replay-actions {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .speed-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
       button {
         appearance: none;
         background: #111518;
@@ -641,6 +656,40 @@ const renderDashboardHtml = (): string => `<!doctype html>
       button:disabled {
         color: #657178;
         cursor: not-allowed;
+      }
+
+      input[type="datetime-local"],
+      input[type="range"] {
+        accent-color: var(--accent);
+        background: #111518;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font: inherit;
+        min-height: 44px;
+        padding: 8px 10px;
+        width: 100%;
+      }
+
+      input[type="range"] {
+        padding-inline: 0;
+      }
+
+      .replay-body {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+      }
+
+      .replay-row {
+        display: grid;
+        gap: 8px;
+      }
+
+      .jump-row {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .stat {
@@ -758,6 +807,37 @@ const renderDashboardHtml = (): string => `<!doctype html>
           </div>
         </section>
 
+        <section class="replay-panel" aria-labelledby="replay-title">
+          <div class="panel-header">
+            <div>
+              <h2 id="replay-title">Replay</h2>
+              <div class="subtle" id="replay-state">Live</div>
+            </div>
+            <a href="/api/radar/replay">JSON</a>
+          </div>
+          <div class="replay-body">
+            <div class="replay-actions" aria-label="Replay controls">
+              <button id="live-button" type="button">Live</button>
+              <button id="pause-button" type="button">Pause</button>
+              <button id="play-button" type="button">Play</button>
+            </div>
+            <div class="replay-row">
+              <input id="replay-slider" type="range" min="0" max="0" value="0" aria-label="Replay timeline">
+              <div class="subtle" id="replay-time">No replay frames</div>
+            </div>
+            <div class="jump-row">
+              <input id="jump-time" type="datetime-local" step="1" aria-label="Jump to time">
+              <button id="jump-button" type="button">Jump</button>
+            </div>
+            <div class="speed-actions" aria-label="Replay speed">
+              <button class="speed-button" data-speed="1" type="button">1x</button>
+              <button class="speed-button" data-speed="2" type="button">2x</button>
+              <button class="speed-button" data-speed="5" type="button">5x</button>
+              <button class="speed-button" data-speed="10" type="button">10x</button>
+            </div>
+          </div>
+        </section>
+
         <section class="details" aria-labelledby="details-title">
           <div class="panel-header">
             <h2 id="details-title">Raw Status</h2>
@@ -777,7 +857,25 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const rawStatus = document.getElementById("raw-status");
       const standbyButton = document.getElementById("standby-button");
       const transmitButton = document.getElementById("transmit-button");
+      const liveButton = document.getElementById("live-button");
+      const pauseButton = document.getElementById("pause-button");
+      const playButton = document.getElementById("play-button");
+      const replaySlider = document.getElementById("replay-slider");
+      const replayState = document.getElementById("replay-state");
+      const replayTime = document.getElementById("replay-time");
+      const jumpTime = document.getElementById("jump-time");
+      const jumpButton = document.getElementById("jump-button");
+      const speedButtons = Array.from(document.querySelectorAll(".speed-button"));
       let controlRequestPending = false;
+      let playbackRequestPending = false;
+      let replayFrames = [];
+      let playback = {
+        currentFrameAt: null,
+        mode: "live",
+        requestedAt: null,
+        speed: 1,
+        status: "live"
+      };
       const fields = {
         commands: document.getElementById("commands"),
         control: document.getElementById("control"),
@@ -803,6 +901,94 @@ const renderDashboardHtml = (): string => `<!doctype html>
         transmitButton.disabled = disabled;
         standbyButton.classList.toggle("active", visibleState === "standby");
         transmitButton.classList.toggle("active", visibleState === "transmit");
+      };
+
+      const formatFrameTime = (timestamp) => timestamp ? new Date(timestamp).toLocaleTimeString() : "-";
+      const toDateTimeLocal = (timestamp) => {
+        if (!timestamp) {
+          return "";
+        }
+
+        const date = new Date(timestamp);
+        const offsetMs = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - offsetMs).toISOString().slice(0, 19);
+      };
+      const fromDateTimeLocal = (value) => value ? new Date(value).toISOString() : null;
+      const currentReplayIndex = () => {
+        if (!replayFrames.length || !playback.currentFrameAt) {
+          return Math.max(replayFrames.length - 1, 0);
+        }
+
+        const exactIndex = replayFrames.findIndex((frame) => frame.capturedAt === playback.currentFrameAt);
+        return exactIndex >= 0 ? exactIndex : Math.max(replayFrames.length - 1, 0);
+      };
+      const updateRadarImage = () => {
+        if (playback.mode === "replay" && playback.currentFrameAt) {
+          image.src = "/api/radar/replay/frame?at=" + encodeURIComponent(playback.currentFrameAt) + "&ts=" + Date.now();
+          return;
+        }
+
+        image.src = "/api/radar/latest.png?ts=" + Date.now();
+      };
+      const setReplayControls = () => {
+        const hasFrames = replayFrames.length > 0;
+        const disabled = playbackRequestPending || !hasFrames;
+        const index = currentReplayIndex();
+        replaySlider.max = String(Math.max(replayFrames.length - 1, 0));
+        replaySlider.value = String(index);
+        replaySlider.disabled = disabled;
+        pauseButton.disabled = disabled;
+        playButton.disabled = disabled;
+        jumpButton.disabled = playbackRequestPending;
+        jumpTime.disabled = playbackRequestPending;
+        liveButton.disabled = playbackRequestPending;
+        replayState.textContent = playback.mode === "live"
+          ? "Live"
+          : playback.status + " at " + formatFrameTime(playback.currentFrameAt) + " / " + playback.speed + "x";
+        replayTime.textContent = hasFrames
+          ? (index + 1) + " of " + replayFrames.length + " - " + formatFrameTime(replayFrames[index]?.capturedAt)
+          : "No replay frames";
+        jumpTime.value = toDateTimeLocal(playback.currentFrameAt ?? replayFrames[index]?.capturedAt);
+        liveButton.classList.toggle("active", playback.mode === "live");
+        pauseButton.classList.toggle("active", playback.status === "paused");
+        playButton.classList.toggle("active", playback.status === "playing");
+        speedButtons.forEach((button) => {
+          button.disabled = disabled;
+          button.classList.toggle("active", Number(button.dataset.speed) === playback.speed);
+        });
+      };
+      const loadReplay = async () => {
+        const framesResponse = await fetch("/api/radar/replay/frames?limit=300", { cache: "no-store" });
+        const framesBody = await framesResponse.json();
+        replayFrames = framesBody.frames ?? [];
+        const playbackResponse = await fetch("/api/radar/replay/playback", { cache: "no-store" });
+        playback = await playbackResponse.json();
+        setReplayControls();
+      };
+      const requestPlayback = async (command) => {
+        playbackRequestPending = true;
+        setReplayControls();
+        try {
+          const response = await fetch("/api/radar/replay/playback", {
+            body: JSON.stringify(command),
+            headers: { "content-type": "application/json" },
+            method: "POST"
+          });
+          if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            throw new Error(body.message ?? "Replay request failed");
+          }
+          playback = await response.json();
+          setReplayControls();
+          updateRadarImage();
+        } catch (error) {
+          phase.className = "phase error";
+          setText(phaseName, "replay-error");
+          setText(phaseSummary, error instanceof Error ? error.message : String(error));
+        } finally {
+          playbackRequestPending = false;
+          setReplayControls();
+        }
       };
 
       const requestControl = async (desiredState) => {
@@ -863,6 +1049,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           );
           setControlButtons(status.control);
           setText(fields.commands, status.control?.commandsSent);
+          await loadReplay();
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {
             const item = document.createElement("li");
             item.textContent = action;
@@ -870,7 +1057,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           }));
           rawStatus.textContent = JSON.stringify(status, null, 2);
           lastUpdated.textContent = "Updated " + new Date().toLocaleTimeString();
-          image.src = "/api/radar/latest.png?ts=" + Date.now();
+          updateRadarImage();
         } catch (error) {
           phase.className = "phase error";
           setText(phaseName, "status-error");
@@ -884,6 +1071,38 @@ const renderDashboardHtml = (): string => `<!doctype html>
       });
       transmitButton.addEventListener("click", () => {
         void requestControl("transmit");
+      });
+      liveButton.addEventListener("click", () => {
+        void requestPlayback({ action: "live" });
+      });
+      pauseButton.addEventListener("click", () => {
+        void requestPlayback({ action: "pause", at: playback.currentFrameAt ?? replayFrames.at(-1)?.capturedAt });
+      });
+      playButton.addEventListener("click", () => {
+        void requestPlayback({ action: "resume", at: playback.currentFrameAt ?? replayFrames.at(-1)?.capturedAt });
+      });
+      replaySlider.addEventListener("input", () => {
+        const frame = replayFrames[Number(replaySlider.value)];
+        replayTime.textContent = frame ? formatFrameTime(frame.capturedAt) : "No replay frames";
+      });
+      replaySlider.addEventListener("change", () => {
+        const frame = replayFrames[Number(replaySlider.value)];
+        if (frame) {
+          void requestPlayback({ action: "scrub", at: frame.capturedAt });
+        }
+      });
+      jumpButton.addEventListener("click", () => {
+        const at = fromDateTimeLocal(jumpTime.value);
+        if (at) {
+          void requestPlayback({ action: "jump", at });
+        }
+      });
+      speedButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const speed = Number(button.dataset.speed);
+          const action = playback.status === "playing" ? "resume" : "pause";
+          void requestPlayback({ action, at: playback.currentFrameAt ?? replayFrames.at(-1)?.capturedAt, speed });
+        });
       });
       void refresh();
       setInterval(refresh, 2000);

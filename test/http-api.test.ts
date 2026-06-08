@@ -266,6 +266,10 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("Radar State");
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
+    expect(dashboardBody).toContain("Replay");
+    expect(dashboardBody).toContain("replay-slider");
+    expect(dashboardBody).toContain("/api/radar/replay/playback");
+    expect(dashboardBody).toContain("/api/radar/replay/frame");
 
     const health = await fetch(`${baseUrl}/api/health`);
     expect(health.status).toBe(200);

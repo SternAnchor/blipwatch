@@ -374,7 +374,9 @@ npm start
 
 ### `GET /`
 
-Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes the status and image automatically.
+Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, replay controls, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes status, replay metadata, and imagery automatically.
+
+The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
 
 ### `GET /api/health`
 
