@@ -275,10 +275,13 @@ CALIBRATION_CAPTURE_DIRECTORY=captures/calibration \
 CALIBRATION_CAPTURE_INTERVAL_MS=10000 \
 CALIBRATION_CAPTURE_PACKET_LIMIT=250 \
 RADAR_DISPLAY_RANGE_METERS=463 \
+RADAR_RENDER_PALETTE=chartplotter \
+RADAR_BRIGHTNESS_SCALE=100 \
+RADAR_TARGET_EXPANSION=100 \
 npm start
 ```
 
-The `packets.ndjson` file uses the same `payloadHex` line format accepted by `npm run replay:packets`, with receive timing and source metadata included for calibration. Set `RADAR_DISPLAY_RANGE_METERS` to the chartplotter range when comparing screenshots, for example `463` for 1/4 NM. Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
+The `packets.ndjson` file uses the same `payloadHex` line format accepted by `npm run replay:packets`, with receive timing and source metadata included for calibration. Set `RADAR_DISPLAY_RANGE_METERS` to the chartplotter range when comparing screenshots, for example `463` for 1/4 NM. Use `RADAR_RENDER_PALETTE`, `RADAR_BRIGHTNESS_SCALE`, and `RADAR_TARGET_EXPANSION` when tuning the rendered view against the chartplotter. Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
 
 ### Replay Saved UDP Payloads
 
@@ -319,7 +322,9 @@ BlipWatch is configured through environment variables.
 | `CALIBRATION_CAPTURE_PACKET_LIMIT` | `250` | Maximum number of recent raw UDP payloads to include in each calibration bundle. Set to `0` to disable packet payload capture. |
 | `PORT` | `8080` | HTTP API port. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
+| `RADAR_BRIGHTNESS_SCALE` | `100` | Percentage multiplier applied to radar return intensity before rendering. Increase for dim targets or decrease for saturated returns. |
 | `RADAR_DISPLAY_RANGE_METERS` | `auto` | Render display range in meters. `auto` uses the decoded packet sweep range; set a value such as `463` to match a 1/4 NM chartplotter view. |
+| `RADAR_RENDER_PALETTE` | `chartplotter` | Render color palette. Supported values are `chartplotter`, `grayscale`, and `green`. |
 | `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |
 | `RADAR_CONTROL_MODE` | `wake` | Active control mode. Use `wake` to wake only or `transmit` to request transmit plus stay-alive. |
 | `RADAR_CONTROL_WAKE_HOST` | `236.6.7.5` | IPv4 destination for the Navico wake command. |
@@ -332,6 +337,7 @@ BlipWatch is configured through environment variables.
 | `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
 | `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
+| `RADAR_TARGET_EXPANSION` | `100` | Percentage multiplier for rendered target footprint size. Increase to make returns easier to see on high-resolution displays. |
 | `RADAR_TARGET_PERSISTENCE_MS` | `4000` | Time a radar return stays at full rendered intensity before fading begins. |
 | `RADAR_TARGET_FADE_MS` | `8000` | Duration of the linear fade after the persistence window. |
 | `RADAR_TARGET_MAX_AGE_MS` | `15000` | Maximum age for a rendered return before it is removed. |
@@ -350,6 +356,9 @@ RADAR_INTERFACE=auto \
 RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
+RADAR_RENDER_PALETTE=chartplotter \
+RADAR_BRIGHTNESS_SCALE=100 \
+RADAR_TARGET_EXPANSION=100 \
 RADAR_TARGET_PERSISTENCE_MS=4000 \
 RADAR_TARGET_FADE_MS=8000 \
 RADAR_TARGET_MAX_AGE_MS=15000 \

@@ -2,6 +2,7 @@ import { isIP } from "node:net";
 
 export type LogVerbosity = "debug" | "info";
 export type RadarControlMode = "wake" | "transmit";
+export type RadarRenderPalette = "chartplotter" | "grayscale" | "green";
 
 const DEFAULTS = {
   calibrationCaptureDirectory: "captures/calibration",
@@ -11,6 +12,7 @@ const DEFAULTS = {
   imageSize: 1024,
   logLevel: "info",
   port: 8080,
+  radarBrightnessScale: 100,
   radarControlEnabled: false,
   radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "auto",
@@ -25,7 +27,9 @@ const DEFAULTS = {
   radarMulticastGroups: ["236.6.7.8"],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 6878,
+  radarRenderPalette: "chartplotter",
   radarTargetFadeMs: 8_000,
+  radarTargetExpansion: 100,
   radarTargetMaxAgeMs: 15_000,
   radarTargetPersistenceMs: 4_000,
   radarUdpPort: 6678,
@@ -41,6 +45,7 @@ export interface BlipWatchConfig {
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
   readonly port: number;
+  readonly radarBrightnessScale: number;
   readonly radarControlEnabled: boolean;
   readonly radarControlFallbackHost: string;
   readonly radarControlHost: string;
@@ -55,7 +60,9 @@ export interface BlipWatchConfig {
   readonly radarMulticastGroups: readonly string[];
   readonly radarReportMulticastGroup: string;
   readonly radarReportUdpPort: number;
+  readonly radarRenderPalette: RadarRenderPalette;
   readonly radarTargetFadeMs: number;
+  readonly radarTargetExpansion: number;
   readonly radarTargetMaxAgeMs: number;
   readonly radarTargetPersistenceMs: number;
   readonly radarUdpPort: number;
@@ -94,6 +101,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
+  radarBrightnessScale: parsePositiveInteger(
+    env.RADAR_BRIGHTNESS_SCALE,
+    "RADAR_BRIGHTNESS_SCALE",
+    DEFAULTS.radarBrightnessScale
+  ),
   radarControlEnabled: parseBoolean(env.RADAR_CONTROL_ENABLED, "RADAR_CONTROL_ENABLED", DEFAULTS.radarControlEnabled),
   radarControlFallbackHost: parseIpv4Address(
     env.RADAR_CONTROL_FALLBACK_HOST,
@@ -128,6 +140,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     DEFAULTS.radarReportMulticastGroup
   ),
   radarReportUdpPort: parsePort(env.RADAR_REPORT_UDP_PORT, "RADAR_REPORT_UDP_PORT", DEFAULTS.radarReportUdpPort),
+  radarRenderPalette: parseRadarRenderPalette(env.RADAR_RENDER_PALETTE),
   radarTargetFadeMs: parsePositiveInteger(
     env.RADAR_TARGET_FADE_MS,
     "RADAR_TARGET_FADE_MS",
@@ -142,6 +155,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     env.RADAR_TARGET_PERSISTENCE_MS,
     "RADAR_TARGET_PERSISTENCE_MS",
     DEFAULTS.radarTargetPersistenceMs
+  ),
+  radarTargetExpansion: parsePositiveInteger(
+    env.RADAR_TARGET_EXPANSION,
+    "RADAR_TARGET_EXPANSION",
+    DEFAULTS.radarTargetExpansion
   ),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
   replayFrameIntervalMs: parsePositiveInteger(
@@ -249,6 +267,20 @@ const parseRadarControlMode = (value: string | undefined): RadarControlMode => {
   }
 
   throw new ConfigurationError(`RADAR_CONTROL_MODE must be one of: wake, transmit; received "${value}"`);
+};
+
+const parseRadarRenderPalette = (value: string | undefined): RadarRenderPalette => {
+  if (value === undefined || value === "") {
+    return DEFAULTS.radarRenderPalette;
+  }
+
+  if (value === "chartplotter" || value === "grayscale" || value === "green") {
+    return value;
+  }
+
+  throw new ConfigurationError(
+    `RADAR_RENDER_PALETTE must be one of: chartplotter, grayscale, green; received "${value}"`
+  );
 };
 
 const parseRadarControlHost = (value: string | undefined): string => {

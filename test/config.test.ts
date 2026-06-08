@@ -12,6 +12,7 @@ describe("loadConfig", () => {
       imageSize: 1024,
       logLevel: "info",
       port: 8080,
+      radarBrightnessScale: 100,
       radarControlEnabled: false,
       radarControlFallbackHost: "236.6.8.36",
       radarControlHost: "auto",
@@ -26,7 +27,9 @@ describe("loadConfig", () => {
       radarMulticastGroups: ["236.6.7.8"],
       radarReportMulticastGroup: "236.6.7.5",
       radarReportUdpPort: 6878,
+      radarRenderPalette: "chartplotter",
       radarTargetFadeMs: 8000,
+      radarTargetExpansion: 100,
       radarTargetMaxAgeMs: 15000,
       radarTargetPersistenceMs: 4000,
       radarUdpPort: 6678,
@@ -59,6 +62,7 @@ describe("loadConfig", () => {
         IMAGE_SIZE: "512",
         LOG_LEVEL: "debug",
         PORT: "9090",
+        RADAR_BRIGHTNESS_SCALE: "125",
         RADAR_CONTROL_ENABLED: "true",
         RADAR_CONTROL_FALLBACK_HOST: "236.6.8.37",
         RADAR_CONTROL_HOST: "236.6.8.36",
@@ -73,7 +77,9 @@ describe("loadConfig", () => {
         RADAR_MULTICAST_GROUPS: "239.2.1.1, 239.2.1.2",
         RADAR_REPORT_MULTICAST_GROUP: "236.6.7.9",
         RADAR_REPORT_UDP_PORT: "6879",
+        RADAR_RENDER_PALETTE: "green",
         RADAR_TARGET_FADE_MS: "7000",
+        RADAR_TARGET_EXPANSION: "150",
         RADAR_TARGET_MAX_AGE_MS: "12000",
         RADAR_TARGET_PERSISTENCE_MS: "3000",
         RADAR_UDP_PORT: "6679",
@@ -88,6 +94,7 @@ describe("loadConfig", () => {
       imageSize: 512,
       logLevel: "debug",
       port: 9090,
+      radarBrightnessScale: 125,
       radarControlEnabled: true,
       radarControlFallbackHost: "236.6.8.37",
       radarControlHost: "236.6.8.36",
@@ -102,7 +109,9 @@ describe("loadConfig", () => {
       radarMulticastGroups: ["239.2.1.1", "239.2.1.2"],
       radarReportMulticastGroup: "236.6.7.9",
       radarReportUdpPort: 6879,
+      radarRenderPalette: "green",
       radarTargetFadeMs: 7000,
+      radarTargetExpansion: 150,
       radarTargetMaxAgeMs: 12000,
       radarTargetPersistenceMs: 3000,
       radarUdpPort: 6679,
@@ -134,6 +143,11 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ RADAR_DISPLAY_RANGE_METERS: "0" })).toThrow(
       "RADAR_DISPLAY_RANGE_METERS must be greater than 0"
     );
+    expect(() => loadConfig({ RADAR_BRIGHTNESS_SCALE: "0" })).toThrow("RADAR_BRIGHTNESS_SCALE must be greater than 0");
+    expect(() => loadConfig({ RADAR_RENDER_PALETTE: "purple" })).toThrow(
+      'RADAR_RENDER_PALETTE must be one of: chartplotter, grayscale, green; received "purple"'
+    );
+    expect(() => loadConfig({ RADAR_TARGET_EXPANSION: "0" })).toThrow("RADAR_TARGET_EXPANSION must be greater than 0");
     expect(() => loadConfig({ RADAR_TARGET_FADE_MS: "0" })).toThrow("RADAR_TARGET_FADE_MS must be greater than 0");
     expect(() => loadConfig({ RADAR_TARGET_MAX_AGE_MS: "0" })).toThrow(
       "RADAR_TARGET_MAX_AGE_MS must be greater than 0"

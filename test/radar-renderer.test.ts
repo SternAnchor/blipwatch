@@ -15,6 +15,7 @@ const config: BlipWatchConfig = {
   imageSize: 32,
   logLevel: "debug",
   port: 8080,
+  radarBrightnessScale: 100,
   radarControlEnabled: false,
   radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "236.6.8.36",
@@ -29,7 +30,9 @@ const config: BlipWatchConfig = {
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarRenderPalette: "chartplotter",
   radarTargetFadeMs: 8000,
+  radarTargetExpansion: 100,
   radarTargetMaxAgeMs: 15000,
   radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
@@ -71,9 +74,12 @@ describe("createRadarImageRenderer", () => {
       lastFrameAt: null,
       lastSpokeAt: null,
       maxIntensity: 0,
+      radarBrightnessScale: 100,
+      radarRenderPalette: "chartplotter",
       renderState: "empty",
       spokeCount: 0,
       targetFadeMs: 8000,
+      targetExpansion: 100,
       targetMaxAgeMs: 15000,
       targetPersistenceMs: 4000
     });
@@ -175,6 +181,66 @@ describe("createRadarImageRenderer", () => {
     const png = PNG.sync.read(renderer.getLatestPng());
     expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
     expect(readPixel(png, 24, 16)).toEqual([0, 0, 0, 255]);
+  });
+
+  it("uses configurable render palettes", () => {
+    const { sink } = createMemorySink();
+    const greenRenderer = createRadarImageRenderer({
+      config: { ...config, radarRenderPalette: "green" },
+      logger: createLogger({ level: "debug", sink })
+    });
+    const grayscaleRenderer = createRadarImageRenderer({
+      config: { ...config, radarRenderPalette: "grayscale" },
+      logger: createLogger({ level: "debug", sink })
+    });
+    const spoke: RadarSpoke = {
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 2,
+      type: "spoke"
+    };
+
+    greenRenderer.applySpoke(spoke);
+    grayscaleRenderer.applySpoke(spoke);
+
+    expect(readPixel(PNG.sync.read(greenRenderer.getLatestPng()), 31, 16)).toEqual([0, 255, 0, 255]);
+    expect(readPixel(PNG.sync.read(grayscaleRenderer.getLatestPng()), 31, 16)).toEqual([255, 255, 255, 255]);
+    expect(greenRenderer.getLatestMetadata()).toMatchObject({
+      radarRenderPalette: "green"
+    });
+  });
+
+  it("scales target brightness and expansion", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({
+      config: {
+        ...config,
+        radarBrightnessScale: 50,
+        radarTargetExpansion: 200
+      },
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 2,
+      type: "spoke"
+    });
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([255, 176, 32, 255]);
+    expect(readPixel(png, 30, 16)).not.toEqual([0, 0, 0, 255]);
+    expect(renderer.getLatestMetadata()).toMatchObject({
+      radarBrightnessScale: 50,
+      targetExpansion: 200
+    });
   });
 
   it("ages radar returns through persistence, fade, and maximum age", () => {
