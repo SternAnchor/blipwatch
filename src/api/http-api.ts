@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import type { BlipWatchConfig } from "../config/config.js";
+import type { CalibrationCaptureStatus } from "../calibration/calibration-capture.js";
 import type { Logger } from "../logging/logger.js";
 import type { RadarControl } from "../radar/control.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
@@ -17,6 +18,7 @@ export interface HttpApi {
 
 interface HttpApiOptions {
   readonly config: BlipWatchConfig;
+  readonly calibrationCaptureStatus?: () => CalibrationCaptureStatus;
   readonly logger: Logger;
   readonly radarControl?: Pick<RadarControl, "requestStandby" | "requestTransmit">;
   readonly renderer: RadarImageRenderer;
@@ -36,6 +38,7 @@ const API_PREFIX = "/api";
 
 export const createHttpApi = ({
   config,
+  calibrationCaptureStatus,
   logger,
   radarControl,
   renderer,
@@ -83,6 +86,7 @@ export const createHttpApi = ({
 
         if (url.pathname === apiPath("/health")) {
           sendJson(response, 200, {
+            calibrationCapture: calibrationCaptureStatus?.() ?? null,
             ok: true,
             replay: replayBuffer.getMetadata(),
             renderer: renderer.getLatestMetadata(),

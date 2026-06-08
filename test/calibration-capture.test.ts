@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -180,10 +180,39 @@ describe("createCalibrationCapture", () => {
     });
 
     await capture.start();
+    const status = capture.getStatus();
+    expect(status).toMatchObject({
+      enabled: true,
+      running: true
+    });
+    expect(typeof status.lastCaptureAt).toBe("string");
+    expect(typeof status.lastCaptureDirectory).toBe("string");
     capture.stop();
 
     const bundles = await readdir(directory);
     expect(bundles).toHaveLength(1);
+  });
+
+  it("exposes resolved output directories in status", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "blipwatch-calibration-status-"));
+    temporaryDirectories.push(directory);
+    const { sink } = createMemorySink();
+    const capture = createCalibrationCapture({
+      config: config(directory),
+      logger: createLogger({ level: "debug", sink }),
+      radarStatus,
+      renderer,
+      replayBuffer
+    });
+
+    expect(capture.getStatus()).toMatchObject({
+      directory,
+      enabled: true,
+      lastCaptureAt: null,
+      lastCaptureDirectory: null,
+      resolvedDirectory: resolve(directory),
+      running: false
+    });
   });
 });
 

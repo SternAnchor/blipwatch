@@ -1,5 +1,6 @@
 import { createServer, request } from "node:http";
 import type { AddressInfo } from "node:net";
+import { resolve } from "node:path";
 
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -183,6 +184,15 @@ const radarStatus = (): RadarStatus => ({
 const startApi = async (): Promise<string> => {
   const { sink } = createMemorySink();
   api = createHttpApi({
+    calibrationCaptureStatus: () => ({
+      directory: "captures/calibration",
+      enabled: false,
+      intervalMs: 10000,
+      lastCaptureAt: null,
+      lastCaptureDirectory: null,
+      resolvedDirectory: resolve("captures/calibration"),
+      running: false
+    }),
     config,
     logger: createLogger({ level: "debug", sink }),
     renderer: createRenderer(),
@@ -223,7 +233,15 @@ describe("HTTP API", () => {
     const health = await fetch(`${baseUrl}/api/health`);
     expect(health.status).toBe(200);
     expect(health.headers.get("content-type")).toContain("application/json");
-    await expect(health.json()).resolves.toMatchObject({ ok: true, service: "blipwatch" });
+    await expect(health.json()).resolves.toMatchObject({
+      calibrationCapture: {
+        directory: "captures/calibration",
+        enabled: false,
+        running: false
+      },
+      ok: true,
+      service: "blipwatch"
+    });
 
     const latestJson = await fetch(`${baseUrl}/api/radar/latest.json`);
     await expect(latestJson.json()).resolves.toMatchObject({

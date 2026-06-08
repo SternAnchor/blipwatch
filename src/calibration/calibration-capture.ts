@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
@@ -9,6 +9,7 @@ import type { ReplayBuffer } from "../replay/replay-buffer.js";
 
 export interface CalibrationCapture {
   captureNow(capturedAt?: Date): Promise<CalibrationCaptureResult | undefined>;
+  getStatus(): CalibrationCaptureStatus;
   start(): Promise<void>;
   stop(): void;
 }
@@ -27,6 +28,16 @@ export interface CalibrationCaptureResult {
   readonly files: readonly string[];
 }
 
+export interface CalibrationCaptureStatus {
+  readonly directory: string;
+  readonly enabled: boolean;
+  readonly intervalMs: number;
+  readonly lastCaptureAt: string | null;
+  readonly lastCaptureDirectory: string | null;
+  readonly resolvedDirectory: string;
+  readonly running: boolean;
+}
+
 export const createCalibrationCapture = ({
   config,
   logger,
@@ -35,13 +46,16 @@ export const createCalibrationCapture = ({
   replayBuffer
 }: CalibrationCaptureOptions): CalibrationCapture => {
   let interval: NodeJS.Timeout | undefined;
+  let lastCaptureAt: string | undefined;
+  let lastCaptureDirectory: string | undefined;
+  const resolvedDirectory = resolve(config.calibrationCaptureDirectory);
 
   const captureNow = async (capturedAt = new Date()): Promise<CalibrationCaptureResult | undefined> => {
     if (!config.calibrationCaptureEnabled) {
       return undefined;
     }
 
-    const captureDirectory = join(config.calibrationCaptureDirectory, formatCaptureTimestamp(capturedAt));
+    const captureDirectory = join(resolvedDirectory, formatCaptureTimestamp(capturedAt));
     await mkdir(captureDirectory, { recursive: true });
 
     const status = radarStatus();
@@ -79,12 +93,25 @@ export const createCalibrationCapture = ({
       directory: captureDirectory,
       files: Object.values(manifest.files)
     };
-    logger.info(`calibration capture written directory=${captureDirectory}`);
+    lastCaptureAt = result.capturedAt;
+    lastCaptureDirectory = resolve(captureDirectory);
+    logger.info(`calibration capture written directory=${lastCaptureDirectory}`);
     return result;
   };
 
   return {
     captureNow,
+    getStatus(): CalibrationCaptureStatus {
+      return {
+        directory: config.calibrationCaptureDirectory,
+        enabled: config.calibrationCaptureEnabled,
+        intervalMs: config.calibrationCaptureIntervalMs,
+        lastCaptureAt: lastCaptureAt ?? null,
+        lastCaptureDirectory: lastCaptureDirectory ?? null,
+        resolvedDirectory,
+        running: interval !== undefined
+      };
+    },
     async start(): Promise<void> {
       if (!config.calibrationCaptureEnabled) {
         logger.debug("calibration capture start skipped; disabled by configuration");
@@ -96,9 +123,9 @@ export const createCalibrationCapture = ({
         return;
       }
 
-      await mkdir(config.calibrationCaptureDirectory, { recursive: true });
+      await mkdir(resolvedDirectory, { recursive: true });
       logger.info(
-        `calibration capture enabled directory=${config.calibrationCaptureDirectory} intervalMs=${config.calibrationCaptureIntervalMs}`
+        `calibration capture enabled directory=${config.calibrationCaptureDirectory} resolvedDirectory=${resolvedDirectory} intervalMs=${config.calibrationCaptureIntervalMs}`
       );
       await captureNow();
       interval = setInterval(() => {
