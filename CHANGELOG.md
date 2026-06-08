@@ -1,3 +1,9 @@
+## [1.1.0-develop.23](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.22...v1.1.0-develop.23) (2026-06-08)
+
+### Features
+
+* add configurable radar rendering controls ([08c3a9c](https://github.com/SternAnchor/blipwatch/commit/08c3a9c8467a5cc20f6835274c2ae510022da0ce))
+
 ## [1.1.0-develop.22](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.21...v1.1.0-develop.22) (2026-06-08)
 
 ### Features
