@@ -64,6 +64,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const replayBuffer = createReplayBuffer({ config, logger });
   const calibrationPackets: CalibrationPacketSnapshot[] = [];
   let capturedFirstDecodedPacket = false;
+  let lastReplayCaptureAt: Date | undefined;
   let packetsDecoded = 0;
   let packetsRejected = 0;
   let lastDecodedSpokeAt: Date | undefined;
@@ -140,10 +141,15 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
           for (const spoke of result.spokes) {
             lastDecodedSpokeAt = spoke.receivedAt;
             renderer.applySpoke(spoke);
-            replayBuffer.captureFrame({
-              metadata: renderer.getLatestMetadata(),
-              png: renderer.getLatestPng()
-            });
+            const renderedAt = new Date();
+            if (shouldCaptureReplayFrame(renderedAt, lastReplayCaptureAt, config.replayFrameIntervalMs)) {
+              const replayFrame = replayBuffer.captureFrame({
+                capturedAt: renderedAt,
+                metadata: renderer.getLatestMetadata(),
+                png: renderer.getLatestPng()
+              });
+              lastReplayCaptureAt = replayFrame?.capturedAt ?? lastReplayCaptureAt;
+            }
           }
           if (!capturedFirstDecodedPacket) {
             capturedFirstDecodedPacket = true;
@@ -173,6 +179,12 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
 };
 
 const RADAR_TRAFFIC_ACTIVE_WINDOW_MS = 3_000;
+
+const shouldCaptureReplayFrame = (
+  capturedAt: Date,
+  lastCapturedAt: Date | undefined,
+  frameIntervalMs: number
+): boolean => !lastCapturedAt || capturedAt.getTime() - lastCapturedAt.getTime() >= frameIntervalMs;
 
 const getObservedRadarOperatingState = (
   discovery: RadarStatus["discovery"],
@@ -275,6 +287,7 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   radarControlWakeHost: config.radarControlWakeHost,
   radarControlWakePort: config.radarControlWakePort,
   radarDiscoveryEnabled: String(config.radarDiscoveryEnabled),
+  radarDisplayRangeMeters: String(config.radarDisplayRangeMeters),
   radarInterface: config.radarInterface,
   radarMulticastGroups: config.radarMulticastGroups.join(","),
   radarReportMulticastGroup: config.radarReportMulticastGroup,

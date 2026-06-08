@@ -22,6 +22,7 @@ const config: BlipWatchConfig = {
   radarControlWakeHost: "236.6.7.5",
   radarControlWakePort: 6878,
   radarDiscoveryEnabled: false,
+  radarDisplayRangeMeters: "auto",
   radarInterface: "127.0.0.1",
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",

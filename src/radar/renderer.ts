@@ -46,7 +46,7 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
   return {
     applySpoke(spoke: RadarSpoke): void {
       try {
-        drawSpoke(image, intensityMap, spoke);
+        drawSpoke(image, intensityMap, spoke, getDisplayRangeMeters(config.radarDisplayRangeMeters, spoke));
         spokeCount += 1;
         maxIntensity = Math.max(maxIntensity, spoke.maxIntensity);
         lastSpokeAt = spoke.receivedAt ?? new Date();
@@ -86,11 +86,20 @@ const clearImage = (image: PNG): void => {
   }
 };
 
-const drawSpoke = (image: PNG, intensityMap: Uint8Array, spoke: RadarSpoke): void => {
+const getDisplayRangeMeters = (configuredRange: number | "auto", spoke: RadarSpoke): number => {
+  if (configuredRange === "auto") {
+    return spoke.rangeMeters;
+  }
+
+  return configuredRange;
+};
+
+const drawSpoke = (image: PNG, intensityMap: Uint8Array, spoke: RadarSpoke, displayRangeMeters: number): void => {
   const center = Math.floor(image.width / 2);
   const maxRadius = Math.max(Math.floor(image.width / 2) - 1, 1);
   const angleRadians = (spoke.angleDegrees * Math.PI) / 180;
   const sampleDenominator = Math.max(spoke.intensities.length - 1, 1);
+  const metersPerSample = spoke.rangeMeters / sampleDenominator;
   const footprintRadius = getFootprintRadius(image.width);
 
   for (const [sampleIndex, intensity] of spoke.intensities.entries()) {
@@ -98,7 +107,12 @@ const drawSpoke = (image: PNG, intensityMap: Uint8Array, spoke: RadarSpoke): voi
       continue;
     }
 
-    const radius = (sampleIndex / sampleDenominator) * maxRadius;
+    const sampleRangeMeters = sampleIndex * metersPerSample;
+    if (sampleRangeMeters > displayRangeMeters) {
+      continue;
+    }
+
+    const radius = (sampleRangeMeters / displayRangeMeters) * maxRadius;
     const x = Math.round(center + Math.sin(angleRadians) * radius);
     const y = Math.round(center - Math.cos(angleRadians) * radius);
     drawReturn(image, intensityMap, x, y, intensity, footprintRadius);

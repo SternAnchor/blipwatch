@@ -21,6 +21,7 @@ describe("loadConfig", () => {
       radarControlWakeHost: "236.6.7.5",
       radarControlWakePort: 6878,
       radarDiscoveryEnabled: true,
+      radarDisplayRangeMeters: "auto",
       radarInterface: "auto",
       radarMulticastGroups: ["236.6.7.8"],
       radarReportMulticastGroup: "236.6.7.5",
@@ -64,6 +65,7 @@ describe("loadConfig", () => {
         RADAR_CONTROL_WAKE_HOST: "236.6.7.5",
         RADAR_CONTROL_WAKE_PORT: "6878",
         RADAR_DISCOVERY_ENABLED: "false",
+        RADAR_DISPLAY_RANGE_METERS: "463",
         RADAR_INTERFACE: "192.0.2.10",
         RADAR_MULTICAST_GROUPS: "239.2.1.1, 239.2.1.2",
         RADAR_REPORT_MULTICAST_GROUP: "236.6.7.9",
@@ -89,6 +91,7 @@ describe("loadConfig", () => {
       radarControlWakeHost: "236.6.7.5",
       radarControlWakePort: 6878,
       radarDiscoveryEnabled: false,
+      radarDisplayRangeMeters: 463,
       radarInterface: "192.0.2.10",
       radarMulticastGroups: ["239.2.1.1", "239.2.1.2"],
       radarReportMulticastGroup: "236.6.7.9",
@@ -118,6 +121,9 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ RADAR_UDP_PORT: "70000" })).toThrow("RADAR_UDP_PORT must be between 0 and 65535");
     expect(() => loadConfig({ RADAR_DISCOVERY_ENABLED: "maybe" })).toThrow(
       'RADAR_DISCOVERY_ENABLED must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ RADAR_DISPLAY_RANGE_METERS: "0" })).toThrow(
+      "RADAR_DISPLAY_RANGE_METERS must be greater than 0"
     );
     expect(() => loadConfig({ RADAR_CONTROL_ENABLED: "maybe" })).toThrow(
       'RADAR_CONTROL_ENABLED must be one of: true, false, 1, 0; received "maybe"'

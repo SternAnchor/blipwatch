@@ -20,6 +20,7 @@ const DEFAULTS = {
   radarControlWakeHost: "236.6.7.5",
   radarControlWakePort: 6878,
   radarDiscoveryEnabled: true,
+  radarDisplayRangeMeters: "auto",
   radarInterface: "auto",
   radarMulticastGroups: ["236.6.7.8"],
   radarReportMulticastGroup: "236.6.7.5",
@@ -46,6 +47,7 @@ export interface BlipWatchConfig {
   readonly radarControlWakeHost: string;
   readonly radarControlWakePort: number;
   readonly radarDiscoveryEnabled: boolean;
+  readonly radarDisplayRangeMeters: number | "auto";
   readonly radarInterface: string;
   readonly radarMulticastGroups: readonly string[];
   readonly radarReportMulticastGroup: string;
@@ -107,6 +109,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
   ),
   radarControlWakePort: parsePort(env.RADAR_CONTROL_WAKE_PORT, "RADAR_CONTROL_WAKE_PORT", DEFAULTS.radarControlWakePort),
   radarDiscoveryEnabled: parseBoolean(env.RADAR_DISCOVERY_ENABLED, "RADAR_DISCOVERY_ENABLED", DEFAULTS.radarDiscoveryEnabled),
+  radarDisplayRangeMeters: parseAutoOrPositiveInteger(
+    env.RADAR_DISPLAY_RANGE_METERS,
+    "RADAR_DISPLAY_RANGE_METERS",
+    DEFAULTS.radarDisplayRangeMeters
+  ),
   radarInterface: parseNonEmptyString(env.RADAR_INTERFACE, "RADAR_INTERFACE", DEFAULTS.radarInterface),
   radarMulticastGroups: parseMulticastGroups(env.RADAR_MULTICAST_GROUPS),
   radarReportMulticastGroup: parseMulticastGroup(
@@ -151,6 +158,22 @@ const parsePositiveInteger = (value: string | undefined, name: string, defaultVa
   }
 
   return parsed;
+};
+
+const parseAutoOrPositiveInteger = (
+  value: string | undefined,
+  name: string,
+  defaultValue: number | "auto"
+): number | "auto" => {
+  if (value === undefined || value === "") {
+    return defaultValue;
+  }
+
+  if (value === "auto") {
+    return value;
+  }
+
+  return parsePositiveInteger(value, name, typeof defaultValue === "number" ? defaultValue : 1);
 };
 
 const parseNonNegativeInteger = (value: string | undefined, name: string, defaultValue: number): number => {

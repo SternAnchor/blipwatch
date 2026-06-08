@@ -24,6 +24,7 @@ const config: BlipWatchConfig = {
   radarControlWakeHost: "236.6.7.5",
   radarControlWakePort: 6878,
   radarDiscoveryEnabled: false,
+  radarDisplayRangeMeters: "auto",
   radarInterface: "127.0.0.1",
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
@@ -136,5 +137,27 @@ describe("createRadarImageRenderer", () => {
       renderState: "ready",
       spokeCount: 1
     });
+  });
+
+  it("clips and scales spokes to the configured display range", () => {
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({
+      config: { ...config, radarDisplayRangeMeters: 1000 },
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 255, 255]),
+      maxIntensity: 255,
+      rangeMeters: 2000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 3,
+      type: "spoke"
+    });
+
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
+    expect(readPixel(png, 24, 16)).toEqual([0, 0, 0, 255]);
   });
 });
