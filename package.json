@@ -23,6 +23,7 @@
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
     "release": "semantic-release",
+    "profile:radar": "tsx src/sim/performance-profile-cli.ts",
     "replay:packets": "tsx src/sim/packet-replay-cli.ts",
     "simulate:radar": "tsx src/sim/radar-simulator.ts",
     "start": "node dist/index.js",

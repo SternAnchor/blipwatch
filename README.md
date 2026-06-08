@@ -312,6 +312,35 @@ npm run replay:packets
 
 Use this format for small sanitized fixtures. Keep raw pcaps private until they have been reviewed for vessel, marina, and network details.
 
+### Radar Performance Profiling
+
+Use the deterministic radar profiler when checking Raspberry Pi 5 readiness or comparing changes across machines. It renders synthetic spokes, captures replay frames, and prints JSON with elapsed time, spoke throughput, replay bytes, and memory deltas.
+
+```bash
+npm run profile:radar
+```
+
+Optional workload controls:
+
+```bash
+PROFILE_IMAGE_SIZE=1024 \
+PROFILE_SPOKES=4096 \
+PROFILE_SAMPLE_COUNT=512 \
+PROFILE_CAPTURE_EVERY=16 \
+PROFILE_RANGE_METERS=2000 \
+npm run profile:radar
+```
+
+Record the JSON output with the device, OS, Node.js version, and whether the process is running from source, npm, Docker, or systemd. For Raspberry Pi-style deployments, start with lower `IMAGE_SIZE`, shorter replay retention, or a larger `REPLAY_FRAME_INTERVAL_MS` if heap, RSS, or replay bytes grow too quickly.
+
+Local reference run on macOS arm64 with Node.js 25.9.0, source execution, defaults above:
+
+- 4096 spokes rendered in 13405 ms.
+- 306 spokes per second.
+- 256 replay frames captured.
+- 1499392 replay PNG bytes.
+- RSS delta 39600128 bytes.
+
 ## Configuration
 
 BlipWatch is configured through environment variables.
