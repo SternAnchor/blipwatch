@@ -17,9 +17,19 @@ export interface CalibrationCapture {
 export interface CalibrationCaptureOptions {
   readonly config: BlipWatchConfig;
   readonly logger: Logger;
+  readonly packetSnapshot?: () => readonly CalibrationPacketSnapshot[];
   readonly radarStatus: () => RadarStatus;
   readonly renderer: RadarImageRenderer;
   readonly replayBuffer: ReplayBuffer;
+}
+
+export interface CalibrationPacketSnapshot {
+  readonly delayMs: number;
+  readonly payloadHex: string;
+  readonly receivedAt: string;
+  readonly remoteAddress: string;
+  readonly remotePort: number;
+  readonly size: number;
 }
 
 export interface CalibrationCaptureResult {
@@ -41,6 +51,7 @@ export interface CalibrationCaptureStatus {
 export const createCalibrationCapture = ({
   config,
   logger,
+  packetSnapshot,
   radarStatus,
   renderer,
   replayBuffer
@@ -62,6 +73,7 @@ export const createCalibrationCapture = ({
     const latestMetadata = renderer.getLatestMetadata();
     const replayMetadata = replayBuffer.getMetadata();
     const replayFrames = replayBuffer.listFrames();
+    const packetSnapshots = packetSnapshot?.() ?? [];
     const latestPng = renderer.getLatestPng();
     const manifest = {
       capturedAt: capturedAt.toISOString(),
@@ -69,6 +81,7 @@ export const createCalibrationCapture = ({
         latestMetadata: "latest.json",
         latestPng: "latest.png",
         manifest: "manifest.json",
+        rawPackets: "packets.ndjson",
         replayFrames: "replay-frames.json",
         replayMetadata: "replay.json",
         status: "status.json"
@@ -83,6 +96,7 @@ export const createCalibrationCapture = ({
       writeJson(join(captureDirectory, "latest.json"), latestMetadata),
       writeFile(join(captureDirectory, "latest.png"), latestPng),
       writeJson(join(captureDirectory, "manifest.json"), manifest),
+      writeNdjson(join(captureDirectory, "packets.ndjson"), packetSnapshots),
       writeJson(join(captureDirectory, "replay.json"), replayMetadata),
       writeJson(join(captureDirectory, "replay-frames.json"), { frames: replayFrames }),
       writeJson(join(captureDirectory, "status.json"), status)
@@ -148,6 +162,10 @@ export const createCalibrationCapture = ({
 
 const writeJson = async (path: string, value: unknown): Promise<void> => {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
+};
+
+const writeNdjson = async (path: string, values: readonly unknown[]): Promise<void> => {
+  await writeFile(path, values.map((value) => JSON.stringify(value)).join("\n") + (values.length > 0 ? "\n" : ""));
 };
 
 const formatCaptureTimestamp = (date: Date): string => {

@@ -17,12 +17,21 @@ export const decodeNavicoHaloFrame = (data: Buffer, receivedAt: Date | undefined
   }
 
   const lineCount = (data.byteLength - FRAME_HEADER_BYTES) / LINE_BYTES;
+  const spokes: RadarSpoke[] = [];
   for (let index = 0; index < lineCount; index += 1) {
     const lineOffset = FRAME_HEADER_BYTES + index * LINE_BYTES;
     const decoded = decodeNavicoHaloLine(data, lineOffset, receivedAt);
     if (decoded.ok) {
-      return decoded;
+      spokes.push(decoded.spoke);
     }
+  }
+
+  if (spokes.length > 0) {
+    return {
+      ok: true,
+      spoke: spokes[0] as RadarSpoke,
+      spokes
+    };
   }
 
   return failure("malformed-packet", "Navico/HALO frame did not contain a valid scan line");
@@ -47,17 +56,20 @@ const decodeNavicoHaloLine = (data: Buffer, lineOffset: number, receivedAt: Date
     return failure("malformed-packet", "Navico/HALO line range is invalid or unavailable");
   }
 
+  const spoke = {
+    angleDegrees: rawBearingToDegrees(angleRaw),
+    intensities: unpackFourBitIntensities(data.subarray(lineOffset + LINE_HEADER_BYTES, lineOffset + LINE_BYTES)),
+    maxIntensity: 255,
+    rangeMeters,
+    receivedAt,
+    sampleCount: PACKED_INTENSITY_BYTES * 2,
+    type: "spoke"
+  } satisfies RadarSpoke;
+
   return {
     ok: true,
-    spoke: {
-      angleDegrees: rawBearingToDegrees(angleRaw),
-      intensities: unpackFourBitIntensities(data.subarray(lineOffset + LINE_HEADER_BYTES, lineOffset + LINE_BYTES)),
-      maxIntensity: 255,
-      rangeMeters,
-      receivedAt,
-      sampleCount: PACKED_INTENSITY_BYTES * 2,
-      type: "spoke"
-    } satisfies RadarSpoke
+    spoke,
+    spokes: [spoke]
   };
 };
 

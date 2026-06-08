@@ -7,6 +7,10 @@ import { createMemorySink } from "./support/logger.js";
 import { sendUdpPacket } from "./support/udp.js";
 
 const baseConfig: BlipWatchConfig = {
+  calibrationCaptureDirectory: "captures/calibration",
+  calibrationCaptureEnabled: false,
+  calibrationCaptureIntervalMs: 10000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 1024,
   logLevel: "debug",
   port: 8080,

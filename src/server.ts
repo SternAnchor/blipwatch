@@ -7,7 +7,7 @@ import { createRadarDecoder } from "./radar/decoder.js";
 import { createRadarDiscovery } from "./radar/discovery.js";
 import { resolveRadarInterface } from "./radar/network-interface.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
-import { createRadarReceiver } from "./radar/receiver.js";
+import { createRadarReceiver, type RadarPacket } from "./radar/receiver.js";
 import type { RadarOperatingState, RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
 
@@ -62,6 +62,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const discovery = createRadarDiscovery({ config, logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
+  const calibrationPackets: CalibrationPacketSnapshot[] = [];
   let packetsDecoded = 0;
   let packetsRejected = 0;
   let lastDecodedSpokeAt: Date | undefined;
@@ -100,6 +101,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const calibrationCapture = createCalibrationCapture({
     config,
     logger,
+    packetSnapshot: () => calibrationPackets,
     radarStatus: getRadarStatus,
     renderer,
     replayBuffer
@@ -130,15 +132,18 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       await control.start();
       await calibrationCapture.start();
       receiver.onPacket((packet) => {
+        captureCalibrationPacket(calibrationPackets, config.calibrationCapturePacketLimit, packet);
         const result = decoder.decode(packet);
         if (result.ok) {
-          packetsDecoded += 1;
-          lastDecodedSpokeAt = result.spoke.receivedAt;
-          renderer.applySpoke(result.spoke);
-          replayBuffer.captureFrame({
-            metadata: renderer.getLatestMetadata(),
-            png: renderer.getLatestPng()
-          });
+          packetsDecoded += result.spokes.length;
+          for (const spoke of result.spokes) {
+            lastDecodedSpokeAt = spoke.receivedAt;
+            renderer.applySpoke(spoke);
+            replayBuffer.captureFrame({
+              metadata: renderer.getLatestMetadata(),
+              png: renderer.getLatestPng()
+            });
+          }
           return;
         }
 
@@ -212,11 +217,46 @@ const normalizeRadarOperatingState = (statusName: string | null | undefined): Ra
 
 export { ConfigurationError };
 
+interface CalibrationPacketSnapshot {
+  readonly delayMs: number;
+  readonly payloadHex: string;
+  readonly receivedAt: string;
+  readonly remoteAddress: string;
+  readonly remotePort: number;
+  readonly size: number;
+}
+
+const captureCalibrationPacket = (
+  packets: CalibrationPacketSnapshot[],
+  limit: number,
+  packet: RadarPacket
+): void => {
+  if (limit <= 0) {
+    return;
+  }
+
+  const previous = packets.at(-1);
+  const receivedAt = packet.receivedAt.toISOString();
+  packets.push({
+    delayMs: previous ? Math.max(0, packet.receivedAt.getTime() - new Date(previous.receivedAt).getTime()) : 0,
+    payloadHex: packet.data.toString("hex"),
+    receivedAt,
+    remoteAddress: packet.remote.address,
+    remotePort: packet.remote.port,
+    size: packet.data.byteLength
+  });
+
+  if (packets.length > limit) {
+    packets.splice(0, packets.length - limit);
+  }
+};
+
 const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, number | string> => ({
   imageSize: config.imageSize,
   calibrationCaptureDirectory: config.calibrationCaptureDirectory,
   calibrationCaptureEnabled: String(config.calibrationCaptureEnabled),
   calibrationCaptureIntervalMs: config.calibrationCaptureIntervalMs,
+  calibrationCapturePacketLimit: config.calibrationCapturePacketLimit,
   logLevel: config.logLevel,
   port: config.port,
   radarControlEnabled: String(config.radarControlEnabled),

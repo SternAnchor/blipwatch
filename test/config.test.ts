@@ -8,6 +8,7 @@ describe("loadConfig", () => {
       calibrationCaptureDirectory: "captures/calibration",
       calibrationCaptureEnabled: false,
       calibrationCaptureIntervalMs: 10000,
+      calibrationCapturePacketLimit: 250,
       imageSize: 1024,
       logLevel: "info",
       port: 8080,
@@ -50,6 +51,7 @@ describe("loadConfig", () => {
         CALIBRATION_CAPTURE_DIRECTORY: "tmp/calibration",
         CALIBRATION_CAPTURE_ENABLED: "true",
         CALIBRATION_CAPTURE_INTERVAL_MS: "5000",
+        CALIBRATION_CAPTURE_PACKET_LIMIT: "42",
         IMAGE_SIZE: "512",
         LOG_LEVEL: "debug",
         PORT: "9090",
@@ -74,6 +76,7 @@ describe("loadConfig", () => {
       calibrationCaptureDirectory: "tmp/calibration",
       calibrationCaptureEnabled: true,
       calibrationCaptureIntervalMs: 5000,
+      calibrationCapturePacketLimit: 42,
       imageSize: 512,
       logLevel: "debug",
       port: 9090,
@@ -105,6 +108,9 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ IMAGE_SIZE: "0" })).toThrow("IMAGE_SIZE must be greater than 0");
     expect(() => loadConfig({ CALIBRATION_CAPTURE_INTERVAL_MS: "0" })).toThrow(
       "CALIBRATION_CAPTURE_INTERVAL_MS must be greater than 0"
+    );
+    expect(() => loadConfig({ CALIBRATION_CAPTURE_PACKET_LIMIT: "-1" })).toThrow(
+      'CALIBRATION_CAPTURE_PACKET_LIMIT must be an integer; received "-1"'
     );
     expect(() => loadConfig({ CALIBRATION_CAPTURE_DIRECTORY: "   " })).toThrow(
       "CALIBRATION_CAPTURE_DIRECTORY must not be empty"

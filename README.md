@@ -267,16 +267,17 @@ Troubleshooting decode failures or blank images:
 
 ### Calibration Capture
 
-Enable calibration capture when comparing BlipWatch output with chartplotter imagery. This writes a bundle at startup, then continues writing timestamped bundles at the configured interval. Each bundle contains the latest rendered PNG, render metadata, radar status, replay metadata, replay frame list, and a manifest. Pair each bundle with a chartplotter screenshot or photo captured at the same moment.
+Enable calibration capture when comparing BlipWatch output with chartplotter imagery. This writes a bundle at startup, then continues writing timestamped bundles at the configured interval. Each bundle contains the latest rendered PNG, render metadata, radar status, replay metadata, replay frame list, recent raw UDP payloads, and a manifest. Pair each bundle with a chartplotter screenshot or photo captured at the same moment.
 
 ```bash
 CALIBRATION_CAPTURE_ENABLED=true \
 CALIBRATION_CAPTURE_DIRECTORY=captures/calibration \
 CALIBRATION_CAPTURE_INTERVAL_MS=10000 \
+CALIBRATION_CAPTURE_PACKET_LIMIT=250 \
 npm start
 ```
 
-Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
+The `packets.ndjson` file uses the same `payloadHex` line format accepted by `npm run replay:packets`, with receive timing and source metadata included for calibration. Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
 
 ### Replay Saved UDP Payloads
 
@@ -314,6 +315,7 @@ BlipWatch is configured through environment variables.
 | `CALIBRATION_CAPTURE_ENABLED` | `false` | Enables periodic calibration bundles for chartplotter/render comparison. |
 | `CALIBRATION_CAPTURE_DIRECTORY` | `captures/calibration` | Directory where timestamped calibration bundles are written. `CALIBRATION_CAPTURE_DIR` is also accepted as a shorter alias. |
 | `CALIBRATION_CAPTURE_INTERVAL_MS` | `10000` | Interval between calibration bundle captures when enabled. |
+| `CALIBRATION_CAPTURE_PACKET_LIMIT` | `250` | Maximum number of recent raw UDP payloads to include in each calibration bundle. Set to `0` to disable packet payload capture. |
 | `PORT` | `8080` | HTTP API port. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
 | `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |

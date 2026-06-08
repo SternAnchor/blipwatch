@@ -66,13 +66,13 @@ describe("createRadarDecoder", () => {
     });
   });
 
-  it("decodes the first valid Navico/HALO frame scan line into a radar spoke", () => {
+  it("decodes every valid Navico/HALO frame scan line into radar spokes", () => {
     const { messages, sink } = createMemorySink();
     const decoder = createRadarDecoder({ logger: createLogger({ level: "debug", sink }) });
     const receivedAt = new Date("2026-06-07T00:00:00.000Z");
 
     const result = decoder.decode({
-      data: createNavicoHaloFramePacket(),
+      data: createNavicoHaloFramePacket({ lineCount: 3 }),
       receivedAt,
       remote: {
         address: "192.0.2.10",
@@ -95,6 +95,8 @@ describe("createRadarDecoder", () => {
       sampleCount: 1024,
       type: "spoke"
     });
+    expect(result.spokes).toHaveLength(3);
+    expect(result.spokes.map((spoke) => spoke.angleDegrees)).toEqual([90, 90.087890625, 90.17578125]);
     expect(Array.from(result.spoke.intensities.slice(0, 4))).toEqual([0, 255, 17, 238]);
     expect(messages.some((message) => message.includes("kind=navico-halo-frame"))).toBe(true);
   });

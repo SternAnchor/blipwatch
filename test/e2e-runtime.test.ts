@@ -105,19 +105,19 @@ describe("runtime data path", () => {
   it("decodes and renders a Navico/HALO frame-shaped UDP packet", async () => {
     const { baseUrl, radarPort } = await startServer();
 
-    await sendUdpPacket(radarPort, createNavicoHaloFramePacket());
+    await sendUdpPacket(radarPort, createNavicoHaloFramePacket({ lineCount: 3 }));
 
     await waitFor(async () => {
       const response = await fetch(`${baseUrl}/api/radar/status`);
       const body = (await response.json()) as { decoder: { packetsDecoded: number } };
-      return body.decoder.packetsDecoded === 1;
+      return body.decoder.packetsDecoded === 3;
     });
 
     const latestJson = await fetch(`${baseUrl}/api/radar/latest.json`);
     await expect(latestJson.json()).resolves.toMatchObject({
       maxIntensity: 255,
       renderState: "ready",
-      spokeCount: 1
+      spokeCount: 3
     });
 
     const latestPng = await fetch(`${baseUrl}/api/radar/latest.png`);

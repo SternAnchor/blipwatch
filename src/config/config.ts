@@ -7,6 +7,7 @@ const DEFAULTS = {
   calibrationCaptureDirectory: "captures/calibration",
   calibrationCaptureEnabled: false,
   calibrationCaptureIntervalMs: 10_000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 1024,
   logLevel: "info",
   port: 8080,
@@ -32,6 +33,7 @@ export interface BlipWatchConfig {
   readonly calibrationCaptureDirectory: string;
   readonly calibrationCaptureEnabled: boolean;
   readonly calibrationCaptureIntervalMs: number;
+  readonly calibrationCapturePacketLimit: number;
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
   readonly port: number;
@@ -75,6 +77,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     env.CALIBRATION_CAPTURE_INTERVAL_MS,
     "CALIBRATION_CAPTURE_INTERVAL_MS",
     DEFAULTS.calibrationCaptureIntervalMs
+  ),
+  calibrationCapturePacketLimit: parseNonNegativeInteger(
+    env.CALIBRATION_CAPTURE_PACKET_LIMIT,
+    "CALIBRATION_CAPTURE_PACKET_LIMIT",
+    DEFAULTS.calibrationCapturePacketLimit
   ),
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
@@ -141,6 +148,15 @@ const parsePositiveInteger = (value: string | undefined, name: string, defaultVa
   const parsed = parseInteger(value, name, defaultValue);
   if (parsed <= 0) {
     throw new ConfigurationError(`${name} must be greater than 0; received ${parsed}`);
+  }
+
+  return parsed;
+};
+
+const parseNonNegativeInteger = (value: string | undefined, name: string, defaultValue: number): number => {
+  const parsed = parseInteger(value, name, defaultValue);
+  if (parsed < 0) {
+    throw new ConfigurationError(`${name} must be greater than or equal to 0; received ${parsed}`);
   }
 
   return parsed;

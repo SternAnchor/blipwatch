@@ -10,6 +10,7 @@ const config: BlipWatchConfig = {
   calibrationCaptureDirectory: "captures/calibration",
   calibrationCaptureEnabled: false,
   calibrationCaptureIntervalMs: 10000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 16,
   logLevel: "debug",
   port: 8080,

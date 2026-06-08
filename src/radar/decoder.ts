@@ -32,6 +32,7 @@ export interface RadarDecodeError {
 export interface RadarDecodeSuccess {
   readonly ok: true;
   readonly spoke: RadarSpoke;
+  readonly spokes: readonly RadarSpoke[];
 }
 
 export interface RadarDecodeFailure {
@@ -57,7 +58,7 @@ export const createRadarDecoder = ({ logger }: RadarDecoderOptions): RadarDecode
 
       if (result.ok) {
         logger.debug(
-          `radar packet decoded type=spoke kind=${classification.kind} angle=${result.spoke.angleDegrees} rangeMeters=${result.spoke.rangeMeters} samples=${result.spoke.sampleCount} maxIntensity=${result.spoke.maxIntensity}`
+          `radar packet decoded type=spoke kind=${classification.kind} spokes=${result.spokes.length} angle=${result.spoke.angleDegrees} rangeMeters=${result.spoke.rangeMeters} samples=${result.spoke.sampleCount} maxIntensity=${result.spoke.maxIntensity}`
         );
       } else {
         logger.debug(
@@ -129,17 +130,20 @@ const decodePacket = (data: Buffer, receivedAt: Date | undefined): RadarDecodeRe
 
   const intensities = Uint8Array.from(data.subarray(PLACEHOLDER_HEADER_LENGTH, expectedLength));
 
+  const spoke = {
+    angleDegrees: angleTenths / 10,
+    intensities,
+    maxIntensity: Math.max(...intensities),
+    rangeMeters,
+    receivedAt,
+    sampleCount,
+    type: "spoke"
+  } satisfies RadarSpoke;
+
   return {
     ok: true,
-    spoke: {
-      angleDegrees: angleTenths / 10,
-      intensities,
-      maxIntensity: Math.max(...intensities),
-      rangeMeters,
-      receivedAt,
-      sampleCount,
-      type: "spoke"
-    }
+    spoke,
+    spokes: [spoke]
   };
 };
 

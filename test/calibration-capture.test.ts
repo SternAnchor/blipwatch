@@ -19,6 +19,7 @@ const config = (directory: string, enabled = true): BlipWatchConfig => ({
   calibrationCaptureDirectory: directory,
   calibrationCaptureEnabled: enabled,
   calibrationCaptureIntervalMs: 10000,
+  calibrationCapturePacketLimit: 250,
   imageSize: 32,
   logLevel: "debug",
   port: 0,
@@ -102,7 +103,7 @@ const radarStatus = (): RadarStatus =>
       renderState: "ready",
       spokeCount: 12
     }
-  }) as RadarStatus;
+  }) as unknown as RadarStatus;
 
 describe("createCalibrationCapture", () => {
   afterEach(async () => {
@@ -132,6 +133,16 @@ describe("createCalibrationCapture", () => {
     const capture = createCalibrationCapture({
       config: config(directory),
       logger: createLogger({ level: "debug", sink }),
+      packetSnapshot: () => [
+        {
+          delayMs: 0,
+          payloadHex: "42575331",
+          receivedAt: "2026-06-07T00:00:00.000Z",
+          remoteAddress: "192.0.2.10",
+          remotePort: 6678,
+          size: 4
+        }
+      ],
       radarStatus,
       renderer,
       replayBuffer
@@ -144,12 +155,21 @@ describe("createCalibrationCapture", () => {
 
     expect(result).toMatchObject({
       capturedAt: "2026-06-07T00:00:00.000Z",
-      files: ["latest.json", "latest.png", "manifest.json", "replay-frames.json", "replay.json", "status.json"]
+      files: [
+        "latest.json",
+        "latest.png",
+        "manifest.json",
+        "packets.ndjson",
+        "replay-frames.json",
+        "replay.json",
+        "status.json"
+      ]
     });
     expect((await readdir(result.directory)).toSorted()).toEqual([
       "latest.json",
       "latest.png",
       "manifest.json",
+      "packets.ndjson",
       "replay-frames.json",
       "replay.json",
       "status.json"
@@ -164,6 +184,9 @@ describe("createCalibrationCapture", () => {
         phase: "receiving-and-rendering"
       }
     });
+    await expect(readFile(join(result.directory, "packets.ndjson"), "utf8")).resolves.toContain(
+      '"payloadHex":"42575331"'
+    );
   });
 
   it("creates the output directory and captures immediately on startup", async () => {
