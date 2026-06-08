@@ -442,7 +442,7 @@ Returns the browser dashboard with the current radar image, live diagnostics, pa
 
 The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
 
-The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled until `RADAR_CONTROL_ENABLED=true` starts the active command socket. Standby, transmit, tuning, and range commands are active hardware commands.
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled until `RADAR_CONTROL_ENABLED=true` starts the active command socket. The dashboard range control uses operator-friendly preset distances with a Nautical or Metric unit selector, then sends the selected value to the API as `rangeMeters` for compatibility. Standby, transmit, tuning, and range commands are active hardware commands.
 
 ### `GET /api/health`
 
@@ -672,7 +672,7 @@ Returns radar tuning capabilities and the latest requested tuning state.
 
 ### `POST /api/radar/control/settings`
 
-Validates, sends, and records a requested tuning control change from the API or dashboard advanced controls panel. Radar control must be enabled and running. Range values must be between `50` and `72704` meters.
+Validates, sends, and records a requested tuning control change from the API or dashboard advanced controls panel. Radar control must be enabled and running. Range values must be between `50` and `72704` meters. The dashboard may display range presets in feet/nautical miles or meters/kilometers, but API clients should continue sending integer `rangeMeters`.
 
 Successful responses return `200` with the updated tuning status. If the control socket is unavailable or a UDP send fails, the endpoint returns `500` with `radar_control_setting_failed`.
 

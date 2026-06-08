@@ -1272,8 +1272,14 @@ const renderDashboardHtml = (): string => `<!doctype html>
                 <button class="tuning-button" data-setting="rainClutter" type="button">Apply</button>
               </div>
               <div class="tuning-row range-row" data-setting="range">
+                <label>Units
+                  <select id="range-unit" aria-label="Range units">
+                    <option value="nautical">Nautical</option>
+                    <option value="metric">Metric</option>
+                  </select>
+                </label>
                 <label>Range
-                  <input id="range-meters" type="number" min="1" step="1" value="463" aria-label="Range in meters">
+                  <select id="range-preset" aria-label="Radar range"></select>
                 </label>
                 <button class="tuning-button" data-setting="range" type="button">Apply</button>
               </div>
@@ -1379,7 +1385,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
           value: document.getElementById("rain-clutter-value")
         },
         range: {
-          value: document.getElementById("range-meters")
+          preset: document.getElementById("range-preset"),
+          unit: document.getElementById("range-unit")
         },
         seaClutter: {
           mode: document.getElementById("sea-clutter-mode"),
@@ -1388,6 +1395,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       };
       let controlRequestPending = false;
       let playbackRequestPending = false;
+      let rangeSelectionDirty = false;
       let replayFrames = [];
       let playback = {
         currentFrameAt: null,
@@ -1422,6 +1430,79 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const setText = (element, value) => {
         element.textContent = value ?? "-";
       };
+      const rangePresets = {
+        nautical: [
+          { label: "200 ft", meters: 61 },
+          { label: "500 ft", meters: 152 },
+          { label: "1,000 ft", meters: 305 },
+          { label: "1/8 nmi", meters: 232 },
+          { label: "1/4 nmi", meters: 463 },
+          { label: "1/2 nmi", meters: 926 },
+          { label: "3/4 nmi", meters: 1389 },
+          { label: "1 nmi", meters: 1852 },
+          { label: "1.5 nmi", meters: 2778 },
+          { label: "2 nmi", meters: 3704 },
+          { label: "3 nmi", meters: 5556 },
+          { label: "4 nmi", meters: 7408 },
+          { label: "6 nmi", meters: 11112 },
+          { label: "8 nmi", meters: 14816 },
+          { label: "12 nmi", meters: 22224 },
+          { label: "24 nmi", meters: 44448 },
+          { label: "36 nmi", meters: 66672 }
+        ],
+        metric: [
+          { label: "50 m", meters: 50 },
+          { label: "100 m", meters: 100 },
+          { label: "200 m", meters: 200 },
+          { label: "500 m", meters: 500 },
+          { label: "1 km", meters: 1000 },
+          { label: "2 km", meters: 2000 },
+          { label: "3 km", meters: 3000 },
+          { label: "5 km", meters: 5000 },
+          { label: "10 km", meters: 10000 },
+          { label: "20 km", meters: 20000 },
+          { label: "40 km", meters: 40000 },
+          { label: "72 km", meters: 72000 }
+        ]
+      };
+      const formatRangeMeters = (rangeMeters, unit = tuningControls.range.unit.value) => {
+        if (typeof rangeMeters !== "number") {
+          return "auto";
+        }
+
+        if (unit === "metric") {
+          return rangeMeters < 1000 ? rangeMeters + " m" : (rangeMeters / 1000).toFixed(rangeMeters % 1000 === 0 ? 0 : 1) + " km";
+        }
+
+        const feet = rangeMeters * 3.28084;
+        if (feet < 1500) {
+          return Math.round(feet) + " ft";
+        }
+
+        const nauticalMiles = rangeMeters / 1852;
+        return nauticalMiles < 10
+          ? nauticalMiles.toFixed(2).replace(/0$/, "").replace(/\\.0$/, "") + " nmi"
+          : Math.round(nauticalMiles) + " nmi";
+      };
+      const setRangePresets = (rangeMeters) => {
+        const selectedUnit = tuningControls.range.unit.value;
+        const presets = rangePresets[selectedUnit];
+        const previousValue = tuningControls.range.preset.value;
+        tuningControls.range.preset.replaceChildren(
+          ...presets.map((preset) => {
+            const option = document.createElement("option");
+            option.value = String(preset.meters);
+            option.textContent = preset.label;
+            return option;
+          })
+        );
+
+        const requestedRange = typeof rangeMeters === "number" ? rangeMeters : Number(previousValue);
+        const closest = presets.reduce((nearest, preset) =>
+          Math.abs(preset.meters - requestedRange) < Math.abs(nearest.meters - requestedRange) ? preset : nearest
+        );
+        tuningControls.range.preset.value = String(closest.meters);
+      };
       const formatTuningSetting = (capability, setting) => {
         if (!capability?.supported) {
           return "unsupported";
@@ -1434,7 +1515,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           return "unsupported";
         }
 
-        return setting?.rangeMeters ? setting.rangeMeters + " m" : "auto";
+        return formatRangeMeters(setting?.rangeMeters);
       };
       const setTuningFeedback = (message) => {
         tuningFeedback.textContent = message ?? "Waiting for control status...";
@@ -1493,8 +1574,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
           controls.value.disabled = controls.mode.value !== "manual";
         }
 
-        if (typeof tuning.range?.rangeMeters === "number") {
-          tuningControls.range.value.value = String(tuning.range.rangeMeters);
+        if (!rangeSelectionDirty) {
+          setRangePresets(tuning.range?.rangeMeters);
         }
 
         const unsupported = control?.capabilities
@@ -1622,7 +1703,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const buildTuningRequest = (setting) => {
         if (setting === "range") {
           return {
-            rangeMeters: Number(tuningControls.range.value.value),
+            rangeMeters: Number(tuningControls.range.preset.value),
             setting
           };
         }
@@ -1660,6 +1741,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
           }
           if (!response.ok) {
             throw new Error(body.message ?? "Radar setting request failed");
+          }
+          if (setting === "range") {
+            rangeSelectionDirty = false;
           }
           setTuningFeedback("Applied " + setting + ".");
           controlRequestPending = false;
@@ -1793,6 +1877,15 @@ const renderDashboardHtml = (): string => `<!doctype html>
           tuningControls[setting].value.disabled = tuningControls[setting].mode.value !== "manual";
         });
       }
+      tuningControls.range.unit.addEventListener("change", () => {
+        setRangePresets(Number(tuningControls.range.preset.value));
+        rangeSelectionDirty = true;
+        void refresh();
+      });
+      tuningControls.range.preset.addEventListener("change", () => {
+        rangeSelectionDirty = true;
+      });
+      setRangePresets(463);
       tuningButtons.forEach((button) => {
         button.addEventListener("click", () => {
           void requestTuning(button.dataset.setting);
