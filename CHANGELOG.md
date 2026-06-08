@@ -1,3 +1,9 @@
+## [1.1.0-develop.30](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.29...v1.1.0-develop.30) (2026-06-08)
+
+### Features
+
+* add HALO tuning controls and startup fallback ([18f6eb8](https://github.com/SternAnchor/blipwatch/commit/18f6eb8de2d6fc89c9a4b794097ffa24e0d9a62f))
+
 ## [1.1.0-develop.29](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.28...v1.1.0-develop.29) (2026-06-08)
 
 ### Bug Fixes
