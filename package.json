@@ -1,6 +1,6 @@
 {
   "name": "blipwatch",
-  "version": "1.1.0-develop.17",
+  "version": "1.1.0-develop.18",
   "description": "Server-based interface for HALO-based radars.",
   "license": "GPL-3.0-only",
   "repository": {

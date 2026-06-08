@@ -1,3 +1,15 @@
+## [1.1.0-develop.18](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.17...v1.1.0-develop.18) (2026-06-08)
+
+### Features
+
+* add calibration capture mode ([deedd32](https://github.com/SternAnchor/blipwatch/commit/deedd3219b2f08fe27324a0cfa6130ce49c0640f)), closes [#65](https://github.com/SternAnchor/blipwatch/issues/65)
+
+### Bug Fixes
+
+* decode all HALO frame spokes ([f342e24](https://github.com/SternAnchor/blipwatch/commit/f342e24cfc6294d5a247c900819a80f110e541b1))
+* expose calibration capture paths ([25bff5a](https://github.com/SternAnchor/blipwatch/commit/25bff5a39664ab0ddb0fe89a88f38bce7968a062)), closes [#67](https://github.com/SternAnchor/blipwatch/issues/67)
+* write calibration capture at startup ([dfac6a9](https://github.com/SternAnchor/blipwatch/commit/dfac6a929d054d93dc46ccfdad660b714a4c95a4)), closes [#66](https://github.com/SternAnchor/blipwatch/issues/66)
+
 ## [1.1.0-develop.17](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.16...v1.1.0-develop.17) (2026-06-07)
 
 ### Bug Fixes
