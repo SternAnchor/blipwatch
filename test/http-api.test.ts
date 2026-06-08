@@ -15,6 +15,7 @@ import {
 } from "../src/api/http-api.js";
 import type { BlipWatchConfig } from "../src/config/config.js";
 import { createLogger } from "../src/logging/logger.js";
+import type { RadarRangeRequest, RadarTuningRequestResult, RadarTuningSettingRequest } from "../src/radar/control.js";
 import type { RadarImageRenderer } from "../src/radar/renderer.js";
 import type { RadarStatus } from "../src/radar/status.js";
 import type { ReplayBuffer } from "../src/replay/replay-buffer.js";
@@ -61,6 +62,49 @@ const playbackState = {
   speed: 1 as const,
   status: "live" as const,
   updatedAt: capturedAt
+};
+const controlCapabilities = {
+  gain: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  },
+  rainClutter: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  },
+  range: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  },
+  seaClutter: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  }
+};
+const controlTuning = {
+  gain: {
+    lastError: null,
+    lastRequestAt: null,
+    mode: "auto" as const,
+    value: null
+  },
+  rainClutter: {
+    lastError: null,
+    lastRequestAt: null,
+    mode: "auto" as const,
+    value: null
+  },
+  range: {
+    lastError: null,
+    lastRequestAt: null,
+    rangeMeters: null
+  },
+  seaClutter: {
+    lastError: null,
+    lastRequestAt: null,
+    mode: "auto" as const,
+    value: null
+  }
 };
 const png = PNG.sync.write(new PNG({ height: 32, width: 32 }));
 
@@ -145,6 +189,7 @@ const createReplayBuffer = (): ReplayBuffer => ({
 
 const radarStatus = (): RadarStatus => ({
   control: {
+    capabilities: controlCapabilities,
     commandTarget: "236.6.8.36:6516",
     commandTargetSource: "configured",
     commandsSent: 3,
@@ -160,6 +205,7 @@ const radarStatus = (): RadarStatus => ({
     observedStateSource: "report",
     running: true,
     stayAliveIntervalMs: 1000,
+    tuning: controlTuning,
     wakeTarget: "236.6.7.5:6878"
   },
   decoder: {
@@ -290,6 +336,10 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("Radar State");
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
+    expect(dashboardBody).toContain("Gain");
+    expect(dashboardBody).toContain("Sea Clutter");
+    expect(dashboardBody).toContain("Rain Clutter");
+    expect(dashboardBody).toContain("Range Control");
     expect(dashboardBody).toContain("Replay");
     expect(dashboardBody).toContain("replay-slider");
     expect(dashboardBody).toContain("/api/radar/replay/playback");
@@ -493,6 +543,38 @@ describe("HTTP API", () => {
   it("exposes explicit radar standby and transmit control endpoints", async () => {
     const { sink } = createMemorySink();
     const radarControl = {
+      getStatus: vi.fn<() => RadarStatus["control"]>().mockReturnValue({
+        ...radarStatus().control,
+        tuning: controlTuning
+      }),
+      requestGain: vi.fn<(request: RadarTuningSettingRequest) => Promise<RadarTuningRequestResult>>().mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "gain",
+        supported: false
+      }),
+      requestRainClutter: vi
+        .fn<(request: RadarTuningSettingRequest) => Promise<RadarTuningRequestResult>>()
+        .mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "rainClutter",
+        supported: false
+      }),
+      requestRange: vi.fn<(request: RadarRangeRequest) => Promise<RadarTuningRequestResult>>().mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "range",
+        supported: false
+      }),
+      requestSeaClutter: vi
+        .fn<(request: RadarTuningSettingRequest) => Promise<RadarTuningRequestResult>>()
+        .mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "seaClutter",
+        supported: false
+      }),
       requestStandby: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       requestTransmit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     };
@@ -521,6 +603,42 @@ describe("HTTP API", () => {
     expect(standby.status).toBe(200);
     await expect(standby.json()).resolves.toMatchObject({ desiredState: "standby", ok: true });
     expect(radarControl.requestStandby).toHaveBeenCalledOnce();
+
+    const settings = await fetch(`${baseUrl}/api/radar/control/settings`);
+    expect(settings.status).toBe(200);
+    await expect(settings.json()).resolves.toMatchObject({
+      capabilities: {
+        gain: {
+          supported: false
+        }
+      },
+      tuning: {
+        gain: {
+          mode: "auto"
+        }
+      }
+    });
+
+    const gain = await fetch(`${baseUrl}/api/radar/control/settings`, {
+      body: JSON.stringify({ mode: "manual", setting: "gain", value: 42 }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(gain.status).toBe(501);
+    await expect(gain.json()).resolves.toMatchObject({
+      error: "radar_control_setting_unsupported",
+      setting: "gain",
+      supported: false
+    });
+    expect(radarControl.requestGain).toHaveBeenCalledWith({ mode: "manual", value: 42 });
+
+    const invalid = await fetch(`${baseUrl}/api/radar/control/settings`, {
+      body: JSON.stringify({ mode: "manual", setting: "gain", value: 142 }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(invalid.status).toBe(400);
+    await expect(invalid.json()).resolves.toMatchObject({ error: "invalid_value" });
   });
 
   it("reports unavailable radar control endpoints when no control handler is configured", async () => {

@@ -200,7 +200,9 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
+The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, tuning capabilities, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
+
+Gain, sea clutter, rain clutter, and range control have an API/status model, but BlipWatch does not yet send those HALO command payloads. Requests to those settings are accepted for validation and tracking, then return an explicit unsupported response until the real command bytes are verified from captures or authoritative protocol notes.
 
 ### Capture Radar Traffic
 
@@ -539,6 +541,62 @@ Messages include current status, renderer metadata, replay metadata, and image U
 ```
 
 The stream applies lightweight throttling and skips clients with excessive buffered data. Connection counts, messages sent, and dropped update counts are exposed through `/api/radar/status.streaming`.
+
+### `GET /api/radar/control/settings`
+
+Returns radar tuning capabilities and the latest requested tuning state.
+
+```json
+{
+  "capabilities": {
+    "gain": {
+      "supported": false,
+      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+    },
+    "seaClutter": {
+      "supported": false,
+      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+    },
+    "rainClutter": {
+      "supported": false,
+      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+    },
+    "range": {
+      "supported": false,
+      "reason": "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet."
+    }
+  },
+  "tuning": {
+    "gain": {
+      "mode": "auto",
+      "value": null,
+      "lastRequestAt": null,
+      "lastError": null
+    },
+    "range": {
+      "rangeMeters": null,
+      "lastRequestAt": null,
+      "lastError": null
+    }
+  }
+}
+```
+
+### `POST /api/radar/control/settings`
+
+Validates and records a requested tuning control change. Current HALO tuning commands are not sent to hardware; the endpoint returns `501` with `radar_control_setting_unsupported` until protocol payloads are implemented.
+
+Examples:
+
+```bash
+curl -X POST http://localhost:8080/api/radar/control/settings \
+  -H 'content-type: application/json' \
+  -d '{"setting":"gain","mode":"manual","value":42}'
+
+curl -X POST http://localhost:8080/api/radar/control/settings \
+  -H 'content-type: application/json' \
+  -d '{"setting":"range","rangeMeters":463}'
+```
 
 ### `GET /api/radar/replay`
 

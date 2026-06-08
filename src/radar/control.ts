@@ -2,14 +2,41 @@ import { createSocket, type Socket } from "node:dgram";
 
 import type { BlipWatchConfig } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
-import type { RadarControlStatus, RadarOperatingState, RadarOperatingStateSource } from "./status.js";
+import type {
+  RadarControlCapabilities,
+  RadarControlStatus,
+  RadarControlTuningMode,
+  RadarControlTuningStatus,
+  RadarOperatingState,
+  RadarOperatingStateSource
+} from "./status.js";
 
 export interface RadarControl {
   getStatus(): RadarControlStatus;
+  requestGain(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult>;
+  requestRainClutter(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult>;
+  requestRange(request: RadarRangeRequest): Promise<RadarTuningRequestResult>;
+  requestSeaClutter(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult>;
   requestStandby(): Promise<void>;
   requestTransmit(): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
+}
+
+export interface RadarTuningSettingRequest {
+  readonly mode: RadarControlTuningMode;
+  readonly value?: number | null;
+}
+
+export interface RadarRangeRequest {
+  readonly rangeMeters: number;
+}
+
+export interface RadarTuningRequestResult {
+  readonly message: string;
+  readonly ok: false;
+  readonly setting: keyof RadarControlTuningStatus;
+  readonly supported: false;
 }
 
 export interface RadarControlOptions {
@@ -37,6 +64,27 @@ const COMMAND_STAY_ON_C = Buffer.from([0x04, 0xc2]);
 const COMMAND_STAY_ON_D = Buffer.from([0x05, 0xc2]);
 const COMMAND_STAY_ON_E = Buffer.from([0x0a, 0xc2]);
 const OBSERVED_STATE_REQUEST_GRACE_MS = 5_000;
+const UNSUPPORTED_TUNING_MESSAGE =
+  "HALO tuning command payloads for gain, sea clutter, rain clutter, and range are not implemented yet.";
+
+const TUNING_CAPABILITIES: RadarControlCapabilities = {
+  gain: {
+    reason: UNSUPPORTED_TUNING_MESSAGE,
+    supported: false
+  },
+  rainClutter: {
+    reason: UNSUPPORTED_TUNING_MESSAGE,
+    supported: false
+  },
+  range: {
+    reason: UNSUPPORTED_TUNING_MESSAGE,
+    supported: false
+  },
+  seaClutter: {
+    reason: UNSUPPORTED_TUNING_MESSAGE,
+    supported: false
+  }
+};
 
 type CommandName =
   | "wake"
@@ -49,6 +97,21 @@ type CommandName =
   | "stay-alive-c"
   | "stay-alive-d"
   | "stay-alive-e";
+
+const createTuningSettingStatus = (
+  mode: RadarControlTuningMode
+): { lastError: string | null; lastRequestAt: string | null; mode: RadarControlTuningMode; value: number | null } => ({
+  lastError: null,
+  lastRequestAt: null,
+  mode,
+  value: null
+});
+
+const createRangeStatus = (): { lastError: string | null; lastRequestAt: string | null; rangeMeters: number | null } => ({
+  lastError: null,
+  lastRequestAt: null,
+  rangeMeters: null
+});
 
 export const createRadarControl = ({
   commandTargetProvider,
@@ -67,6 +130,12 @@ export const createRadarControl = ({
   let hasObservedTransmit = false;
   let commandsSent = 0;
   let stayAliveSequence = 0;
+  const tuningStatus = {
+    gain: createTuningSettingStatus("auto"),
+    rainClutter: createTuningSettingStatus("auto"),
+    range: createRangeStatus(),
+    seaClutter: createTuningSettingStatus("auto")
+  };
   let desiredState: RadarControlStatus["desiredState"] =
     config.radarControlMode === "transmit" ? "transmit" : "standby";
 
@@ -202,11 +271,43 @@ export const createRadarControl = ({
     }
   };
 
+  const recordUnsupportedSettingRequest = (
+    setting: "gain" | "rainClutter" | "seaClutter",
+    request: RadarTuningSettingRequest
+  ): RadarTuningRequestResult => {
+    const status = tuningStatus[setting];
+    status.lastError = UNSUPPORTED_TUNING_MESSAGE;
+    status.lastRequestAt = new Date().toISOString();
+    status.mode = request.mode;
+    status.value = request.mode === "manual" ? request.value ?? null : null;
+    logger.info(`radar tuning request unsupported setting=${setting} mode=${request.mode}`);
+    return {
+      message: UNSUPPORTED_TUNING_MESSAGE,
+      ok: false,
+      setting,
+      supported: false
+    };
+  };
+
+  const recordUnsupportedRangeRequest = (request: RadarRangeRequest): RadarTuningRequestResult => {
+    tuningStatus.range.lastError = UNSUPPORTED_TUNING_MESSAGE;
+    tuningStatus.range.lastRequestAt = new Date().toISOString();
+    tuningStatus.range.rangeMeters = request.rangeMeters;
+    logger.info(`radar tuning request unsupported setting=range rangeMeters=${request.rangeMeters}`);
+    return {
+      message: UNSUPPORTED_TUNING_MESSAGE,
+      ok: false,
+      setting: "range",
+      supported: false
+    };
+  };
+
   return {
     getStatus(): RadarControlStatus {
       const commandTarget = getCommandTarget(config, commandTargetProvider);
       const observedState = observedStateProvider?.();
       return {
+        capabilities: TUNING_CAPABILITIES,
         commandTarget: `${commandTarget.host}:${commandTarget.port}`,
         commandTargetSource: commandTarget.source,
         commandsSent,
@@ -222,8 +323,21 @@ export const createRadarControl = ({
         observedStateSource: observedState?.source ?? null,
         running: socket !== undefined,
         stayAliveIntervalMs: config.radarControlStayAliveIntervalMs,
+        tuning: tuningStatus,
         wakeTarget: `${config.radarControlWakeHost}:${config.radarControlWakePort}`
       };
+    },
+    requestGain(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult> {
+      return Promise.resolve(recordUnsupportedSettingRequest("gain", request));
+    },
+    requestRainClutter(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult> {
+      return Promise.resolve(recordUnsupportedSettingRequest("rainClutter", request));
+    },
+    requestRange(request: RadarRangeRequest): Promise<RadarTuningRequestResult> {
+      return Promise.resolve(recordUnsupportedRangeRequest(request));
+    },
+    requestSeaClutter(request: RadarTuningSettingRequest): Promise<RadarTuningRequestResult> {
+      return Promise.resolve(recordUnsupportedSettingRequest("seaClutter", request));
     },
     requestStandby,
     requestTransmit,

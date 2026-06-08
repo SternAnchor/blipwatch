@@ -7,7 +7,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { BlipWatchConfig } from "../config/config.js";
 import type { CalibrationCaptureStatus } from "../calibration/calibration-capture.js";
 import type { Logger } from "../logging/logger.js";
-import type { RadarControl } from "../radar/control.js";
+import type { RadarControl, RadarRangeRequest, RadarTuningSettingRequest } from "../radar/control.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
 import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
@@ -24,7 +24,10 @@ interface HttpApiOptions {
   readonly config: BlipWatchConfig;
   readonly calibrationCaptureStatus?: () => CalibrationCaptureStatus;
   readonly logger: Logger;
-  readonly radarControl?: Pick<RadarControl, "requestStandby" | "requestTransmit">;
+  readonly radarControl?: Pick<
+    RadarControl,
+    "getStatus" | "requestGain" | "requestRainClutter" | "requestRange" | "requestSeaClutter" | "requestStandby" | "requestTransmit"
+  >;
   readonly renderer: RadarImageRenderer;
   readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
@@ -95,6 +98,11 @@ export const createHttpApi = ({
           return;
         }
 
+        if (request.method === "POST" && url.pathname === apiPath("/radar/control/settings")) {
+          void handleRadarControlSettingsRequest(request, response, radarControl, stream);
+          return;
+        }
+
         if (request.method !== "GET") {
           sendJson(response, 405, { error: "method_not_allowed" });
           return;
@@ -128,6 +136,23 @@ export const createHttpApi = ({
 
         if (url.pathname === apiPath("/radar/status")) {
           sendJson(response, 200, radarStatus());
+          return;
+        }
+
+        if (url.pathname === apiPath("/radar/control/settings")) {
+          if (!radarControl) {
+            sendJson(response, 503, {
+              error: "radar_control_unavailable",
+              message: "Radar control is not available in this process."
+            });
+            return;
+          }
+
+          const controlStatus = radarControl.getStatus();
+          sendJson(response, 200, {
+            capabilities: controlStatus.capabilities,
+            tuning: controlStatus.tuning
+          });
           return;
         }
 
@@ -412,6 +437,121 @@ const handleRadarControlRequest = async (
       message: error instanceof Error ? error.message : String(error)
     });
   }
+};
+
+const handleRadarControlSettingsRequest = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  radarControl: HttpApiOptions["radarControl"],
+  stream: RadarStream
+): Promise<void> => {
+  if (!radarControl) {
+    sendJson(response, 503, {
+      error: "radar_control_unavailable",
+      message: "Radar control is not available in this process."
+    });
+    return;
+  }
+
+  try {
+    const body = await readJsonBody(request);
+    const parsed = parseRadarControlSettingsRequest(body);
+    if (!parsed.ok) {
+      sendJson(response, 400, { error: parsed.error, message: parsed.message });
+      return;
+    }
+
+    const result = await requestRadarControlSetting(radarControl, parsed.value);
+    stream.publish({ reason: "control" });
+    sendJson(response, 501, {
+      error: "radar_control_setting_unsupported",
+      ...result,
+      status: radarControl.getStatus().tuning
+    });
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      sendJson(response, error.statusCode, { error: error.code, message: error.message });
+      return;
+    }
+
+    sendJson(response, 500, { error: "radar_control_setting_failed", message: "Radar control setting failed." });
+  }
+};
+
+type RadarControlSettingsRequest =
+  | { readonly request: RadarTuningSettingRequest; readonly setting: "gain" | "rainClutter" | "seaClutter" }
+  | { readonly request: RadarRangeRequest; readonly setting: "range" };
+
+const requestRadarControlSetting = async (
+  radarControl: NonNullable<HttpApiOptions["radarControl"]>,
+  request: RadarControlSettingsRequest
+) => {
+  switch (request.setting) {
+    case "gain":
+      return radarControl.requestGain(request.request);
+    case "rainClutter":
+      return radarControl.requestRainClutter(request.request);
+    case "range":
+      return radarControl.requestRange(request.request);
+    case "seaClutter":
+      return radarControl.requestSeaClutter(request.request);
+  }
+};
+
+const parseRadarControlSettingsRequest = (
+  body: unknown
+):
+  | { readonly ok: true; readonly value: RadarControlSettingsRequest }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  if (!isObject(body)) {
+    return { error: "invalid_body", message: "Expected a JSON object body.", ok: false };
+  }
+
+  if (body.setting !== "gain" && body.setting !== "seaClutter" && body.setting !== "rainClutter" && body.setting !== "range") {
+    return {
+      error: "invalid_setting",
+      message: "Field `setting` must be one of: gain, seaClutter, rainClutter, range.",
+      ok: false
+    };
+  }
+
+  if (body.setting === "range") {
+    if (typeof body.rangeMeters !== "number" || !Number.isInteger(body.rangeMeters) || body.rangeMeters <= 0) {
+      return { error: "invalid_range", message: "Field `rangeMeters` must be a positive integer.", ok: false };
+    }
+
+    return {
+      ok: true,
+      value: {
+        request: { rangeMeters: body.rangeMeters },
+        setting: "range"
+      }
+    };
+  }
+
+  if (body.mode !== "auto" && body.mode !== "manual") {
+    return { error: "invalid_mode", message: "Field `mode` must be `auto` or `manual`.", ok: false };
+  }
+
+  if (
+    body.mode === "manual" &&
+    (typeof body.value !== "number" || !Number.isInteger(body.value) || body.value < 0 || body.value > 100)
+  ) {
+    return { error: "invalid_value", message: "Manual tuning field `value` must be an integer from 0 to 100.", ok: false };
+  }
+
+  const tuningValue = body.mode === "manual" && typeof body.value === "number" ? body.value : null;
+
+  return {
+    ok: true,
+    value: {
+      request: {
+        mode: body.mode,
+        value: tuningValue
+      },
+      setting: body.setting
+    }
+  };
 };
 
 const handleReplayPlaybackRequest = async (
@@ -946,6 +1086,10 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <div class="stat"><span>Radar State</span><strong id="radar-state">-</strong></div>
               <div class="stat"><span>Control</span><strong id="control">-</strong></div>
               <div class="stat"><span>Commands Sent</span><strong id="commands">0</strong></div>
+              <div class="stat"><span>Gain</span><strong id="gain">-</strong></div>
+              <div class="stat"><span>Sea Clutter</span><strong id="sea-clutter">-</strong></div>
+              <div class="stat"><span>Rain Clutter</span><strong id="rain-clutter">-</strong></div>
+              <div class="stat"><span>Range Control</span><strong id="range-control">-</strong></div>
             </div>
             <div>
               <div class="subtle">Next Actions</div>
@@ -1027,10 +1171,13 @@ const renderDashboardHtml = (): string => `<!doctype html>
         commands: document.getElementById("commands"),
         control: document.getElementById("control"),
         decoded: document.getElementById("decoded"),
+        gain: document.getElementById("gain"),
         imageGroup: document.getElementById("image-group"),
         interface: document.getElementById("interface"),
         packets: document.getElementById("packets"),
         radarState: document.getElementById("radar-state"),
+        rainClutter: document.getElementById("rain-clutter"),
+        rangeControl: document.getElementById("range-control"),
         rendered: document.getElementById("rendered"),
         reportGroup: document.getElementById("report-group"),
         reports: document.getElementById("reports")
@@ -1038,6 +1185,20 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       const setText = (element, value) => {
         element.textContent = value ?? "-";
+      };
+      const formatTuningSetting = (capability, setting) => {
+        if (!capability?.supported) {
+          return "unsupported";
+        }
+
+        return setting?.mode === "manual" ? "manual " + setting?.value : "auto";
+      };
+      const formatRangeControl = (capability, setting) => {
+        if (!capability?.supported) {
+          return "unsupported";
+        }
+
+        return setting?.rangeMeters ? setting.rangeMeters + " m" : "auto";
       };
 
       const setControlButtons = (control) => {
@@ -1196,6 +1357,19 @@ const renderDashboardHtml = (): string => `<!doctype html>
           );
           setControlButtons(status.control);
           setText(fields.commands, status.control?.commandsSent);
+          setText(fields.gain, formatTuningSetting(status.control?.capabilities?.gain, status.control?.tuning?.gain));
+          setText(
+            fields.seaClutter,
+            formatTuningSetting(status.control?.capabilities?.seaClutter, status.control?.tuning?.seaClutter)
+          );
+          setText(
+            fields.rainClutter,
+            formatTuningSetting(status.control?.capabilities?.rainClutter, status.control?.tuning?.rainClutter)
+          );
+          setText(
+            fields.rangeControl,
+            formatRangeControl(status.control?.capabilities?.range, status.control?.tuning?.range)
+          );
           await loadReplay();
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {
             const item = document.createElement("li");

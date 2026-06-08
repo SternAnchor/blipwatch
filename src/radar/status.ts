@@ -19,6 +19,7 @@ export interface RadarDecoderStatus {
 }
 
 export interface RadarControlStatus {
+  readonly capabilities: RadarControlCapabilities;
   readonly commandTarget: string;
   readonly commandTargetSource: string;
   readonly commandsSent: number;
@@ -34,7 +35,42 @@ export interface RadarControlStatus {
   readonly observedStateSource: RadarOperatingStateSource | null;
   readonly running: boolean;
   readonly stayAliveIntervalMs: number;
+  readonly tuning: RadarControlTuningStatus;
   readonly wakeTarget: string;
+}
+
+export interface RadarControlCapability {
+  readonly reason: string | null;
+  readonly supported: boolean;
+}
+
+export interface RadarControlCapabilities {
+  readonly gain: RadarControlCapability;
+  readonly rainClutter: RadarControlCapability;
+  readonly range: RadarControlCapability;
+  readonly seaClutter: RadarControlCapability;
+}
+
+export type RadarControlTuningMode = "auto" | "manual";
+
+export interface RadarControlTuningSettingStatus {
+  readonly lastError: string | null;
+  readonly lastRequestAt: string | null;
+  readonly mode: RadarControlTuningMode;
+  readonly value: number | null;
+}
+
+export interface RadarControlTuningRangeStatus {
+  readonly lastError: string | null;
+  readonly lastRequestAt: string | null;
+  readonly rangeMeters: number | null;
+}
+
+export interface RadarControlTuningStatus {
+  readonly gain: RadarControlTuningSettingStatus;
+  readonly rainClutter: RadarControlTuningSettingStatus;
+  readonly range: RadarControlTuningRangeStatus;
+  readonly seaClutter: RadarControlTuningSettingStatus;
 }
 
 export interface RadarDiscoveryRadar {

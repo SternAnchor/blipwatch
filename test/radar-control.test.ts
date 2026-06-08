@@ -76,12 +76,76 @@ describe("Navico radar control commands", () => {
     });
 
     expect(control.getStatus()).toMatchObject({
+      capabilities: {
+        gain: {
+          supported: false
+        },
+        rainClutter: {
+          supported: false
+        },
+        range: {
+          supported: false
+        },
+        seaClutter: {
+          supported: false
+        }
+      },
       commandTarget: "236.6.8.99:6517",
       commandTargetSource: "discovered",
       desiredState: "standby",
       observedState: "transmit",
       observedStateAt: "2026-06-07T00:00:00.000Z",
       observedStateSource: "report"
+    });
+  });
+
+  it("records unsupported tuning requests without sending unverified HALO commands", async () => {
+    const { sink } = createMemorySink();
+    const control = createRadarControl({
+      config,
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    await expect(control.requestGain({ mode: "manual", value: 42 })).resolves.toMatchObject({
+      ok: false,
+      setting: "gain",
+      supported: false
+    });
+    await expect(control.requestSeaClutter({ mode: "auto" })).resolves.toMatchObject({
+      ok: false,
+      setting: "seaClutter",
+      supported: false
+    });
+    await expect(control.requestRainClutter({ mode: "manual", value: 12 })).resolves.toMatchObject({
+      ok: false,
+      setting: "rainClutter",
+      supported: false
+    });
+    await expect(control.requestRange({ rangeMeters: 463 })).resolves.toMatchObject({
+      ok: false,
+      setting: "range",
+      supported: false
+    });
+
+    expect(control.getStatus()).toMatchObject({
+      commandsSent: 0,
+      tuning: {
+        gain: {
+          mode: "manual",
+          value: 42
+        },
+        rainClutter: {
+          mode: "manual",
+          value: 12
+        },
+        range: {
+          rangeMeters: 463
+        },
+        seaClutter: {
+          mode: "auto",
+          value: null
+        }
+      }
     });
   });
 
