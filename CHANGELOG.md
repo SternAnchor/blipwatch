@@ -1,3 +1,9 @@
+## [1.1.0-develop.22](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.21...v1.1.0-develop.22) (2026-06-08)
+
+### Features
+
+* add radar target aging and decay ([e57fea8](https://github.com/SternAnchor/blipwatch/commit/e57fea883b0ad9b06e8082951450c7bd4b7d94b6))
+
 ## [1.1.0-develop.21](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.20...v1.1.0-develop.21) (2026-06-08)
 
 ### Features
