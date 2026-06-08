@@ -2,7 +2,7 @@
 
 BlipWatch is an open-source Node.js server for receiving radar data from a Navico/B&G/Simrad HALO radar on a local Ethernet network and exposing live radar imagery through standard HTTP endpoints.
 
-The 1.0.0 implementation provides the first end-to-end server path: UDP packet reception, placeholder packet decoding for hardware-free development, image rendering, in-memory replay, HTTP APIs, Docker packaging, and release automation scaffolding.
+The 1.1.0 development line adds the first real HALO hardware path plus platform-maturity features: target aging/decay, configurable rendering, replay APIs and dashboard controls, WebSocket streaming, expanded diagnostics, package validation, and Raspberry Pi profiling tools.
 
 ## Safety Notice
 
@@ -19,9 +19,20 @@ Current limitations:
 - Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
 - Passive Navico report discovery is implemented. Active wake/transmit control is available as an explicit opt-in diagnostic path and is disabled by default.
+- Gain, sea clutter, rain clutter, and range have status/API models, but BlipWatch does not send those unverified HALO command payloads yet.
 - Replay storage is in memory only and is lost on restart.
+- WebSocket streaming sends live notifications and image URLs, not binary image frames.
 - The HTTP API is intentionally minimal and unauthenticated.
 - Docker and npm publishing are configured through GitHub Actions using Actions secret `NPM_TOKEN`.
+
+Phase 3 adds the operator-facing tools needed for broader testing:
+
+- Target persistence/fade and render tuning controls.
+- Replay listing, timestamp lookup, playback state, and dashboard replay controls.
+- WebSocket notifications at `/api/radar/stream`.
+- Runtime diagnostics for renderer, replay, control, streaming, process memory, and uptime.
+- Cross-platform CI validation and npm package dry-run checks.
+- A deterministic radar profiler for Raspberry Pi 5 readiness checks.
 
 ## Phase 2 Validation Status
 
@@ -82,6 +93,13 @@ Run the compiled server:
 ```bash
 npm run build
 npm start
+```
+
+Run from an npm install:
+
+```bash
+npm install -g blipwatch
+blipwatch
 ```
 
 Run in development mode:
@@ -269,6 +287,14 @@ Troubleshooting decode failures or blank images:
 - If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/api/radar/status` and `/api/radar/latest.json` from the same test window.
 - If `/api/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
 - If the radar remains in standby, try the opt-in wake mode first, then transmit mode only when it is safe for the radar to radiate.
+
+Troubleshooting Phase 3 features:
+
+- If replay is empty, confirm `renderer.imageAvailable=true`, `replay.frameCount`, and `REPLAY_FRAME_INTERVAL_MS`. Replay frames are captured only after rendered spokes exist.
+- If the dashboard stays in replay mode, click `Live` or call `POST /api/radar/replay/playback` with `{"action":"live"}`.
+- If WebSocket clients do not update, check `/api/radar/status.streaming.clientsConnected`, `messagesSent`, and `updatesDropped`.
+- If control settings return `radar_control_setting_unsupported`, that is expected for gain, sea clutter, rain clutter, and range until their HALO command payloads are implemented.
+- If CPU or memory pressure is high, compare `/api/radar/status.process`, `/api/radar/status.replay.totalBytes`, and `npm run profile:radar` output before reducing image size or replay retention.
 
 ### Calibration Capture
 
@@ -828,6 +854,15 @@ docker run -d --name blipwatch --restart unless-stopped --network host \
 ```
 
 Use `LOG_LEVEL=debug` during installation or troubleshooting to inspect UDP packet reception, decode failures, render updates, and replay capture.
+
+Suggested Raspberry Pi tuning order:
+
+1. Start with `IMAGE_SIZE=1024`, `REPLAY_FRAME_INTERVAL_MS=1000`, and `REPLAY_RETENTION_SECONDS=300`.
+2. If `/api/radar/status.process.memory.rss` grows too quickly, reduce replay retention or increase `REPLAY_FRAME_INTERVAL_MS`.
+3. If rendering lags, lower `IMAGE_SIZE` to `768` or `512`, then compare `activePixelCount`, `spokeCount`, and profiler output.
+4. Use `npm run profile:radar` on the target host before and after tuning so changes have a repeatable baseline.
+
+For systemd-style installs, run BlipWatch with a dedicated service user, set environment variables in an environment file, and prefer a wired interface on the radar network with VPNs disabled.
 
 ## Release Process
 
