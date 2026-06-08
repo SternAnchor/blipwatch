@@ -1,3 +1,9 @@
+## [1.1.0-develop.31](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.30...v1.1.0-develop.31) (2026-06-08)
+
+### Bug Fixes
+
+* stabilize radar decay and viewer layout ([5ccc387](https://github.com/SternAnchor/blipwatch/commit/5ccc387ace98c61d34969ffc1a3266e874f578d0))
+
 ## [1.1.0-develop.30](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.29...v1.1.0-develop.30) (2026-06-08)
 
 ### Features
