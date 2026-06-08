@@ -17,7 +17,7 @@ const DEFAULTS = {
   portFallbackEnabled: true,
   portFallbackMaxAttempts: 5,
   radarBrightnessScale: 100,
-  radarControlEnabled: false,
+  radarControlEnabled: true,
   radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "auto",
   radarControlMode: "wake",

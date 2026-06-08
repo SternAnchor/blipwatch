@@ -416,7 +416,7 @@ const getRadarStatusDiagnostics = ({
     return {
       nextActions: [
         "Compare the discovered data endpoint with RADAR_UDP_PORT and RADAR_MULTICAST_GROUPS.",
-        "If the radar remains in standby, later work may need an explicit opt-in wake/transmit command."
+        "If the radar remains in standby, confirm radar control is enabled and request transmit only when it is safe for the radar to radiate."
       ],
       phase: "discovery-only",
       summary: "Navico discovery reports are arriving, but no spoke packets have reached the image receiver."

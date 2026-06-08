@@ -18,8 +18,8 @@ Current limitations:
 
 - Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
-- Passive Navico report discovery is implemented. Active wake/transmit control is available as an explicit opt-in diagnostic path and is disabled by default.
-- Gain, sea clutter, rain clutter, and range controls send documented Navico/HALO UDP command payloads when `RADAR_CONTROL_ENABLED=true`; validate these carefully against your hardware.
+- Passive Navico report discovery is implemented. Active wake control is enabled by default; transmit still requires `RADAR_CONTROL_MODE=transmit` or an explicit dashboard/API request.
+- Gain, sea clutter, rain clutter, and range controls send documented Navico/HALO UDP command payloads while active control is enabled; validate these carefully against your hardware.
 - Replay storage is in memory only and is lost on restart.
 - WebSocket streaming sends live notifications and image URLs, not binary image frames.
 - The HTTP API is intentionally minimal and unauthenticated.
@@ -194,14 +194,13 @@ npm run dev
 
 Debug logs should help identify UDP bind status, discovery report bind/join status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
 
-### Optional HALO Wake/Transmit Control
+### HALO Wake/Transmit Control
 
-Active control is disabled by default because it can change radar operating state. Only enable it when the radar can transmit safely and you have confirmed the vessel/test area is appropriate.
+Active control is enabled by default so BlipWatch can wake the HALO and expose dashboard/API controls without extra setup. The default mode is `wake`; startup transmit still requires `RADAR_CONTROL_MODE=transmit`, or an explicit dashboard/API transmit request. Set `RADAR_CONTROL_ENABLED=false` to run receive-only without active Navico/HALO commands.
 
 Wake the radar without requesting transmit:
 
 ```bash
-RADAR_CONTROL_ENABLED=true \
 RADAR_CONTROL_MODE=wake \
 RADAR_INTERFACE=auto \
 npm run dev
@@ -254,7 +253,7 @@ Current protocol notes:
 - `RADAR_INTERFACE=auto` selects a likely non-virtual IPv4 interface before joining multicast groups. Set it to a concrete local address if auto-selection picks the wrong network.
 - `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
-- Passive discovery listens for report packets and exposes detected radar metadata through `/api/radar/status`; active wake/transmit commands require `RADAR_CONTROL_ENABLED=true`.
+- Passive discovery listens for report packets and exposes detected radar metadata through `/api/radar/status`; set `RADAR_CONTROL_ENABLED=false` to disable active wake/transmit commands.
 - Real HALO control ports and exact report payload fields can vary by radar. Keep `RADAR_CONTROL_HOST=auto` to prefer discovered command endpoints, or set `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` explicitly if packet capture shows a different command endpoint.
 - Observed HALO location report `01b2` maps primary data to `236.6.7.8:6678`, primary command control to `236.6.7.10:6680`, and primary report/status traffic to `236.6.7.9:6679` for serial `129265451`.
 - The `BWS1` simulator packet format is not a real HALO packet format.
@@ -286,7 +285,7 @@ Troubleshooting decode failures or blank images:
 - If `receiver.packetsReceived` increases but `decoder.packetsRejected` also increases, save a short sanitized replay payload for decoder work.
 - If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/api/radar/status` and `/api/radar/latest.json` from the same test window.
 - If `/api/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
-- If the radar remains in standby, try the opt-in wake mode first, then transmit mode only when it is safe for the radar to radiate.
+- If the radar remains in standby, try wake mode first, then transmit mode only when it is safe for the radar to radiate.
 
 Troubleshooting Phase 3 features:
 
@@ -389,7 +388,7 @@ BlipWatch is configured through environment variables.
 | `RADAR_BRIGHTNESS_SCALE` | `100` | Percentage multiplier applied to radar return intensity before rendering. Increase for dim targets or decrease for saturated returns. |
 | `RADAR_DISPLAY_RANGE_METERS` | `auto` | Render display range in meters. `auto` uses the decoded packet sweep range; set a value such as `463` to match a 1/4 NM chartplotter view. |
 | `RADAR_RENDER_PALETTE` | `chartplotter` | Render color palette. Supported values are `chartplotter`, `grayscale`, and `green`. |
-| `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |
+| `RADAR_CONTROL_ENABLED` | `true` | Enables active Navico/HALO wake or transmit commands. Set to `false` for receive-only operation. |
 | `RADAR_CONTROL_MODE` | `wake` | Active control mode. Use `wake` to wake only or `transmit` to request transmit plus stay-alive. |
 | `RADAR_CONTROL_WAKE_HOST` | `236.6.7.5` | IPv4 destination for the Navico wake command. |
 | `RADAR_CONTROL_WAKE_PORT` | `6878` | UDP destination port for the Navico wake command. |
@@ -442,7 +441,7 @@ Returns the browser dashboard with the current radar image, live diagnostics, pa
 
 The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
 
-The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled until `RADAR_CONTROL_ENABLED=true` starts the active command socket. The dashboard range control uses operator-friendly preset distances with an Imperial or Metric unit selector, then sends the selected value to the API as `rangeMeters` for compatibility. Standby, transmit, tuning, and range commands are active hardware commands.
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled if `RADAR_CONTROL_ENABLED=false` prevents the active command socket from starting. The dashboard range control uses operator-friendly preset distances with an Imperial or Metric unit selector, then sends the selected value to the API as `rangeMeters` for compatibility. Standby, transmit, tuning, and range commands are active hardware commands.
 
 ### `GET /api/health`
 
