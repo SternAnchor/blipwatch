@@ -412,10 +412,11 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("rain-clutter-mode");
     expect(dashboardBody).toContain("rain-clutter-value");
     expect(dashboardBody).toContain("range-unit");
-    expect(dashboardBody).toContain("range-preset");
+    expect(dashboardBody).toContain("range-value");
+    expect(dashboardBody).toContain("range-decrease");
+    expect(dashboardBody).toContain("range-increase");
     expect(dashboardBody).toContain("Imperial");
     expect(dashboardBody).toContain("Metric");
-    expect(dashboardBody).toContain("range-apply");
     expect(dashboardBody).toContain("/api/radar/control/settings");
     expect(dashboardBody).toContain("Replay");
     expect(dashboardBody).toContain("replay-slider");

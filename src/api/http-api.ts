@@ -1050,17 +1050,36 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       .tuning-row.range-row {
         align-items: stretch;
-        grid-template-columns: minmax(0, 1fr) minmax(96px, 120px);
+        grid-template-columns: minmax(0, 1fr);
       }
 
-      .range-stack {
+      .range-fields,
+      .range-stepper {
         display: grid;
         gap: 8px;
       }
 
-      .range-apply {
-        align-self: stretch;
-        min-height: 100%;
+      .range-fields,
+      .range-stepper {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .range-value {
+        align-items: center;
+        background: #111518;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        display: flex;
+        font-size: 16px;
+        font-weight: 800;
+        min-height: 44px;
+        padding: 8px 10px;
+      }
+
+      .range-step-button {
+        font-size: 20px;
+        line-height: 1;
       }
 
       label {
@@ -1246,6 +1265,23 @@ const renderDashboardHtml = (): string => `<!doctype html>
             </div>
             <div class="tuning-controls" aria-label="Advanced radar controls">
               <h3>Advanced Controls</h3>
+              <div class="tuning-row range-row" data-setting="range">
+                <div class="range-fields">
+                  <label>Units
+                    <select id="range-unit" aria-label="Range units">
+                      <option value="nautical">Imperial</option>
+                      <option value="metric">Metric</option>
+                    </select>
+                  </label>
+                  <label>Range
+                    <output id="range-value" class="range-value" aria-live="polite">1/4 nmi</output>
+                  </label>
+                </div>
+                <div class="range-stepper" aria-label="Radar range adjustments">
+                  <button class="range-step-button" id="range-decrease" type="button" aria-label="Decrease radar range">−</button>
+                  <button class="range-step-button" id="range-increase" type="button" aria-label="Increase radar range">+</button>
+                </div>
+              </div>
               <div class="tuning-row" data-setting="gain">
                 <label>Gain
                   <select id="gain-mode" aria-label="Gain mode">
@@ -1281,20 +1317,6 @@ const renderDashboardHtml = (): string => `<!doctype html>
                   <input id="rain-clutter-value" type="number" min="0" max="100" step="1" value="50" aria-label="Rain clutter value">
                 </label>
                 <button class="tuning-button" data-setting="rainClutter" type="button">Apply</button>
-              </div>
-              <div class="tuning-row range-row" data-setting="range">
-                <div class="range-stack">
-                  <label>Units
-                    <select id="range-unit" aria-label="Range units">
-                      <option value="nautical">Imperial</option>
-                      <option value="metric">Metric</option>
-                    </select>
-                  </label>
-                  <label>Range
-                    <select id="range-preset" aria-label="Radar range"></select>
-                  </label>
-                </div>
-                <button class="tuning-button range-apply" data-setting="range" type="button">Apply</button>
               </div>
               <div class="subtle" id="tuning-feedback">Waiting for control status...</div>
             </div>
@@ -1398,8 +1420,10 @@ const renderDashboardHtml = (): string => `<!doctype html>
           value: document.getElementById("rain-clutter-value")
         },
         range: {
-          preset: document.getElementById("range-preset"),
-          unit: document.getElementById("range-unit")
+          decrease: document.getElementById("range-decrease"),
+          increase: document.getElementById("range-increase"),
+          unit: document.getElementById("range-unit"),
+          value: document.getElementById("range-value")
         },
         seaClutter: {
           mode: document.getElementById("sea-clutter-mode"),
@@ -1408,7 +1432,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       };
       let controlRequestPending = false;
       let playbackRequestPending = false;
-      let rangeSelectionDirty = false;
+      let selectedRangeMeters = 463;
       let replayFrames = [];
       let playback = {
         currentFrameAt: null,
@@ -1497,24 +1521,26 @@ const renderDashboardHtml = (): string => `<!doctype html>
           ? nauticalMiles.toFixed(2).replace(/0$/, "").replace(/\\.0$/, "") + " nmi"
           : Math.round(nauticalMiles) + " nmi";
       };
-      const setRangePresets = (rangeMeters) => {
-        const selectedUnit = tuningControls.range.unit.value;
-        const presets = rangePresets[selectedUnit];
-        const previousValue = tuningControls.range.preset.value;
-        tuningControls.range.preset.replaceChildren(
-          ...presets.map((preset) => {
-            const option = document.createElement("option");
-            option.value = String(preset.meters);
-            option.textContent = preset.label;
-            return option;
-          })
-        );
-
-        const requestedRange = typeof rangeMeters === "number" ? rangeMeters : Number(previousValue);
-        const closest = presets.reduce((nearest, preset) =>
+      const getClosestRangePreset = (rangeMeters, unit = tuningControls.range.unit.value) => {
+        const presets = rangePresets[unit];
+        const requestedRange = typeof rangeMeters === "number" ? rangeMeters : selectedRangeMeters;
+        return presets.reduce((nearest, preset) =>
           Math.abs(preset.meters - requestedRange) < Math.abs(nearest.meters - requestedRange) ? preset : nearest
         );
-        tuningControls.range.preset.value = String(closest.meters);
+      };
+      const getRangePresetIndex = (rangeMeters, unit = tuningControls.range.unit.value) => {
+        const presets = rangePresets[unit];
+        const closest = getClosestRangePreset(rangeMeters, unit);
+        return Math.max(0, presets.findIndex((preset) => preset.meters === closest.meters));
+      };
+      const setSelectedRange = (rangeMeters, disabled = false) => {
+        const selectedUnit = tuningControls.range.unit.value;
+        const closest = getClosestRangePreset(rangeMeters, selectedUnit);
+        const index = getRangePresetIndex(closest.meters, selectedUnit);
+        selectedRangeMeters = closest.meters;
+        tuningControls.range.value.textContent = closest.label;
+        tuningControls.range.decrease.disabled = disabled || controlRequestPending || index <= 0;
+        tuningControls.range.increase.disabled = disabled || controlRequestPending || index >= rangePresets[selectedUnit].length - 1;
       };
       const formatTuningSetting = (capability, setting) => {
         if (!capability?.supported) {
@@ -1587,9 +1613,10 @@ const renderDashboardHtml = (): string => `<!doctype html>
           controls.value.disabled = controls.mode.value !== "manual";
         }
 
-        if (!rangeSelectionDirty) {
-          setRangePresets(tuning.range?.rangeMeters);
-        }
+        setSelectedRange(
+          tuning.range?.rangeMeters ?? selectedRangeMeters,
+          disabled || !control?.capabilities?.range?.supported
+        );
 
         const unsupported = control?.capabilities
           ? ["gain", "seaClutter", "rainClutter", "range"].filter((setting) => !control.capabilities[setting]?.supported)
@@ -1716,7 +1743,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const buildTuningRequest = (setting) => {
         if (setting === "range") {
           return {
-            rangeMeters: Number(tuningControls.range.preset.value),
+            rangeMeters: selectedRangeMeters,
             setting
           };
         }
@@ -1739,6 +1766,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         tuningButtons.forEach((button) => {
           button.disabled = true;
         });
+        setSelectedRange(selectedRangeMeters, true);
         try {
           const response = await fetch("/api/radar/control/settings", {
             body: JSON.stringify(buildTuningRequest(setting)),
@@ -1755,9 +1783,6 @@ const renderDashboardHtml = (): string => `<!doctype html>
           if (!response.ok) {
             throw new Error(body.message ?? "Radar setting request failed");
           }
-          if (setting === "range") {
-            rangeSelectionDirty = false;
-          }
           setTuningFeedback("Applied " + setting + ".");
           controlRequestPending = false;
           await refresh();
@@ -1768,6 +1793,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setTuningFeedback(error instanceof Error ? error.message : String(error));
         } finally {
           controlRequestPending = false;
+          if (setting === "range") {
+            setSelectedRange(selectedRangeMeters);
+          }
         }
       };
 
@@ -1891,14 +1919,28 @@ const renderDashboardHtml = (): string => `<!doctype html>
         });
       }
       tuningControls.range.unit.addEventListener("change", () => {
-        setRangePresets(Number(tuningControls.range.preset.value));
-        rangeSelectionDirty = true;
-        void refresh();
+        setSelectedRange(selectedRangeMeters);
       });
-      tuningControls.range.preset.addEventListener("change", () => {
-        rangeSelectionDirty = true;
+      tuningControls.range.decrease.addEventListener("click", () => {
+        const index = getRangePresetIndex(selectedRangeMeters);
+        const previous = rangePresets[tuningControls.range.unit.value][Math.max(0, index - 1)];
+        if (previous) {
+          selectedRangeMeters = previous.meters;
+          setSelectedRange(previous.meters);
+          void requestTuning("range");
+        }
       });
-      setRangePresets(463);
+      tuningControls.range.increase.addEventListener("click", () => {
+        const presets = rangePresets[tuningControls.range.unit.value];
+        const index = getRangePresetIndex(selectedRangeMeters);
+        const next = presets[Math.min(presets.length - 1, index + 1)];
+        if (next) {
+          selectedRangeMeters = next.meters;
+          setSelectedRange(next.meters);
+          void requestTuning("range");
+        }
+      });
+      setSelectedRange(463);
       tuningButtons.forEach((button) => {
         button.addEventListener("click", () => {
           void requestTuning(button.dataset.setting);

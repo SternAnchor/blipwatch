@@ -441,7 +441,7 @@ Returns the browser dashboard with the current radar image, live diagnostics, pa
 
 The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
 
-The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled if `RADAR_CONTROL_ENABLED=false` prevents the active command socket from starting. The dashboard range control uses operator-friendly preset distances with an Imperial or Metric unit selector, then sends the selected value to the API as `rangeMeters` for compatibility. Standby, transmit, tuning, and range commands are active hardware commands.
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled if `RADAR_CONTROL_ENABLED=false` prevents the active command socket from starting. The dashboard range control shows unit and current range side-by-side, then steps through operator-friendly Imperial or Metric preset distances with plus/minus buttons that immediately send `rangeMeters` to the API. Standby, transmit, tuning, and range commands are active hardware commands.
 
 ### `GET /api/health`
 
