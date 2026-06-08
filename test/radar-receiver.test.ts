@@ -28,6 +28,9 @@ const baseConfig: BlipWatchConfig = {
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarTargetFadeMs: 8000,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300

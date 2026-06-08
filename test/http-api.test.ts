@@ -41,6 +41,9 @@ const config: BlipWatchConfig = {
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarTargetFadeMs: 8000,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1,
   replayRetentionSeconds: 300
@@ -55,12 +58,16 @@ const createRenderer = (): RadarImageRenderer => ({
   applySpoke(): void {},
   getLatestMetadata() {
     return {
+      activePixelCount: 10,
       imageSize: 32,
       lastFrameAt: capturedAt,
       lastSpokeAt: capturedAt,
       maxIntensity: 255,
       renderState: "ready",
-      spokeCount: 1
+      spokeCount: 1,
+      targetFadeMs: 8000,
+      targetMaxAgeMs: 15000,
+      targetPersistenceMs: 4000
     };
   },
   getLatestPng() {

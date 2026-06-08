@@ -292,6 +292,9 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   radarMulticastGroups: config.radarMulticastGroups.join(","),
   radarReportMulticastGroup: config.radarReportMulticastGroup,
   radarReportUdpPort: config.radarReportUdpPort,
+  radarTargetFadeMs: config.radarTargetFadeMs,
+  radarTargetMaxAgeMs: config.radarTargetMaxAgeMs,
+  radarTargetPersistenceMs: config.radarTargetPersistenceMs,
   radarUdpPort: config.radarUdpPort,
   replayFrameIntervalMs: config.replayFrameIntervalMs,
   replayRetentionSeconds: config.replayRetentionSeconds

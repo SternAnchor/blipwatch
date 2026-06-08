@@ -28,18 +28,25 @@ const config: BlipWatchConfig = {
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarTargetFadeMs: 8000,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 3
 };
 
 const metadata: RadarImageMetadata = {
+  activePixelCount: 4,
   imageSize: 16,
   lastFrameAt: "2026-06-07T00:00:00.000Z",
   lastSpokeAt: "2026-06-07T00:00:00.000Z",
   maxIntensity: 255,
   renderState: "ready",
-  spokeCount: 1
+  spokeCount: 1,
+  targetFadeMs: 8000,
+  targetMaxAgeMs: 15000,
+  targetPersistenceMs: 4000
 };
 
 const frame = (isoTimestamp: string, value: number) => ({

@@ -26,6 +26,9 @@ describe("loadConfig", () => {
       radarMulticastGroups: ["236.6.7.8"],
       radarReportMulticastGroup: "236.6.7.5",
       radarReportUdpPort: 6878,
+      radarTargetFadeMs: 8000,
+      radarTargetMaxAgeMs: 15000,
+      radarTargetPersistenceMs: 4000,
       radarUdpPort: 6678,
       replayFrameIntervalMs: 1000,
       replayRetentionSeconds: 300
@@ -70,6 +73,9 @@ describe("loadConfig", () => {
         RADAR_MULTICAST_GROUPS: "239.2.1.1, 239.2.1.2",
         RADAR_REPORT_MULTICAST_GROUP: "236.6.7.9",
         RADAR_REPORT_UDP_PORT: "6879",
+        RADAR_TARGET_FADE_MS: "7000",
+        RADAR_TARGET_MAX_AGE_MS: "12000",
+        RADAR_TARGET_PERSISTENCE_MS: "3000",
         RADAR_UDP_PORT: "6679",
         REPLAY_FRAME_INTERVAL_MS: "250",
         REPLAY_RETENTION_SECONDS: "60"
@@ -96,6 +102,9 @@ describe("loadConfig", () => {
       radarMulticastGroups: ["239.2.1.1", "239.2.1.2"],
       radarReportMulticastGroup: "236.6.7.9",
       radarReportUdpPort: 6879,
+      radarTargetFadeMs: 7000,
+      radarTargetMaxAgeMs: 12000,
+      radarTargetPersistenceMs: 3000,
       radarUdpPort: 6679,
       replayFrameIntervalMs: 250,
       replayRetentionSeconds: 60
@@ -124,6 +133,13 @@ describe("loadConfig", () => {
     );
     expect(() => loadConfig({ RADAR_DISPLAY_RANGE_METERS: "0" })).toThrow(
       "RADAR_DISPLAY_RANGE_METERS must be greater than 0"
+    );
+    expect(() => loadConfig({ RADAR_TARGET_FADE_MS: "0" })).toThrow("RADAR_TARGET_FADE_MS must be greater than 0");
+    expect(() => loadConfig({ RADAR_TARGET_MAX_AGE_MS: "0" })).toThrow(
+      "RADAR_TARGET_MAX_AGE_MS must be greater than 0"
+    );
+    expect(() => loadConfig({ RADAR_TARGET_PERSISTENCE_MS: "-1" })).toThrow(
+      'RADAR_TARGET_PERSISTENCE_MS must be an integer; received "-1"'
     );
     expect(() => loadConfig({ RADAR_CONTROL_ENABLED: "maybe" })).toThrow(
       'RADAR_CONTROL_ENABLED must be one of: true, false, 1, 0; received "maybe"'

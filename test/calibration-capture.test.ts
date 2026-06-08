@@ -37,6 +37,9 @@ const config = (directory: string, enabled = true): BlipWatchConfig => ({
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarTargetFadeMs: 8000,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -46,12 +49,16 @@ const renderer: RadarImageRenderer = {
   applySpoke(): void {},
   getLatestMetadata() {
     return {
+      activePixelCount: 10,
       imageSize: 32,
       lastFrameAt: "2026-06-07T00:00:00.000Z",
       lastSpokeAt: "2026-06-07T00:00:00.000Z",
       maxIntensity: 255,
       renderState: "ready",
-      spokeCount: 12
+      spokeCount: 12,
+      targetFadeMs: 8000,
+      targetMaxAgeMs: 15000,
+      targetPersistenceMs: 4000
     };
   },
   getLatestPng() {

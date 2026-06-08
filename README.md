@@ -332,6 +332,9 @@ BlipWatch is configured through environment variables.
 | `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
 | `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
+| `RADAR_TARGET_PERSISTENCE_MS` | `4000` | Time a radar return stays at full rendered intensity before fading begins. |
+| `RADAR_TARGET_FADE_MS` | `8000` | Duration of the linear fade after the persistence window. |
+| `RADAR_TARGET_MAX_AGE_MS` | `15000` | Maximum age for a rendered return before it is removed. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
@@ -347,6 +350,9 @@ RADAR_INTERFACE=auto \
 RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
+RADAR_TARGET_PERSISTENCE_MS=4000 \
+RADAR_TARGET_FADE_MS=8000 \
+RADAR_TARGET_MAX_AGE_MS=15000 \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 REPLAY_RETENTION_SECONDS=300 \

@@ -1,5 +1,5 @@
 import { PNG } from "pngjs";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BlipWatchConfig } from "../src/config/config.js";
 import { createLogger } from "../src/logging/logger.js";
@@ -29,6 +29,9 @@ const config: BlipWatchConfig = {
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarTargetFadeMs: 8000,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -45,6 +48,15 @@ const readPixel = (image: PNG, x: number, y: number): [number, number, number, n
 };
 
 describe("createRadarImageRenderer", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-07T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("produces an empty PNG and metadata before any radar data arrives", () => {
     const { sink } = createMemorySink();
     const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
@@ -54,12 +66,16 @@ describe("createRadarImageRenderer", () => {
     expect(png.width).toBe(32);
     expect(png.height).toBe(32);
     expect(renderer.getLatestMetadata()).toEqual({
+      activePixelCount: 0,
       imageSize: 32,
       lastFrameAt: null,
       lastSpokeAt: null,
       maxIntensity: 0,
       renderState: "empty",
-      spokeCount: 0
+      spokeCount: 0,
+      targetFadeMs: 8000,
+      targetMaxAgeMs: 15000,
+      targetPersistenceMs: 4000
     });
   });
 
@@ -159,5 +175,42 @@ describe("createRadarImageRenderer", () => {
     const png = PNG.sync.read(renderer.getLatestPng());
     expect(readPixel(png, 31, 16)).toEqual([255, 96, 48, 255]);
     expect(readPixel(png, 24, 16)).toEqual([0, 0, 0, 255]);
+  });
+
+  it("ages radar returns through persistence, fade, and maximum age", () => {
+    const startedAt = new Date("2026-06-07T00:00:00.000Z");
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({
+      config: {
+        ...config,
+        radarTargetFadeMs: 1000,
+        radarTargetMaxAgeMs: 3000,
+        radarTargetPersistenceMs: 1000
+      },
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: startedAt,
+      sampleCount: 2,
+      type: "spoke"
+    });
+
+    expect(PNG.sync.read(renderer.getLatestPng()).data[(16 * 32 + 31) * 4]).toBe(255);
+    expect(renderer.getLatestMetadata().activePixelCount).toBeGreaterThan(0);
+
+    vi.setSystemTime(new Date("2026-06-07T00:00:01.500Z"));
+    const fadingPixel = readPixel(PNG.sync.read(renderer.getLatestPng()), 31, 16);
+    expect(fadingPixel).not.toEqual([255, 96, 48, 255]);
+    expect(fadingPixel).not.toEqual([0, 0, 0, 255]);
+
+    vi.setSystemTime(new Date("2026-06-07T00:00:03.000Z"));
+    const agedOut = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(agedOut, 31, 16)).toEqual([0, 0, 0, 255]);
+    expect(renderer.getLatestMetadata().activePixelCount).toBe(0);
   });
 });

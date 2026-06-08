@@ -25,6 +25,9 @@ const DEFAULTS = {
   radarMulticastGroups: ["236.6.7.8"],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 6878,
+  radarTargetFadeMs: 8_000,
+  radarTargetMaxAgeMs: 15_000,
+  radarTargetPersistenceMs: 4_000,
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -52,6 +55,9 @@ export interface BlipWatchConfig {
   readonly radarMulticastGroups: readonly string[];
   readonly radarReportMulticastGroup: string;
   readonly radarReportUdpPort: number;
+  readonly radarTargetFadeMs: number;
+  readonly radarTargetMaxAgeMs: number;
+  readonly radarTargetPersistenceMs: number;
   readonly radarUdpPort: number;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
@@ -122,6 +128,21 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     DEFAULTS.radarReportMulticastGroup
   ),
   radarReportUdpPort: parsePort(env.RADAR_REPORT_UDP_PORT, "RADAR_REPORT_UDP_PORT", DEFAULTS.radarReportUdpPort),
+  radarTargetFadeMs: parsePositiveInteger(
+    env.RADAR_TARGET_FADE_MS,
+    "RADAR_TARGET_FADE_MS",
+    DEFAULTS.radarTargetFadeMs
+  ),
+  radarTargetMaxAgeMs: parsePositiveInteger(
+    env.RADAR_TARGET_MAX_AGE_MS,
+    "RADAR_TARGET_MAX_AGE_MS",
+    DEFAULTS.radarTargetMaxAgeMs
+  ),
+  radarTargetPersistenceMs: parseNonNegativeInteger(
+    env.RADAR_TARGET_PERSISTENCE_MS,
+    "RADAR_TARGET_PERSISTENCE_MS",
+    DEFAULTS.radarTargetPersistenceMs
+  ),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
   replayFrameIntervalMs: parsePositiveInteger(
     env.REPLAY_FRAME_INTERVAL_MS,
