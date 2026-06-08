@@ -1,3 +1,9 @@
+## [1.1.0-develop.20](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.19...v1.1.0-develop.20) (2026-06-08)
+
+### Bug Fixes
+
+* add radar display range scaling ([51ec7b3](https://github.com/SternAnchor/blipwatch/commit/51ec7b3e2d25da3448fb00dee196b096350ef643))
+
 ## [1.1.0-develop.19](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.18...v1.1.0-develop.19) (2026-06-08)
 
 ### Bug Fixes
