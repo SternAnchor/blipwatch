@@ -1,3 +1,9 @@
+## [1.1.0-develop.26](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.25...v1.1.0-develop.26) (2026-06-08)
+
+### Features
+
+* add radar WebSocket streaming ([9fb222c](https://github.com/SternAnchor/blipwatch/commit/9fb222c450103f2d48e8b8bf2ab2038b77235145))
+
 ## [1.1.0-develop.25](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.24...v1.1.0-develop.25) (2026-06-08)
 
 ### Features
