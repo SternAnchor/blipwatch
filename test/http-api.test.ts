@@ -390,6 +390,7 @@ describe("HTTP API", () => {
     expect(dashboard.headers.get("content-type")).toContain("text/html");
     await expect(dashboard.text()).resolves.toContain("BlipWatch");
     const dashboardBody = await fetch(`${baseUrl}/`).then((response) => response.text());
+    expect(dashboardBody).toContain('<link rel="icon" href="/favicon.ico"');
     expect(dashboardBody).toContain("/api/radar/latest.png");
     expect(dashboardBody).toContain("Interface");
     expect(dashboardBody).toContain("Control");
@@ -422,6 +423,11 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("replay-slider");
     expect(dashboardBody).toContain("/api/radar/replay/playback");
     expect(dashboardBody).toContain("/api/radar/replay/frame");
+
+    const favicon = await fetch(`${baseUrl}/favicon.ico`);
+    expect(favicon.status).toBe(200);
+    expect(favicon.headers.get("content-type")).toContain("image/x-icon");
+    expect(Buffer.from(await favicon.arrayBuffer()).subarray(0, 4)).toEqual(Buffer.from([0, 0, 1, 0]));
 
     const health = await fetch(`${baseUrl}/api/health`);
     expect(health.status).toBe(200);

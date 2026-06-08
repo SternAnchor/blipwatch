@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { readFileSync } from "node:fs";
 
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -47,6 +48,7 @@ export const HTTP_SERVER_LIMITS = {
 
 export const HTTP_SERVER_SHUTDOWN_GRACE_MS = 5_000;
 const API_PREFIX = "/api";
+const FAVICON_BYTES = readFileSync(new URL("../../docs/favicon.ico", import.meta.url));
 const SAFETY_NOTICE =
   "BlipWatch is NOT a certified navigation aid, radar ARPA, or safety system. " +
   "It must NOT be used as a substitute for proper watchkeeping, situational awareness, " +
@@ -178,6 +180,11 @@ const createBlipWatchHttpServer = ({
 
         if (url.pathname === "/") {
           sendHtml(response, renderDashboardHtml());
+          return;
+        }
+
+        if (url.pathname === "/favicon.ico") {
+          sendIcon(response, FAVICON_BYTES);
           return;
         }
 
@@ -496,6 +503,15 @@ const sendHtml = (response: ServerResponse, body: string): void => {
   response.writeHead(200, {
     "cache-control": "no-store",
     "content-type": "text/html; charset=utf-8"
+  });
+  response.end(body);
+};
+
+const sendIcon = (response: ServerResponse, body: Buffer): void => {
+  response.writeHead(200, {
+    "cache-control": "public, max-age=86400",
+    "content-length": body.byteLength.toString(),
+    "content-type": "image/x-icon"
   });
   response.end(body);
 };
@@ -881,6 +897,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="/favicon.ico" sizes="any">
     <title>BlipWatch</title>
     <style>
       :root {
