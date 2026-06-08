@@ -1,3 +1,9 @@
+## [1.1.0-develop.19](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.18...v1.1.0-develop.19) (2026-06-08)
+
+### Bug Fixes
+
+* densify radar target rendering ([bf1f59c](https://github.com/SternAnchor/blipwatch/commit/bf1f59c70aed23d9b12345ccbb6f66b23cd7aff0))
+
 ## [1.1.0-develop.18](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.17...v1.1.0-develop.18) (2026-06-08)
 
 ### Features
