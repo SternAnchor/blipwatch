@@ -10,6 +10,9 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "blipwatch": "dist/index.js"
+  },
   "files": [
     "dist",
     "README.md",

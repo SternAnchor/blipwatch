@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { ConfigurationError, createBlipWatchServer } from "./server.js";
 
 try {

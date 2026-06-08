@@ -72,7 +72,10 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm pack --dry-run
 ```
+
+GitHub Actions runs validation on Ubuntu, macOS, and Windows for pull requests and commits to `develop` and `main`. Docker build validation runs on Ubuntu, and release jobs build multi-architecture Docker images for `linux/amd64` and `linux/arm64` when publishing is enabled.
 
 Run the compiled server:
 
