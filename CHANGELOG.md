@@ -1,3 +1,9 @@
+## [1.1.0-develop.32](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.31...v1.1.0-develop.32) (2026-06-08)
+
+### Bug Fixes
+
+* keep transmit alive during inferred standby ([c81eeb4](https://github.com/SternAnchor/blipwatch/commit/c81eeb4b21399ac2d4f8c6a72da2781ba3c047d3))
+
 ## [1.1.0-develop.31](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.30...v1.1.0-develop.31) (2026-06-08)
 
 ### Bug Fixes
