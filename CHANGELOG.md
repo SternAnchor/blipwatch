@@ -1,3 +1,9 @@
+## [1.1.0-develop.27](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.26...v1.1.0-develop.27) (2026-06-08)
+
+### Features
+
+* expose radar tuning control model ([8e37035](https://github.com/SternAnchor/blipwatch/commit/8e370351ee414130a6af00e8f7c0cb8a9c06c141))
+
 ## [1.1.0-develop.26](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.25...v1.1.0-develop.26) (2026-06-08)
 
 ### Features
