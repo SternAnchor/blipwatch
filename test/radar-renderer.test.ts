@@ -283,4 +283,35 @@ describe("createRadarImageRenderer", () => {
     expect(readPixel(agedOut, 31, 16)).toEqual([0, 0, 0, 255]);
     expect(renderer.getLatestMetadata().activePixelCount).toBe(0);
   });
+
+  it("does not compound decay across repeated image reads", () => {
+    const startedAt = new Date("2026-06-07T00:00:00.000Z");
+    const { sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({
+      config: {
+        ...config,
+        radarTargetFadeMs: 1000,
+        radarTargetMaxAgeMs: 3000,
+        radarTargetPersistenceMs: 1000
+      },
+      logger: createLogger({ level: "debug", sink })
+    });
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: startedAt,
+      sampleCount: 2,
+      type: "spoke"
+    });
+
+    vi.setSystemTime(new Date("2026-06-07T00:00:01.500Z"));
+    const firstRead = readPixel(PNG.sync.read(renderer.getLatestPng()), 31, 16);
+    const secondRead = readPixel(PNG.sync.read(renderer.getLatestPng()), 31, 16);
+
+    expect(secondRead).toEqual(firstRead);
+    expect(firstRead).toEqual([255, 176, 32, 255]);
+  });
 });

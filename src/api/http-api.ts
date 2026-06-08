@@ -930,9 +930,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
       }
 
       .viewer {
+        align-self: start;
         display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-        min-height: calc(100vh - 32px);
+        grid-template-rows: auto auto;
         overflow: hidden;
       }
 
@@ -962,21 +962,22 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       .radar-frame {
         align-items: center;
+        aspect-ratio: 1;
         background: #050607;
         display: flex;
         justify-content: center;
+        max-height: calc(100vh - 116px);
         min-height: 0;
         padding: 12px;
       }
 
       .radar-frame img {
         aspect-ratio: 1;
-        height: auto;
+        height: 100%;
         image-rendering: pixelated;
-        max-height: calc(100vh - 116px);
         max-width: 100%;
         object-fit: contain;
-        width: auto;
+        width: 100%;
       }
 
       .side {
@@ -1191,11 +1192,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           grid-template-columns: 1fr;
         }
 
-        .viewer {
-          min-height: auto;
-        }
-
-        .radar-frame img {
+        .radar-frame {
           max-height: 70vh;
         }
 
