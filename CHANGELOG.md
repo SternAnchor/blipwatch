@@ -1,3 +1,9 @@
+## [1.1.0-develop.33](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.32...v1.1.0-develop.33) (2026-06-08)
+
+### Features
+
+* add friendly radar range presets ([3a7a807](https://github.com/SternAnchor/blipwatch/commit/3a7a807fa9cd04cdbc1e1a1e0cdafdbb44589ffa))
+
 ## [1.1.0-develop.32](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.31...v1.1.0-develop.32) (2026-06-08)
 
 ### Bug Fixes
