@@ -1,3 +1,9 @@
+## [1.1.0-develop.21](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.20...v1.1.0-develop.21) (2026-06-08)
+
+### Features
+
+* final cleanups for phase 1 ([#43](https://github.com/SternAnchor/blipwatch/issues/43)) ([9411bf2](https://github.com/SternAnchor/blipwatch/commit/9411bf28c9acc75f131c1db4c6e051ec827cff49)), closes [#33](https://github.com/SternAnchor/blipwatch/issues/33) [#34](https://github.com/SternAnchor/blipwatch/issues/34) [#35](https://github.com/SternAnchor/blipwatch/issues/35) [#36](https://github.com/SternAnchor/blipwatch/issues/36) [#37](https://github.com/SternAnchor/blipwatch/issues/37) [#38](https://github.com/SternAnchor/blipwatch/issues/38) [#39](https://github.com/SternAnchor/blipwatch/issues/39) [#40](https://github.com/SternAnchor/blipwatch/issues/40) [#41](https://github.com/SternAnchor/blipwatch/issues/41) [#42](https://github.com/SternAnchor/blipwatch/issues/42) [#44](https://github.com/SternAnchor/blipwatch/issues/44)
+
 ## [1.1.0-develop.20](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.19...v1.1.0-develop.20) (2026-06-08)
 
 ### Bug Fixes
