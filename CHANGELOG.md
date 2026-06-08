@@ -1,3 +1,9 @@
+## [1.1.0-develop.28](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.27...v1.1.0-develop.28) (2026-06-08)
+
+### Features
+
+* expand runtime diagnostics ([951136a](https://github.com/SternAnchor/blipwatch/commit/951136a8f8add324f76e54115d955970238d6f41))
+
 ## [1.1.0-develop.27](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.26...v1.1.0-develop.27) (2026-06-08)
 
 ### Features
