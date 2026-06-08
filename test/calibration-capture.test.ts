@@ -13,6 +13,14 @@ import type { ReplayBuffer } from "../src/replay/replay-buffer.js";
 import { createMemorySink } from "./support/logger.js";
 
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const playbackState = {
+  currentFrameAt: null,
+  mode: "live" as const,
+  requestedAt: null,
+  speed: 1 as const,
+  status: "live" as const,
+  updatedAt: "2026-06-07T00:00:00.000Z"
+};
 let temporaryDirectories: string[] = [];
 
 const config = (directory: string, enabled = true): BlipWatchConfig => ({
@@ -87,8 +95,12 @@ const replayBuffer: ReplayBuffer = {
       frameIntervalMs: 1000,
       newestFrameAt: "2026-06-07T00:00:00.000Z",
       oldestFrameAt: "2026-06-07T00:00:00.000Z",
+      playback: playbackState,
       retentionSeconds: 300
     };
+  },
+  getPlaybackState() {
+    return playbackState;
   },
   listFrames() {
     return [
@@ -99,7 +111,10 @@ const replayBuffer: ReplayBuffer = {
       }
     ];
   },
-  retentionSeconds: 300
+  retentionSeconds: 300,
+  updatePlayback() {
+    return playbackState;
+  }
 };
 
 const radarStatus = (): RadarStatus =>

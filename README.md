@@ -507,6 +507,14 @@ Returns replay buffer metadata.
   "frameIntervalMs": 1000,
   "newestFrameAt": "2026-06-07T00:00:00.000Z",
   "oldestFrameAt": "2026-06-07T00:00:00.000Z",
+  "playback": {
+    "currentFrameAt": null,
+    "mode": "live",
+    "requestedAt": null,
+    "speed": 1,
+    "status": "live",
+    "updatedAt": "2026-06-07T00:00:00.000Z"
+  },
   "retentionSeconds": 300
 }
 ```
@@ -514,6 +522,12 @@ Returns replay buffer metadata.
 ### `GET /api/radar/replay/frames`
 
 Returns available replay frame metadata.
+
+Optional query parameters:
+
+- `from`: ISO-8601 timestamp for the earliest frame to include.
+- `to`: ISO-8601 timestamp for the latest frame to include.
+- `limit`: positive integer limiting the response to the newest matching frames.
 
 ```json
 {
@@ -542,6 +556,39 @@ Error responses:
 
 - `400` when `at` is missing
 - `404` when no replay frame is available
+
+### `GET /api/radar/replay/playback`
+
+Returns the current replay playback state.
+
+```json
+{
+  "currentFrameAt": "2026-06-07T00:00:00.000Z",
+  "mode": "replay",
+  "requestedAt": "2026-06-07T00:00:00.000Z",
+  "speed": 5,
+  "status": "paused",
+  "updatedAt": "2026-06-07T00:00:01.000Z"
+}
+```
+
+### `POST /api/radar/replay/playback`
+
+Updates replay playback state for clients that need pause, resume, jump, scrub, and return-to-live behavior.
+
+Supported JSON fields:
+
+- `action`: one of `pause`, `resume`, `jump`, `scrub`, or `live`.
+- `at`: ISO-8601 timestamp. Required for `jump` and `scrub`.
+- `speed`: optional playback speed, one of `1`, `2`, `5`, or `10`.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/api/radar/replay/playback \
+  -H 'content-type: application/json' \
+  -d '{"action":"jump","at":"2026-06-07T00:00:00.000Z","speed":5}'
+```
 
 ## Docker
 

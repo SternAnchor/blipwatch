@@ -53,6 +53,14 @@ const config: BlipWatchConfig = {
 };
 
 const capturedAt = "2026-06-07T00:00:00.000Z";
+const playbackState = {
+  currentFrameAt: null,
+  mode: "live" as const,
+  requestedAt: null,
+  speed: 1 as const,
+  status: "live" as const,
+  updatedAt: capturedAt
+};
 const png = PNG.sync.write(new PNG({ height: 32, width: 32 }));
 
 let api: HttpApi | undefined;
@@ -105,8 +113,12 @@ const createReplayBuffer = (): ReplayBuffer => ({
       frameIntervalMs: 1,
       newestFrameAt: capturedAt,
       oldestFrameAt: capturedAt,
+      playback: playbackState,
       retentionSeconds: 300
     };
+  },
+  getPlaybackState() {
+    return playbackState;
   },
   listFrames() {
     return [
@@ -117,7 +129,17 @@ const createReplayBuffer = (): ReplayBuffer => ({
       }
     ];
   },
-  retentionSeconds: 300
+  retentionSeconds: 300,
+  updatePlayback(command) {
+    return {
+      currentFrameAt: capturedAt,
+      mode: command.action === "live" ? "live" : "replay",
+      requestedAt: command.at ? new Date(command.at).toISOString() : null,
+      speed: command.speed ?? 1,
+      status: command.action === "resume" ? "playing" : command.action === "live" ? "live" : "paused",
+      updatedAt: capturedAt
+    };
+  }
 });
 
 const radarStatus = (): RadarStatus => ({
@@ -322,12 +344,43 @@ describe("HTTP API", () => {
     expect(latestImage.height).toBe(32);
 
     const replay = await fetch(`${baseUrl}/api/radar/replay`);
-    await expect(replay.json()).resolves.toMatchObject({ frameCount: 1, frameIntervalMs: 1, retentionSeconds: 300 });
+    await expect(replay.json()).resolves.toMatchObject({
+      frameCount: 1,
+      frameIntervalMs: 1,
+      playback: {
+        mode: "live",
+        speed: 1,
+        status: "live"
+      },
+      retentionSeconds: 300
+    });
 
-    const frames = await fetch(`${baseUrl}/api/radar/replay/frames`);
+    const frames = await fetch(
+      `${baseUrl}/api/radar/replay/frames?from=${encodeURIComponent(capturedAt)}&to=${encodeURIComponent(capturedAt)}&limit=1`
+    );
     const framesBody = (await frames.json()) as { frames: Array<{ capturedAt: string; sizeBytes: number }> };
     expect(framesBody.frames).toHaveLength(1);
     expect(framesBody.frames[0]?.sizeBytes).toBeGreaterThan(0);
+
+    const playback = await fetch(`${baseUrl}/api/radar/replay/playback`);
+    await expect(playback.json()).resolves.toMatchObject({
+      mode: "live",
+      speed: 1,
+      status: "live"
+    });
+
+    const jump = await fetch(`${baseUrl}/api/radar/replay/playback`, {
+      body: JSON.stringify({ action: "jump", at: capturedAt, speed: 5 }),
+      method: "POST"
+    });
+    expect(jump.status).toBe(200);
+    await expect(jump.json()).resolves.toMatchObject({
+      currentFrameAt: capturedAt,
+      mode: "replay",
+      requestedAt: capturedAt,
+      speed: 5,
+      status: "paused"
+    });
 
     const replayFrame = await fetch(`${baseUrl}/api/radar/replay/frame?at=${encodeURIComponent(capturedAt)}`);
     expect(replayFrame.status).toBe(200);
@@ -358,6 +411,24 @@ describe("HTTP API", () => {
     const unavailable = await fetch(`${baseUrl}/api/radar/replay/frame?at=2026-06-07T00%3A00%3A01.000Z`);
     expect(unavailable.status).toBe(404);
     await expect(unavailable.json()).resolves.toMatchObject({ error: "frame_not_found" });
+
+    const invalidFrames = await fetch(`${baseUrl}/api/radar/replay/frames?from=not-a-date`);
+    expect(invalidFrames.status).toBe(400);
+    await expect(invalidFrames.json()).resolves.toMatchObject({ error: "invalid_timestamp" });
+
+    const invalidPlayback = await fetch(`${baseUrl}/api/radar/replay/playback`, {
+      body: JSON.stringify({ action: "scrub" }),
+      method: "POST"
+    });
+    expect(invalidPlayback.status).toBe(400);
+    await expect(invalidPlayback.json()).resolves.toMatchObject({ error: "missing_at" });
+
+    const invalidSpeed = await fetch(`${baseUrl}/api/radar/replay/playback`, {
+      body: JSON.stringify({ action: "resume", speed: 3 }),
+      method: "POST"
+    });
+    expect(invalidSpeed.status).toBe(400);
+    await expect(invalidSpeed.json()).resolves.toMatchObject({ error: "invalid_speed" });
   });
 
   it("exposes explicit radar standby and transmit control endpoints", async () => {

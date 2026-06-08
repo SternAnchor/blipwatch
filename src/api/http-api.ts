@@ -1,4 +1,4 @@
-import type { Server, ServerResponse } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
@@ -8,7 +8,7 @@ import type { Logger } from "../logging/logger.js";
 import type { RadarControl } from "../radar/control.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus } from "../radar/status.js";
-import type { ReplayBuffer } from "../replay/replay-buffer.js";
+import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
 
 export interface HttpApi {
   address(): AddressInfo | undefined;
@@ -74,6 +74,11 @@ export const createHttpApi = ({
           return;
         }
 
+        if (request.method === "POST" && url.pathname === apiPath("/radar/replay/playback")) {
+          void handleReplayPlaybackRequest(request, response, replayBuffer);
+          return;
+        }
+
         if (request.method !== "GET") {
           sendJson(response, 405, { error: "method_not_allowed" });
           return;
@@ -116,7 +121,18 @@ export const createHttpApi = ({
         }
 
         if (url.pathname === apiPath("/radar/replay/frames")) {
-          sendJson(response, 200, { frames: replayBuffer.listFrames() });
+          const options = parseReplayFrameListQuery(url);
+          if (!options.ok) {
+            sendJson(response, 400, { error: options.error, message: options.message });
+            return;
+          }
+
+          sendJson(response, 200, { frames: replayBuffer.listFrames(options.value) });
+          return;
+        }
+
+        if (url.pathname === apiPath("/radar/replay/playback")) {
+          sendJson(response, 200, replayBuffer.getPlaybackState());
           return;
         }
 
@@ -163,6 +179,10 @@ export const createHttpApi = ({
     }
   };
 };
+
+const REPLAY_PLAYBACK_ACTIONS = new Set<ReplayPlaybackAction>(["jump", "live", "pause", "resume", "scrub"]);
+const REPLAY_PLAYBACK_SPEEDS = new Set<ReplayPlaybackSpeed>([1, 2, 5, 10]);
+const MAX_JSON_BODY_BYTES = 64 * 1024;
 
 export const configureHttpServerLimits = (server: Server): void => {
   server.requestTimeout = HTTP_SERVER_LIMITS.requestTimeoutMs;
@@ -249,6 +269,203 @@ const handleRadarControlRequest = async (
     });
   }
 };
+
+const handleReplayPlaybackRequest = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  replayBuffer: ReplayBuffer
+): Promise<void> => {
+  try {
+    const body = await readJsonBody(request);
+    const command = parseReplayPlaybackCommand(body);
+    if (!command.ok) {
+      sendJson(response, 400, { error: command.error, message: command.message });
+      return;
+    }
+
+    sendJson(response, 200, replayBuffer.updatePlayback(command.value));
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      sendJson(response, error.statusCode, { error: error.code, message: error.message });
+      return;
+    }
+
+    sendJson(response, 500, { error: "replay_playback_failed", message: "Replay playback update failed." });
+  }
+};
+
+interface ReplayPlaybackRequestBody {
+  readonly action?: unknown;
+  readonly at?: unknown;
+  readonly speed?: unknown;
+}
+
+const parseReplayPlaybackCommand = (
+  body: unknown
+):
+  | { readonly ok: true; readonly value: { readonly action: ReplayPlaybackAction; readonly at?: string; readonly speed?: ReplayPlaybackSpeed } }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  if (!isObject(body)) {
+    return { error: "invalid_body", message: "Expected a JSON object body.", ok: false };
+  }
+
+  const requestBody = body as ReplayPlaybackRequestBody;
+  if (typeof requestBody.action !== "string" || !REPLAY_PLAYBACK_ACTIONS.has(requestBody.action as ReplayPlaybackAction)) {
+    return {
+      error: "invalid_action",
+      message: "Field `action` must be one of: jump, live, pause, resume, scrub.",
+      ok: false
+    };
+  }
+
+  const action = requestBody.action as ReplayPlaybackAction;
+  const at = parseOptionalIsoTimestamp(requestBody.at);
+  if (!at.ok) {
+    return at;
+  }
+
+  if ((action === "jump" || action === "scrub") && !at.value) {
+    return { error: "missing_at", message: "Field `at` is required for jump and scrub playback actions.", ok: false };
+  }
+
+  const speed = parseOptionalReplaySpeed(requestBody.speed);
+  if (!speed.ok) {
+    return speed;
+  }
+
+  return {
+    ok: true,
+    value: {
+      action,
+      ...(at.value ? { at: at.value } : {}),
+      ...(speed.value ? { speed: speed.value } : {})
+    }
+  };
+};
+
+const parseReplayFrameListQuery = (
+  url: URL
+):
+  | { readonly ok: true; readonly value: { readonly from?: string; readonly limit?: number; readonly to?: string } }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  const from = parseOptionalIsoTimestamp(url.searchParams.get("from"));
+  if (!from.ok) {
+    return from;
+  }
+
+  const to = parseOptionalIsoTimestamp(url.searchParams.get("to"));
+  if (!to.ok) {
+    return to;
+  }
+
+  const limit = parseOptionalPositiveInteger(url.searchParams.get("limit"), "limit");
+  if (!limit.ok) {
+    return limit;
+  }
+
+  return {
+    ok: true,
+    value: {
+      ...(from.value ? { from: from.value } : {}),
+      ...(limit.value ? { limit: limit.value } : {}),
+      ...(to.value ? { to: to.value } : {})
+    }
+  };
+};
+
+const parseOptionalIsoTimestamp = (
+  value: unknown
+):
+  | { readonly ok: true; readonly value?: string }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true };
+  }
+
+  if (typeof value !== "string") {
+    return { error: "invalid_timestamp", message: "Timestamp fields must be ISO-8601 strings.", ok: false };
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return { error: "invalid_timestamp", message: "Timestamp fields must be valid ISO-8601 strings.", ok: false };
+  }
+
+  return { ok: true, value: parsed.toISOString() };
+};
+
+const parseOptionalPositiveInteger = (
+  value: string | null,
+  fieldName: string
+):
+  | { readonly ok: true; readonly value?: number }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  if (value === null || value === "") {
+    return { ok: true };
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed.toString() !== value) {
+    return { error: "invalid_limit", message: `Query parameter \`${fieldName}\` must be a positive integer.`, ok: false };
+  }
+
+  return { ok: true, value: parsed };
+};
+
+const parseOptionalReplaySpeed = (
+  value: unknown
+):
+  | { readonly ok: true; readonly value?: ReplayPlaybackSpeed }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true };
+  }
+
+  if (typeof value !== "number" || !REPLAY_PLAYBACK_SPEEDS.has(value as ReplayPlaybackSpeed)) {
+    return { error: "invalid_speed", message: "Field `speed` must be one of: 1, 2, 5, 10.", ok: false };
+  }
+
+  return { ok: true, value: value as ReplayPlaybackSpeed };
+};
+
+const readJsonBody = async (request: IncomingMessage): Promise<unknown> => {
+  const chunks: Buffer[] = [];
+  let size = 0;
+
+  for await (const chunk of request as AsyncIterable<Buffer | string>) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.byteLength;
+    if (size > MAX_JSON_BODY_BYTES) {
+      throw new RequestBodyError(413, "body_too_large", "Request body is too large.");
+    }
+    chunks.push(buffer);
+  }
+
+  const rawBody = Buffer.concat(chunks).toString("utf8").trim();
+  if (!rawBody) {
+    throw new RequestBodyError(400, "missing_body", "Expected a JSON request body.");
+  }
+
+  try {
+    return JSON.parse(rawBody) as unknown;
+  } catch (error) {
+    throw new RequestBodyError(400, "invalid_json", "Request body must be valid JSON.", { cause: error });
+  }
+};
+
+class RequestBodyError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly code: string,
+    message: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options);
+  }
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const renderDashboardHtml = (): string => `<!doctype html>
 <html lang="en">
