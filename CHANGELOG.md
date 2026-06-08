@@ -1,3 +1,9 @@
+## [1.1.0-develop.24](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.23...v1.1.0-develop.24) (2026-06-08)
+
+### Features
+
+* add replay playback API ([dd06425](https://github.com/SternAnchor/blipwatch/commit/dd064259ac6d0885bfbceeb6c03a06648323cc8b))
+
 ## [1.1.0-develop.23](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.22...v1.1.0-develop.23) (2026-06-08)
 
 ### Features
