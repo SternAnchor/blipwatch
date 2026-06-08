@@ -300,4 +300,53 @@ describe("Navico radar control commands", () => {
       await control.stop();
     }
   });
+
+  it("keeps transmit requested when standby is only inferred after active traffic", async () => {
+    const { sink } = createMemorySink();
+    let observedState: {
+      observedAt: string;
+      source: "inferred" | "traffic";
+      state: "standby" | "transmit";
+    } = {
+      observedAt: "2026-06-07T00:00:00.000Z",
+      source: "traffic",
+      state: "transmit"
+    };
+    const control = createRadarControl({
+      config: {
+        ...config,
+        radarControlEnabled: true,
+        radarControlFallbackHost: "127.0.0.1",
+        radarControlHost: "127.0.0.1",
+        radarControlMode: "transmit",
+        radarControlPort: 56518,
+        radarControlStayAliveIntervalMs: 10,
+        radarControlWakeHost: "127.0.0.1",
+        radarControlWakePort: 56880
+      },
+      logger: createLogger({ level: "debug", sink }),
+      observedStateProvider: () => observedState,
+      observedStateRequestGraceMs: 0
+    });
+
+    try {
+      await control.start();
+      const commandsAfterStart = control.getStatus().commandsSent;
+      observedState = {
+        observedAt: "2026-06-07T00:00:10.000Z",
+        source: "inferred",
+        state: "standby"
+      };
+      await wait(30);
+
+      expect(control.getStatus()).toMatchObject({
+        desiredState: "transmit",
+        observedState: "standby",
+        observedStateSource: "inferred"
+      });
+      expect(control.getStatus().commandsSent).toBeGreaterThan(commandsAfterStart);
+    } finally {
+      await control.stop();
+    }
+  });
 });

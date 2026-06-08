@@ -132,7 +132,6 @@ export const createRadarControl = ({
   let lastError: string | undefined;
   let lastRequestAt: Date | undefined;
   let lastTransmitOnTarget: string | undefined;
-  let hasObservedTransmit = false;
   let commandsSent = 0;
   let stayAliveSequence = 0;
   const tuningStatus = {
@@ -233,7 +232,6 @@ export const createRadarControl = ({
   const reconcileObservedState = (): void => {
     const observedState = observedStateProvider?.();
     if (observedState?.state === "transmit") {
-      hasObservedTransmit = true;
       return;
     }
 
@@ -241,7 +239,7 @@ export const createRadarControl = ({
       return;
     }
 
-    if (observedState.source === "inferred" && !hasObservedTransmit) {
+    if (observedState.source !== "report") {
       return;
     }
 
