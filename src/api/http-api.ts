@@ -1049,7 +1049,18 @@ const renderDashboardHtml = (): string => `<!doctype html>
       }
 
       .tuning-row.range-row {
-        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: stretch;
+        grid-template-columns: minmax(0, 1fr) minmax(96px, 120px);
+      }
+
+      .range-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .range-apply {
+        align-self: stretch;
+        min-height: 100%;
       }
 
       label {
@@ -1272,16 +1283,18 @@ const renderDashboardHtml = (): string => `<!doctype html>
                 <button class="tuning-button" data-setting="rainClutter" type="button">Apply</button>
               </div>
               <div class="tuning-row range-row" data-setting="range">
-                <label>Units
-                  <select id="range-unit" aria-label="Range units">
-                    <option value="nautical">Nautical</option>
-                    <option value="metric">Metric</option>
-                  </select>
-                </label>
-                <label>Range
-                  <select id="range-preset" aria-label="Radar range"></select>
-                </label>
-                <button class="tuning-button" data-setting="range" type="button">Apply</button>
+                <div class="range-stack">
+                  <label>Units
+                    <select id="range-unit" aria-label="Range units">
+                      <option value="nautical">Imperial</option>
+                      <option value="metric">Metric</option>
+                    </select>
+                  </label>
+                  <label>Range
+                    <select id="range-preset" aria-label="Radar range"></select>
+                  </label>
+                </div>
+                <button class="tuning-button range-apply" data-setting="range" type="button">Apply</button>
               </div>
               <div class="subtle" id="tuning-feedback">Waiting for control status...</div>
             </div>
