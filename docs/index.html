@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlipWatch — Open-Source Radar for Navico HALO</title>
+  <link rel="icon" href="favicon.ico">
+  <meta name="description" content="BlipWatch is an open-source Node.js server that receives live radar data from Navico/B&amp;G/Simrad HALO radars and exposes radar imagery through standard HTTP endpoints.">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb;
+      --warning: #d29922;
+      --radar-green: #008F3A;
+      --green: #3fb950;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    header {
+      text-align: center;
+      padding: 3rem 0 2rem;
+    }
+    header h1 {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    header h1 span {
+      color: var(--radar-green);
+    }
+    .logo {
+      height: 5rem;
+      width: auto;
+      border-radius: 0;
+    }
+    .tagline {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      margin-top: 0.75rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 1.25rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(210, 153, 34, 0.15);
+      color: var(--warning);
+      border: 1px solid rgba(210, 153, 34, 0.3);
+    }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+    section h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: var(--radar-green);
+    }
+    section p, section li {
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    section ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    section ul li::before {
+      content: "→ ";
+      color: var(--accent);
+      font-weight: bold;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 600px) {
+      .features { grid-template-columns: 1fr; }
+      header h1 { font-size: 1.75rem; }
+    }
+    .feature-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+    }
+    .feature-card h3 {
+      font-size: 0.95rem;
+      margin-bottom: 0.4rem;
+      color: var(--text);
+    }
+    .feature-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+    .safety {
+      background: rgba(210, 153, 34, 0.06);
+      border-color: rgba(210, 153, 34, 0.25);
+    }
+    .safety h2 { color: var(--warning); }
+    .links {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+    .links a {
+      display: inline-block;
+      padding: 0.6rem 1.5rem;
+      border-radius: 0.4rem;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: opacity 0.15s;
+    }
+    .links a:hover { opacity: 0.85; }
+    .btn-primary {
+      background: var(--accent-dim);
+      color: #fff;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    footer {
+      text-align: center;
+      padding: 2rem 0;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    .screenshots {
+      display: grid;
+      grid-template-columns: 1.4fr 0.6fr;
+      gap: 1rem;
+      align-items: start;
+    }
+    .screenshots figure {
+      margin: 0;
+    }
+    .screenshots img {
+      width: 100%;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      display: block;
+      cursor: zoom-in;
+      transition: opacity 0.15s;
+    }
+    .screenshots img:hover {
+      opacity: 0.85;
+    }
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.92);
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      cursor: zoom-out;
+    }
+    .lightbox.active {
+      display: flex;
+    }
+    .lightbox img {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 0.5rem;
+      object-fit: contain;
+    }
+    .screenshots figcaption {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      .screenshots {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>
+        <img class="logo" src="BlipWatch_Logo.png" alt="BlipWatch logo">
+      </h1>
+      <p class="tagline">Open-source radar server for Navico/B&amp;G/Simrad HALO radars. Receive live radar data over your local network and view it from any device with a web browser.</p>
+      <span class="badge">Early Development</span>
+    </header>
+
+    <section>
+      <h2>What is BlipWatch?</h2>
+      <p>BlipWatch is a lightweight Node.js server that connects directly to Navico HALO-family marine radars over Ethernet. It decodes live radar spoke data, renders radar imagery in real time, and serves it through standard HTTP and WebSocket endpoints — making radar data accessible to any device on your network.</p>
+      <p>Whether you want to view radar on a tablet in the cockpit, a phone belowdecks, or monitor remotely from a PC, BlipWatch provides the data pipeline to make that possible.</p>
+    </section>
+
+    <section>
+      <h2>Current Capabilities</h2>
+      <div class="features">
+        <div class="feature-card">
+          <h3>Live Radar Rendering</h3>
+          <p>Decodes HALO radar spokes and renders 1024×1024 PNG radar images in real time.</p>
+        </div>
+        <div class="feature-card">
+          <h3>HTTP &amp; WebSocket API</h3>
+          <p>RESTful endpoints for radar imagery, status, and replay. WebSocket streaming for live updates.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Radar Discovery</h3>
+          <p>Passive multicast discovery automatically finds HALO radars on the local network.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Replay Buffer</h3>
+          <p>In-memory replay lets you scrub back through recent radar history.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Web Dashboard</h3>
+          <p>Built-in browser UI for live radar viewing, replay controls, and diagnostics.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Radar Control</h3>
+          <p>Opt-in transmit/standby, range, gain, sea clutter, and rain clutter controls via UDP commands.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Cross-Platform</h3>
+          <p>Runs on macOS, Linux, and Windows. Docker images for AMD64 and ARM64 (Raspberry Pi).</p>
+        </div>
+        <div class="feature-card">
+          <h3>Open Source</h3>
+          <p>Licensed under GPL-3.0. Inspect, modify, and contribute freely.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Screenshots</h2>
+      <div class="screenshots">
+        <figure>
+          <img src="BlipWatch_Screenshot_WebUI.jpg" alt="BlipWatch web dashboard showing live radar image with status panel and controls">
+          <figcaption>Desktop web dashboard with live radar, status, and controls</figcaption>
+        </figure>
+        <figure>
+          <img src="BlipWatch_Screenshot_Mobile.jpg" alt="BlipWatch mobile view showing radar image and controls">
+          <figcaption>Mobile browser view</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <h2>Project Status</h2>
+      <p>BlipWatch is in <strong>early active development</strong>. The core radar receive, decode, and render pipeline is functional and has been validated against real HALO hardware on a local Ethernet network. The HTTP API, WebSocket streaming, replay buffer, and browser dashboard are operational.</p>
+      <p>Current development is focused on hardware integration maturity, protocol coverage, rendering refinements, and packaging for easier installation.</p>
+      <p>This project is mostly vibe-coded with AI assistance, but required hands-on manual coding and real-world debugging by a software engineer with 30+ years of experience — developed and tested using a real Simrad HALO20+ radar while at anchor.</p>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">The project is not yet recommended for production or safety-critical use. APIs and configuration may change between releases.</p>
+    </section>
+
+    <section>
+      <h2>Roadmap</h2>
+      <ul>
+        <li>Target/MARPA tracking and risk assessment/notification</li>
+        <li>Anchor location selection assistant</li>
+        <li>Publish easy-to-install packages (npm, Docker, standalone binaries) for simple deployment on boats and home networks</li>
+        <li>Enable advanced use of HALO-based radars beyond traditional chartplotter displays</li>
+        <li>Provide increased access to radar data on alternative devices — tablets, phones, and PCs — over local networks and over the internet when away from the vessel</li>
+        <li>Expanded protocol support and hardware compatibility across the Navico HALO family</li>
+      </ul>
+    </section>
+
+    <section class="safety">
+      <h2>Safety Notice</h2>
+      <p>BlipWatch is experimental situational-awareness software. It is <strong>not</strong> a certified navigation aid, radar ARPA, collision-avoidance system, or safety-of-life system.</p>
+      <p>Do not rely on BlipWatch as a substitute for proper watchkeeping, certified marine instruments, or any safety-of-life function. Maintain compliance with COLREGS Rule 5 (proper lookout) and all applicable maritime regulations at all times.</p>
+    </section>
+
+    <div class="links">
+      <a href="https://github.com/SternAnchor/blipwatch" class="btn-primary">View on GitHub</a>
+      <a href="https://github.com/SternAnchor/blipwatch/issues" class="btn-secondary">Issues &amp; Discussion</a>
+    </div>
+  </div>
+  <div class="lightbox" id="lightbox">
+    <img id="lightbox-img" alt="">
+  </div>
+  <script>
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    document.querySelectorAll('.screenshots img').forEach(img => {
+      img.addEventListener('click', () => {
+        lightboxImg.src = img.src;
+        lightboxImg.alt = img.alt;
+        lightbox.classList.add('active');
+      });
+    });
+    lightbox.addEventListener('click', () => {
+      lightbox.classList.remove('active');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') lightbox.classList.remove('active');
+    });
+  </script>
+</body>
+</html>
