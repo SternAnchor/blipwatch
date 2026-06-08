@@ -47,6 +47,12 @@ export const HTTP_SERVER_LIMITS = {
 
 export const HTTP_SERVER_SHUTDOWN_GRACE_MS = 5_000;
 const API_PREFIX = "/api";
+const SAFETY_NOTICE =
+  "BlipWatch is NOT a certified navigation aid, radar ARPA, or safety system. " +
+  "It must NOT be used as a substitute for proper watchkeeping, situational awareness, " +
+  "or any safety-of-life function. Users must maintain compliance with COLREGS Rule 5 " +
+  "(proper lookout) and all applicable maritime regulations at all times. " +
+  "See the NOTICE file for full liability disclaimer.";
 
 export const createHttpApi = ({
   config,
@@ -116,9 +122,18 @@ export const createHttpApi = ({
         if (url.pathname === apiPath("/health")) {
           sendJson(response, 200, {
             calibrationCapture: calibrationCaptureStatus?.() ?? null,
+            notice: SAFETY_NOTICE,
             ok: true,
             replay: replayBuffer.getMetadata(),
             renderer: renderer.getLatestMetadata(),
+            service: "blipwatch"
+          });
+          return;
+        }
+
+        if (url.pathname === apiPath("/notice")) {
+          sendJson(response, 200, {
+            notice: SAFETY_NOTICE,
             service: "blipwatch"
           });
           return;

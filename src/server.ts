@@ -137,6 +137,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     },
     logger,
     async start(): Promise<void> {
+      logger.warn("SAFETY: BlipWatch is NOT a certified navigation or safety system. Do NOT rely on it for watchkeeping, collision avoidance, or any safety-of-life purpose. Maintain proper lookout per COLREGS Rule 5.");
       logger.debug(`loaded config: ${JSON.stringify(redactConfig(config))}`);
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
