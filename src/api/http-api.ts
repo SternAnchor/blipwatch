@@ -919,6 +919,38 @@ const renderDashboardHtml = (): string => `<!doctype html>
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .tuning-controls {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        display: grid;
+        gap: 10px;
+        padding: 10px;
+      }
+
+      .tuning-controls h3 {
+        font-size: 14px;
+        line-height: 1.2;
+        margin: 0;
+      }
+
+      .tuning-row {
+        align-items: end;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(86px, 0.8fr) minmax(92px, 1fr) auto;
+      }
+
+      .tuning-row.range-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      label {
+        color: var(--muted);
+        display: grid;
+        font-size: 12px;
+        gap: 5px;
+      }
+
       .replay-actions,
       .speed-actions {
         display: grid;
@@ -961,6 +993,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
       }
 
       input[type="datetime-local"],
+      input[type="number"],
+      select,
       input[type="range"] {
         accent-color: var(--accent);
         background: #111518;
@@ -1057,6 +1091,11 @@ const renderDashboardHtml = (): string => `<!doctype html>
         .radar-frame img {
           max-height: 70vh;
         }
+
+        .tuning-row,
+        .tuning-row.range-row {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -1089,6 +1128,52 @@ const renderDashboardHtml = (): string => `<!doctype html>
             <div class="control-actions" aria-label="Radar controls">
               <button id="standby-button" type="button">Standby</button>
               <button id="transmit-button" type="button">Transmit</button>
+            </div>
+            <div class="tuning-controls" aria-label="Advanced radar controls">
+              <h3>Advanced Controls</h3>
+              <div class="tuning-row" data-setting="gain">
+                <label>Gain
+                  <select id="gain-mode" aria-label="Gain mode">
+                    <option value="auto">Auto</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </label>
+                <label>Value
+                  <input id="gain-value" type="number" min="0" max="100" step="1" value="50" aria-label="Gain value">
+                </label>
+                <button class="tuning-button" data-setting="gain" type="button">Apply</button>
+              </div>
+              <div class="tuning-row" data-setting="seaClutter">
+                <label>Sea
+                  <select id="sea-clutter-mode" aria-label="Sea clutter mode">
+                    <option value="auto">Auto</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </label>
+                <label>Value
+                  <input id="sea-clutter-value" type="number" min="0" max="100" step="1" value="50" aria-label="Sea clutter value">
+                </label>
+                <button class="tuning-button" data-setting="seaClutter" type="button">Apply</button>
+              </div>
+              <div class="tuning-row" data-setting="rainClutter">
+                <label>Rain
+                  <select id="rain-clutter-mode" aria-label="Rain clutter mode">
+                    <option value="auto">Auto</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </label>
+                <label>Value
+                  <input id="rain-clutter-value" type="number" min="0" max="100" step="1" value="50" aria-label="Rain clutter value">
+                </label>
+                <button class="tuning-button" data-setting="rainClutter" type="button">Apply</button>
+              </div>
+              <div class="tuning-row range-row" data-setting="range">
+                <label>Range
+                  <input id="range-meters" type="number" min="1" step="1" value="463" aria-label="Range in meters">
+                </label>
+                <button class="tuning-button" data-setting="range" type="button">Apply</button>
+              </div>
+              <div class="subtle" id="tuning-feedback">Waiting for control status...</div>
             </div>
             <div class="stats">
               <div class="stat"><span>Discovery Reports</span><strong id="reports">0</strong></div>
@@ -1178,6 +1263,25 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const jumpTime = document.getElementById("jump-time");
       const jumpButton = document.getElementById("jump-button");
       const speedButtons = Array.from(document.querySelectorAll(".speed-button"));
+      const tuningButtons = Array.from(document.querySelectorAll(".tuning-button"));
+      const tuningFeedback = document.getElementById("tuning-feedback");
+      const tuningControls = {
+        gain: {
+          mode: document.getElementById("gain-mode"),
+          value: document.getElementById("gain-value")
+        },
+        rainClutter: {
+          mode: document.getElementById("rain-clutter-mode"),
+          value: document.getElementById("rain-clutter-value")
+        },
+        range: {
+          value: document.getElementById("range-meters")
+        },
+        seaClutter: {
+          mode: document.getElementById("sea-clutter-mode"),
+          value: document.getElementById("sea-clutter-value")
+        }
+      };
       let controlRequestPending = false;
       let playbackRequestPending = false;
       let replayFrames = [];
@@ -1206,6 +1310,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         rendered: document.getElementById("rendered"),
         reportGroup: document.getElementById("report-group"),
         reports: document.getElementById("reports"),
+        seaClutter: document.getElementById("sea-clutter"),
         streamClients: document.getElementById("stream-clients"),
         uptime: document.getElementById("uptime")
       };
@@ -1226,6 +1331,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
         }
 
         return setting?.rangeMeters ? setting.rangeMeters + " m" : "auto";
+      };
+      const setTuningFeedback = (message) => {
+        tuningFeedback.textContent = message ?? "Waiting for control status...";
       };
       const formatBytes = (value) => {
         if (typeof value !== "number") {
@@ -1260,6 +1368,40 @@ const renderDashboardHtml = (): string => `<!doctype html>
         transmitButton.disabled = disabled;
         standbyButton.classList.toggle("active", visibleState === "standby");
         transmitButton.classList.toggle("active", visibleState === "transmit");
+      };
+      const setTuningControls = (control) => {
+        const disabled = controlRequestPending || !control;
+        tuningButtons.forEach((button) => {
+          button.disabled = disabled;
+        });
+
+        const tuning = control?.tuning ?? {};
+        for (const setting of ["gain", "rainClutter", "seaClutter"]) {
+          const current = tuning[setting];
+          const controls = tuningControls[setting];
+          if (current?.mode) {
+            controls.mode.value = current.mode;
+          }
+          if (typeof current?.value === "number") {
+            controls.value.value = String(current.value);
+          }
+          controls.value.disabled = controls.mode.value !== "manual";
+        }
+
+        if (typeof tuning.range?.rangeMeters === "number") {
+          tuningControls.range.value.value = String(tuning.range.rangeMeters);
+        }
+
+        const unsupported = control?.capabilities
+          ? ["gain", "seaClutter", "rainClutter", "range"].filter((setting) => !control.capabilities[setting]?.supported)
+          : [];
+        if (unsupported.length === 4) {
+          setTuningFeedback("HALO tuning commands are not implemented yet; requests are validated and recorded only.");
+        } else if (control) {
+          setTuningFeedback("Advanced controls ready.");
+        } else {
+          setTuningFeedback("Radar control is unavailable.");
+        }
       };
 
       const formatFrameTime = (timestamp) => timestamp ? new Date(timestamp).toLocaleTimeString() : "-";
@@ -1370,6 +1512,61 @@ const renderDashboardHtml = (): string => `<!doctype html>
         }
       };
 
+      const buildTuningRequest = (setting) => {
+        if (setting === "range") {
+          return {
+            rangeMeters: Number(tuningControls.range.value.value),
+            setting
+          };
+        }
+
+        const controls = tuningControls[setting];
+        return {
+          mode: controls.mode.value,
+          setting,
+          value: controls.mode.value === "manual" ? Number(controls.value.value) : null
+        };
+      };
+
+      const requestTuning = async (setting) => {
+        if (!setting) {
+          return;
+        }
+
+        controlRequestPending = true;
+        setTuningFeedback("Applying " + setting + "...");
+        tuningButtons.forEach((button) => {
+          button.disabled = true;
+        });
+        try {
+          const response = await fetch("/api/radar/control/settings", {
+            body: JSON.stringify(buildTuningRequest(setting)),
+            headers: { "content-type": "application/json" },
+            method: "POST"
+          });
+          const body = await response.json().catch(() => ({}));
+          if (response.status === 501) {
+            setTuningFeedback(body.message ?? "This radar setting is not supported yet.");
+            controlRequestPending = false;
+            await refresh();
+            return;
+          }
+          if (!response.ok) {
+            throw new Error(body.message ?? "Radar setting request failed");
+          }
+          setTuningFeedback("Applied " + setting + ".");
+          controlRequestPending = false;
+          await refresh();
+        } catch (error) {
+          phase.className = "phase error";
+          setText(phaseName, "control-error");
+          setText(phaseSummary, error instanceof Error ? error.message : String(error));
+          setTuningFeedback(error instanceof Error ? error.message : String(error));
+        } finally {
+          controlRequestPending = false;
+        }
+      };
+
       const refresh = async () => {
         try {
           const response = await fetch("/api/radar/status", { cache: "no-store" });
@@ -1407,6 +1604,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
               : "disabled"
           );
           setControlButtons(status.control);
+          setTuningControls(status.control);
           setText(fields.commands, status.control?.commandsSent);
           setText(fields.activePixels, status.renderer?.activePixelCount);
           setText(fields.replayFrames, status.replay?.frameCount);
@@ -1441,6 +1639,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(phaseName, "status-error");
           setText(phaseSummary, error instanceof Error ? error.message : String(error));
           setControlButtons(undefined);
+          setTuningControls(undefined);
         }
       };
 
@@ -1480,6 +1679,16 @@ const renderDashboardHtml = (): string => `<!doctype html>
           const speed = Number(button.dataset.speed);
           const action = playback.status === "playing" ? "resume" : "pause";
           void requestPlayback({ action, at: playback.currentFrameAt ?? replayFrames.at(-1)?.capturedAt, speed });
+        });
+      });
+      for (const setting of ["gain", "rainClutter", "seaClutter"]) {
+        tuningControls[setting].mode.addEventListener("change", () => {
+          tuningControls[setting].value.disabled = tuningControls[setting].mode.value !== "manual";
+        });
+      }
+      tuningButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          void requestTuning(button.dataset.setting);
         });
       });
       void refresh();

@@ -434,9 +434,11 @@ npm start
 
 ### `GET /`
 
-Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, replay controls, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes status, replay metadata, and imagery automatically.
+Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, transmit/standby controls, advanced radar control inputs, replay controls, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes status, replay metadata, and imagery automatically.
 
 The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
+
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. In the current HALO implementation these controls validate and record requested values, then show the explicit unsupported response because the real HALO tuning command payloads have not yet been verified. Standby and transmit controls do send the validated HALO operating-state command path.
 
 ### `GET /api/health`
 
@@ -666,7 +668,7 @@ Returns radar tuning capabilities and the latest requested tuning state.
 
 ### `POST /api/radar/control/settings`
 
-Validates and records a requested tuning control change. Current HALO tuning commands are not sent to hardware; the endpoint returns `501` with `radar_control_setting_unsupported` until protocol payloads are implemented.
+Validates and records a requested tuning control change from the API or dashboard advanced controls panel. Current HALO tuning commands are not sent to hardware; the endpoint returns `501` with `radar_control_setting_unsupported` until protocol payloads are implemented.
 
 Examples:
 

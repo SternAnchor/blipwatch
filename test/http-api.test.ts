@@ -370,6 +370,15 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("Sea Clutter");
     expect(dashboardBody).toContain("Rain Clutter");
     expect(dashboardBody).toContain("Range Control");
+    expect(dashboardBody).toContain("Advanced Controls");
+    expect(dashboardBody).toContain("gain-mode");
+    expect(dashboardBody).toContain("gain-value");
+    expect(dashboardBody).toContain("sea-clutter-mode");
+    expect(dashboardBody).toContain("sea-clutter-value");
+    expect(dashboardBody).toContain("rain-clutter-mode");
+    expect(dashboardBody).toContain("rain-clutter-value");
+    expect(dashboardBody).toContain("range-meters");
+    expect(dashboardBody).toContain("/api/radar/control/settings");
     expect(dashboardBody).toContain("Replay");
     expect(dashboardBody).toContain("replay-slider");
     expect(dashboardBody).toContain("/api/radar/replay/playback");
