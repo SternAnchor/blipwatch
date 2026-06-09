@@ -38,7 +38,9 @@ describe("loadConfig", () => {
       radarTargetPersistenceMs: 4000,
       radarUdpPort: 6678,
       replayFrameIntervalMs: 1000,
-      replayRetentionSeconds: 300
+      replayRetentionSeconds: 300,
+      targetLostTimeoutSeconds: 10,
+      targetTrackingEnabled: true
     });
   });
 
@@ -92,7 +94,9 @@ describe("loadConfig", () => {
         RADAR_TARGET_PERSISTENCE_MS: "3000",
         RADAR_UDP_PORT: "6679",
         REPLAY_FRAME_INTERVAL_MS: "250",
-        REPLAY_RETENTION_SECONDS: "60"
+        REPLAY_RETENTION_SECONDS: "60",
+        TARGET_LOST_TIMEOUT_SECONDS: "30",
+        TARGET_TRACKING_ENABLED: "false"
       })
     ).toEqual({
       calibrationCaptureDirectory: "tmp/calibration",
@@ -128,7 +132,9 @@ describe("loadConfig", () => {
       radarTargetPersistenceMs: 3000,
       radarUdpPort: 6679,
       replayFrameIntervalMs: 250,
-      replayRetentionSeconds: 60
+      replayRetentionSeconds: 60,
+      targetLostTimeoutSeconds: 30,
+      targetTrackingEnabled: false
     });
   });
 
@@ -211,6 +217,12 @@ describe("loadConfig", () => {
     );
     expect(() => loadConfig({ PORT_FALLBACK_MAX_ATTEMPTS: "0" })).toThrow(
       "PORT_FALLBACK_MAX_ATTEMPTS must be greater than 0"
+    );
+    expect(() => loadConfig({ TARGET_LOST_TIMEOUT_SECONDS: "0" })).toThrow(
+      "TARGET_LOST_TIMEOUT_SECONDS must be greater than 0"
+    );
+    expect(() => loadConfig({ TARGET_TRACKING_ENABLED: "maybe" })).toThrow(
+      'TARGET_TRACKING_ENABLED must be one of: true, false, 1, 0; received "maybe"'
     );
     expect(() => loadConfig({ LOG_LEVEL: "trace" })).toThrow('LOG_LEVEL must be one of: debug, info; received "trace"');
     expect(() => loadConfig({ RADAR_INTERFACE: "   " })).toThrow("RADAR_INTERFACE must not be empty");

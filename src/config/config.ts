@@ -38,7 +38,9 @@ const DEFAULTS = {
   radarTargetPersistenceMs: 4_000,
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1000,
-  replayRetentionSeconds: 300
+  replayRetentionSeconds: 300,
+  targetLostTimeoutSeconds: 10,
+  targetTrackingEnabled: true
 } as const;
 
 export interface BlipWatchConfig {
@@ -76,6 +78,8 @@ export interface BlipWatchConfig {
   readonly radarUdpPort: number;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
+  readonly targetLostTimeoutSeconds: number;
+  readonly targetTrackingEnabled: boolean;
 }
 
 export class ConfigurationError extends Error {
@@ -191,6 +195,16 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     env.REPLAY_RETENTION_SECONDS,
     "REPLAY_RETENTION_SECONDS",
     DEFAULTS.replayRetentionSeconds
+  ),
+  targetLostTimeoutSeconds: parsePositiveInteger(
+    env.TARGET_LOST_TIMEOUT_SECONDS,
+    "TARGET_LOST_TIMEOUT_SECONDS",
+    DEFAULTS.targetLostTimeoutSeconds
+  ),
+  targetTrackingEnabled: parseBoolean(
+    env.TARGET_TRACKING_ENABLED,
+    "TARGET_TRACKING_ENABLED",
+    DEFAULTS.targetTrackingEnabled
   )
 });
 

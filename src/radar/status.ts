@@ -1,5 +1,6 @@
 import type { RadarRenderPalette } from "../config/config.js";
 import type { ReplayMetadata } from "../replay/replay-buffer.js";
+import type { RadarTargetManagerStatus } from "../targets/target-manager.js";
 
 export type RadarOperatingState = "standby" | "transmit" | "unknown" | "waking-up";
 export type RadarOperatingStateSource = "inferred" | "report" | "traffic";
@@ -165,4 +166,5 @@ export interface RadarStatus {
   readonly renderer: RadarRendererStatus;
   readonly replay: ReplayMetadata;
   readonly streaming: RadarStreamingStatus;
+  readonly targets: RadarTargetManagerStatus;
 }

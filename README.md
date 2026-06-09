@@ -408,6 +408,8 @@ BlipWatch is configured through environment variables.
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
 | `REPLAY_FRAME_INTERVAL_MS` | `1000` | Minimum interval between captured replay frames. |
+| `TARGET_TRACKING_ENABLED` | `true` | Enables the Phase 4 target abstraction and lifecycle manager. Native target decoding and detection sources are added separately. |
+| `TARGET_LOST_TIMEOUT_SECONDS` | `10` | Time since last observation before an active target is marked `lost`. |
 | `LOG_LEVEL` | `info` | Logging verbosity. Use `debug` for packet, decode, render, replay, and request diagnostics. |
 
 Example:

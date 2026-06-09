@@ -40,7 +40,9 @@ const config: BlipWatchConfig = {
   radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
-  replayRetentionSeconds: 3
+  replayRetentionSeconds: 3,
+  targetLostTimeoutSeconds: 10,
+  targetTrackingEnabled: true
 };
 
 const metadata: RadarImageMetadata = {

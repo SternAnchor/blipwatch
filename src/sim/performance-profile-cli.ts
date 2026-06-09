@@ -76,7 +76,9 @@ const createProfileConfig = (options: ProfileOptions): BlipWatchConfig => ({
   radarTargetPersistenceMs: 4000,
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1,
-  replayRetentionSeconds: 300
+  replayRetentionSeconds: 300,
+  targetLostTimeoutSeconds: 10,
+  targetTrackingEnabled: false
 });
 
 const createSyntheticSpoke = (index: number, options: ProfileOptions): RadarSpoke => {

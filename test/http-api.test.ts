@@ -55,7 +55,9 @@ const config: BlipWatchConfig = {
   radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1,
-  replayRetentionSeconds: 300
+  replayRetentionSeconds: 300,
+  targetLostTimeoutSeconds: 10,
+  targetTrackingEnabled: true
 };
 
 const capturedAt = "2026-06-07T00:00:00.000Z";
@@ -301,6 +303,26 @@ const radarStatus = (): RadarStatus => ({
     messagesSent: 0,
     totalClientsConnected: 0,
     updatesDropped: 0
+  },
+  targets: {
+    activeCount: 0,
+    deletedCount: 0,
+    enabled: true,
+    lostCount: 0,
+    lostTimeoutSeconds: 10,
+    sourceCounts: {
+      ais: 0,
+      "blipwatch-detected": 0,
+      "halo-native": 0,
+      manual: 0
+    },
+    statusCounts: {
+      lost: 0,
+      new: 0,
+      tracking: 0
+    },
+    totalCreated: 0,
+    totalUpdated: 0
   }
 });
 
@@ -496,6 +518,11 @@ describe("HTTP API", () => {
         imageAvailable: true,
         renderState: "ready",
         spokeCount: 7
+      },
+      targets: {
+        activeCount: 0,
+        enabled: true,
+        lostTimeoutSeconds: 10
       }
     });
 

@@ -12,6 +12,7 @@ import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver, type RadarPacket } from "./radar/receiver.js";
 import type { RadarOperatingState, RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
+import { createRadarTargetManager } from "./targets/target-manager.js";
 
 export interface BlipWatchServer {
   readonly logger: Logger;
@@ -64,6 +65,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const discovery = createRadarDiscovery({ config, logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
+  const targetManager = createRadarTargetManager({ config, logger });
   const calibrationPackets: CalibrationPacketSnapshot[] = [];
   let capturedFirstDecodedPacket = false;
   let lastReplayCaptureAt: Date | undefined;
@@ -109,7 +111,8 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       receiver: receiverStatus,
       renderer: rendererStatus,
       replay: replayStatus,
-      streaming: httpApi.getStreamingStats()
+      streaming: httpApi.getStreamingStats(),
+      targets: targetManager.getStatus()
     };
   };
   const calibrationCapture = createCalibrationCapture({
@@ -368,7 +371,9 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   radarTargetPersistenceMs: config.radarTargetPersistenceMs,
   radarUdpPort: config.radarUdpPort,
   replayFrameIntervalMs: config.replayFrameIntervalMs,
-  replayRetentionSeconds: config.replayRetentionSeconds
+  replayRetentionSeconds: config.replayRetentionSeconds,
+  targetLostTimeoutSeconds: config.targetLostTimeoutSeconds,
+  targetTrackingEnabled: String(config.targetTrackingEnabled)
 });
 
 const getRadarStatusDiagnostics = ({
