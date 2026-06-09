@@ -130,7 +130,8 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     radarControl: control,
     radarStatus: getRadarStatus,
     renderer,
-    replayBuffer
+    replayBuffer,
+    targetManager
   });
 
   return {

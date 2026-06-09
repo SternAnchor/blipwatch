@@ -12,6 +12,7 @@ import { navicoControlRangeLimits, type RadarControl, type RadarRangeRequest, ty
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
 import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
+import type { RadarTargetManager } from "../targets/target-manager.js";
 
 export interface HttpApi {
   address(): AddressInfo | undefined;
@@ -32,6 +33,7 @@ interface HttpApiOptions {
   readonly renderer: RadarImageRenderer;
   readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
+  readonly targetManager: RadarTargetManager;
 }
 
 export interface RadarStreamUpdate {
@@ -63,7 +65,8 @@ export const createHttpApi = ({
   radarControl,
   renderer,
   radarStatus,
-  replayBuffer
+  replayBuffer,
+  targetManager
 }: HttpApiOptions): HttpApi => {
   let server: Server | undefined;
   const stream = createRadarStream({ logger, radarStatus, renderer, replayBuffer });
@@ -94,7 +97,8 @@ export const createHttpApi = ({
           radarStatus,
           renderer,
           replayBuffer,
-          stream
+          stream,
+          targetManager
         });
 
         try {
@@ -144,7 +148,8 @@ const createBlipWatchHttpServer = ({
   radarStatus,
   renderer,
   replayBuffer,
-  stream
+  stream,
+  targetManager
 }: HttpServerOptions): Server => {
   const server = createServer((request, response) => {
         logger.debug(
@@ -177,6 +182,12 @@ const createBlipWatchHttpServer = ({
           renderer.clear();
           stream.publish({ reason: "control" });
           sendJson(response, 200, { ok: true });
+          return;
+        }
+
+        const targetRoute = parseTargetRoute(url);
+        if (targetRoute) {
+          void handleTargetRequest(request, response, targetManager, targetRoute, stream);
           return;
         }
 
@@ -616,6 +627,160 @@ const handleRadarControlSettingsRequest = async (
 
     sendJson(response, 500, { error: "radar_control_setting_failed", message: "Radar control setting failed." });
   }
+};
+
+interface TargetRoute {
+  readonly action?: "confirm" | "unconfirm";
+  readonly id?: string;
+}
+
+const parseTargetRoute = (url: URL): TargetRoute | undefined => {
+  const basePath = apiPath("/targets");
+  if (url.pathname === basePath) {
+    return {};
+  }
+
+  if (!url.pathname.startsWith(`${basePath}/`)) {
+    return undefined;
+  }
+
+  const parts = url.pathname.slice(basePath.length + 1).split("/").filter(Boolean);
+  if (parts.length === 1) {
+    return { id: decodeURIComponent(parts[0] ?? "") };
+  }
+
+  if (parts.length === 2 && (parts[1] === "confirm" || parts[1] === "unconfirm")) {
+    return {
+      action: parts[1],
+      id: decodeURIComponent(parts[0] ?? "")
+    };
+  }
+
+  return undefined;
+};
+
+const handleTargetRequest = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  targetManager: RadarTargetManager,
+  route: TargetRoute,
+  stream: RadarStream
+): Promise<void> => {
+  if (request.method === "GET" && !route.id && !route.action) {
+    sendJson(response, 200, {
+      status: targetManager.getStatus(),
+      targets: targetManager.listTargets()
+    });
+    return;
+  }
+
+  if (request.method === "GET" && route.id && !route.action) {
+    const target = targetManager.getTarget(route.id);
+    if (!target) {
+      sendJson(response, 404, { error: "target_not_found", message: "Target was not found." });
+      return;
+    }
+
+    sendJson(response, 200, { target });
+    return;
+  }
+
+  if (request.method === "PATCH" && route.id && !route.action) {
+    await handleTargetRenameRequest(request, response, targetManager, route.id, stream);
+    return;
+  }
+
+  if (request.method === "POST" && route.id && route.action === "confirm") {
+    sendTargetMutationResult(response, targetManager.confirmTarget(route.id), stream);
+    return;
+  }
+
+  if (request.method === "POST" && route.id && route.action === "unconfirm") {
+    sendTargetMutationResult(response, targetManager.unconfirmTarget(route.id), stream);
+    return;
+  }
+
+  if (request.method === "DELETE" && route.id && !route.action) {
+    if (!targetManager.deleteTarget(route.id)) {
+      sendJson(response, 404, { error: "target_not_found", message: "Target was not found." });
+      return;
+    }
+
+    stream.publish({ reason: "status" });
+    sendJson(response, 200, { deleted: true, id: route.id });
+    return;
+  }
+
+  sendJson(response, 405, { error: "method_not_allowed" });
+};
+
+const handleTargetRenameRequest = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  targetManager: RadarTargetManager,
+  id: string,
+  stream: RadarStream
+): Promise<void> => {
+  try {
+    const body = await readJsonBody(request);
+    const parsed = parseTargetRenameRequest(body);
+    if (!parsed.ok) {
+      sendJson(response, 400, { error: parsed.error, message: parsed.message });
+      return;
+    }
+
+    const target = targetManager.renameTarget(id, parsed.value.name);
+    sendTargetMutationResult(response, target, stream);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      sendJson(response, error.statusCode, { error: error.code, message: error.message });
+      return;
+    }
+
+    sendJson(response, 500, { error: "target_update_failed", message: "Target update failed." });
+  }
+};
+
+const sendTargetMutationResult = (
+  response: ServerResponse,
+  target: ReturnType<RadarTargetManager["confirmTarget"]>,
+  stream: RadarStream
+): void => {
+  if (!target) {
+    sendJson(response, 404, { error: "target_not_found", message: "Target was not found." });
+    return;
+  }
+
+  stream.publish({ reason: "status" });
+  sendJson(response, 200, { target });
+};
+
+const parseTargetRenameRequest = (
+  body: unknown
+):
+  | { readonly ok: true; readonly value: { readonly name?: string } }
+  | { readonly error: string; readonly message: string; readonly ok: false } => {
+  if (!isObject(body)) {
+    return { error: "invalid_body", message: "Expected a JSON object body.", ok: false };
+  }
+
+  if (!("name" in body)) {
+    return { error: "missing_name", message: "Field `name` is required.", ok: false };
+  }
+
+  if (body.name === null) {
+    return { ok: true, value: {} };
+  }
+
+  if (typeof body.name !== "string") {
+    return { error: "invalid_name", message: "Field `name` must be a string or null.", ok: false };
+  }
+
+  if (body.name.trim().length > 120) {
+    return { error: "invalid_name", message: "Field `name` must be 120 characters or fewer.", ok: false };
+  }
+
+  return { ok: true, value: { name: body.name } };
 };
 
 type RadarControlSettingsRequest =

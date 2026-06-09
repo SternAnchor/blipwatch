@@ -19,6 +19,7 @@ import type { RadarRangeRequest, RadarTuningRequestResult, RadarTuningSettingReq
 import type { RadarImageRenderer } from "../src/radar/renderer.js";
 import type { RadarStatus } from "../src/radar/status.js";
 import type { ReplayBuffer } from "../src/replay/replay-buffer.js";
+import { createRadarTargetManager, type RadarTargetManager } from "../src/targets/target-manager.js";
 import { createMemorySink } from "./support/logger.js";
 
 const config: BlipWatchConfig = {
@@ -195,6 +196,14 @@ const createReplayBuffer = (): ReplayBuffer => ({
   }
 });
 
+const createTargetManager = (): RadarTargetManager => {
+  const { sink } = createMemorySink();
+  return createRadarTargetManager({
+    config,
+    logger: createLogger({ level: "debug", sink })
+  });
+};
+
 const radarStatus = (): RadarStatus => ({
   control: {
     capabilities: controlCapabilities,
@@ -342,7 +351,8 @@ const startApi = async (): Promise<string> => {
     logger: createLogger({ level: "debug", sink }),
     renderer: createRenderer(),
     radarStatus,
-    replayBuffer: createReplayBuffer()
+    replayBuffer: createReplayBuffer(),
+    targetManager: createTargetManager()
   });
   await api.start();
 
@@ -623,6 +633,118 @@ describe("HTTP API", () => {
     await expect(invalidSpeed.json()).resolves.toMatchObject({ error: "invalid_speed" });
   });
 
+  it("exposes target list, read, rename, confirm, unconfirm, and delete endpoints", async () => {
+    const { sink } = createMemorySink();
+    const targetManager = createTargetManager();
+    const target = targetManager.upsertTarget({
+      bearingDegrees: 42,
+      confidence: 0.75,
+      id: "halo-native-1",
+      observedAt: new Date(),
+      rangeMeters: 120,
+      source: "halo-native"
+    });
+    api = createHttpApi({
+      config,
+      logger: createLogger({ level: "debug", sink }),
+      radarStatus,
+      renderer: createRenderer(),
+      replayBuffer: createReplayBuffer(),
+      targetManager
+    });
+    await api.start();
+
+    const port = api.address()?.port;
+    if (!port) {
+      throw new Error("HTTP API did not expose a bound port");
+    }
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    const list = await fetch(`${baseUrl}/api/targets`);
+    expect(list.status).toBe(200);
+    await expect(list.json()).resolves.toMatchObject({
+      status: {
+        activeCount: 1,
+        totalCreated: 1
+      },
+      targets: [
+        {
+          id: target.id,
+          rangeMeters: 120,
+          source: "halo-native"
+        }
+      ]
+    });
+
+    const read = await fetch(`${baseUrl}/api/targets/${target.id}`);
+    expect(read.status).toBe(200);
+    await expect(read.json()).resolves.toMatchObject({
+      target: {
+        confirmed: false,
+        id: target.id
+      }
+    });
+
+    const rename = await fetch(`${baseUrl}/api/targets/${target.id}`, {
+      body: JSON.stringify({ name: "Dock marker" }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH"
+    });
+    expect(rename.status).toBe(200);
+    await expect(rename.json()).resolves.toMatchObject({
+      target: {
+        id: target.id,
+        name: "Dock marker"
+      }
+    });
+
+    const confirm = await fetch(`${baseUrl}/api/targets/${target.id}/confirm`, { method: "POST" });
+    expect(confirm.status).toBe(200);
+    await expect(confirm.json()).resolves.toMatchObject({
+      target: {
+        confirmed: true,
+        id: target.id
+      }
+    });
+
+    const unconfirm = await fetch(`${baseUrl}/api/targets/${target.id}/unconfirm`, { method: "POST" });
+    expect(unconfirm.status).toBe(200);
+    await expect(unconfirm.json()).resolves.toMatchObject({
+      target: {
+        confirmed: false,
+        id: target.id
+      }
+    });
+
+    const clearName = await fetch(`${baseUrl}/api/targets/${target.id}`, {
+      body: JSON.stringify({ name: null }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH"
+    });
+    expect(clearName.status).toBe(200);
+    const cleared = (await clearName.json()) as { target: { name?: string } };
+    expect(cleared.target.name).toBeUndefined();
+
+    const invalidRename = await fetch(`${baseUrl}/api/targets/${target.id}`, {
+      body: JSON.stringify({ name: 42 }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH"
+    });
+    expect(invalidRename.status).toBe(400);
+    await expect(invalidRename.json()).resolves.toMatchObject({ error: "invalid_name" });
+
+    const missing = await fetch(`${baseUrl}/api/targets/missing`);
+    expect(missing.status).toBe(404);
+    await expect(missing.json()).resolves.toMatchObject({ error: "target_not_found" });
+
+    const deleted = await fetch(`${baseUrl}/api/targets/${target.id}`, { method: "DELETE" });
+    expect(deleted.status).toBe(200);
+    await expect(deleted.json()).resolves.toMatchObject({ deleted: true, id: target.id });
+
+    const deletedRead = await fetch(`${baseUrl}/api/targets/${target.id}`);
+    expect(deletedRead.status).toBe(404);
+  });
+
   it("falls back to the next HTTP port when the configured port is already in use", async () => {
     const blockedPort = await findAdjacentPortPair();
     const blocker = await listenOnPort(blockedPort);
@@ -645,7 +767,8 @@ describe("HTTP API", () => {
       logger: createLogger({ level: "debug", sink }),
       renderer: createRenderer(),
       radarStatus,
-      replayBuffer: createReplayBuffer()
+      replayBuffer: createReplayBuffer(),
+      targetManager: createTargetManager()
     });
 
     try {
@@ -736,7 +859,8 @@ describe("HTTP API", () => {
       radarControl,
       radarStatus,
       renderer,
-      replayBuffer: createReplayBuffer()
+      replayBuffer: createReplayBuffer(),
+      targetManager: createTargetManager()
     });
     await api.start();
 
