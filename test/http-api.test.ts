@@ -431,6 +431,11 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
     expect(dashboardBody).toContain("Clear Screen");
+    expect(dashboardBody).toContain("Targets");
+    expect(dashboardBody).toContain("target-overlay");
+    expect(dashboardBody).toContain("target-overlay-toggle");
+    expect(dashboardBody).toContain("target-list");
+    expect(dashboardBody).toContain("/api/targets");
     expect(dashboardBody).toContain("Active Pixels");
     expect(dashboardBody).toContain("Replay Memory");
     expect(dashboardBody).toContain("Heap Used");

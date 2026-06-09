@@ -1116,6 +1116,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       .viewer,
       .status-panel,
+      .target-panel,
       .replay-panel,
       .details {
         background: var(--panel);
@@ -1163,6 +1164,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         max-height: calc(100vh - 116px);
         min-height: 0;
         padding: 12px;
+        position: relative;
       }
 
       .radar-frame img {
@@ -1174,13 +1176,41 @@ const renderDashboardHtml = (): string => `<!doctype html>
         width: 100%;
       }
 
+      .radar-overlay {
+        inset: 12px;
+        pointer-events: none;
+        position: absolute;
+      }
+
+      .target-marker {
+        border: 2px solid var(--warning);
+        border-radius: 999px;
+        height: 18px;
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 18px;
+      }
+
+      .target-marker.confirmed {
+        border-color: var(--accent);
+      }
+
+      .target-marker.lost {
+        border-color: var(--muted);
+        opacity: 0.55;
+      }
+
       .side {
         display: grid;
         gap: 16px;
-        grid-template-rows: auto auto minmax(260px, 1fr);
+        grid-template-rows: auto auto auto minmax(260px, 1fr);
       }
 
       .status-panel {
+        overflow: hidden;
+      }
+
+      .target-panel {
         overflow: hidden;
       }
 
@@ -1332,8 +1362,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
       input[type="datetime-local"],
       input[type="number"],
-      select,
-      input[type="range"] {
+      input[type="range"],
+      input[type="text"],
+      select {
         accent-color: var(--accent);
         background: #111518;
         border: 1px solid var(--border);
@@ -1353,6 +1384,53 @@ const renderDashboardHtml = (): string => `<!doctype html>
         display: grid;
         gap: 12px;
         padding: 14px;
+      }
+
+      .target-body {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .target-tools {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+      }
+
+      .target-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .target-card {
+        background: #111518;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .target-card.lost {
+        opacity: 0.68;
+      }
+
+      .target-row {
+        align-items: center;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+      }
+
+      .target-meta {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .target-name {
+        min-height: 38px;
       }
 
       .replay-row {
@@ -1445,6 +1523,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         </div>
         <div class="radar-frame">
           <img id="radar-image" alt="Latest radar image" src="/api/radar/latest.png">
+          <div class="radar-overlay" id="target-overlay" aria-hidden="true"></div>
         </div>
       </section>
 
@@ -1550,6 +1629,26 @@ const renderDashboardHtml = (): string => `<!doctype html>
           </div>
         </section>
 
+        <section class="target-panel" aria-labelledby="targets-title">
+          <div class="panel-header">
+            <div>
+              <h2 id="targets-title">Targets</h2>
+              <div class="subtle" id="target-summary">No targets</div>
+            </div>
+            <a href="/api/targets">JSON</a>
+          </div>
+          <div class="target-body">
+            <div class="target-tools">
+              <label>
+                <input id="target-overlay-toggle" type="checkbox" checked>
+                Overlay
+              </label>
+              <button id="refresh-targets-button" type="button">Refresh</button>
+            </div>
+            <div class="target-list" id="target-list"></div>
+          </div>
+        </section>
+
         <section class="replay-panel" aria-labelledby="replay-title">
           <div class="panel-header">
             <div>
@@ -1592,6 +1691,11 @@ const renderDashboardHtml = (): string => `<!doctype html>
 
     <script>
       const image = document.getElementById("radar-image");
+      const targetOverlay = document.getElementById("target-overlay");
+      const targetOverlayToggle = document.getElementById("target-overlay-toggle");
+      const targetList = document.getElementById("target-list");
+      const targetSummary = document.getElementById("target-summary");
+      const refreshTargetsButton = document.getElementById("refresh-targets-button");
       const phase = document.getElementById("phase");
       const phaseName = document.getElementById("phase-name");
       const phaseSummary = document.getElementById("phase-summary");
@@ -1635,6 +1739,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
       let controlRequestPending = false;
       let playbackRequestPending = false;
       let selectedRangeMeters = 463;
+      let targets = [];
+      let targetStatus = null;
       let replayFrames = [];
       let playback = {
         currentFrameAt: null,
@@ -1743,6 +1849,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         tuningControls.range.value.textContent = closest.label;
         tuningControls.range.decrease.disabled = disabled || controlRequestPending || index <= 0;
         tuningControls.range.increase.disabled = disabled || controlRequestPending || index >= rangePresets[selectedUnit].length - 1;
+        renderTargetOverlay();
       };
       const formatTuningSetting = (capability, setting) => {
         if (!capability?.supported) {
@@ -1784,6 +1891,114 @@ const renderDashboardHtml = (): string => `<!doctype html>
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return minutes > 0 ? minutes + "m " + remainingSeconds + "s" : remainingSeconds + "s";
+      };
+      const formatBearing = (bearingDegrees) =>
+        typeof bearingDegrees === "number" ? Math.round(bearingDegrees).toString().padStart(3, "0") + "°" : "-";
+      const formatTargetMeta = (target) =>
+        formatBearing(target.bearingDegrees) + " / " + formatRangeMeters(target.rangeMeters) + " / " + target.source + " / " + target.status;
+      const renderTargetOverlay = () => {
+        targetOverlay.replaceChildren();
+        if (!targetOverlayToggle.checked) {
+          return;
+        }
+
+        for (const target of targets) {
+          if (typeof target.bearingDegrees !== "number" || typeof target.rangeMeters !== "number") {
+            continue;
+          }
+
+          const rangeRatio = Math.max(0, Math.min(1, target.rangeMeters / Math.max(selectedRangeMeters, 1)));
+          const radians = target.bearingDegrees * Math.PI / 180;
+          const marker = document.createElement("span");
+          marker.className = "target-marker" + (target.confirmed ? " confirmed" : "") + (target.status === "lost" ? " lost" : "");
+          marker.title = (target.name || target.id) + " " + formatTargetMeta(target);
+          marker.style.left = (50 + Math.sin(radians) * rangeRatio * 50) + "%";
+          marker.style.top = (50 - Math.cos(radians) * rangeRatio * 50) + "%";
+          targetOverlay.append(marker);
+        }
+      };
+      const renderTargets = () => {
+        const activeCount = targetStatus?.activeCount ?? targets.filter((target) => target.status !== "lost").length;
+        const lostCount = targetStatus?.lostCount ?? targets.filter((target) => target.status === "lost").length;
+        targetSummary.textContent = activeCount + " active" + (lostCount ? " / " + lostCount + " lost" : "");
+        if (!targets.length) {
+          const empty = document.createElement("div");
+          empty.className = "subtle";
+          empty.textContent = "No targets";
+          targetList.replaceChildren(empty);
+          renderTargetOverlay();
+          return;
+        }
+
+        targetList.replaceChildren(...targets.map((target) => {
+          const card = document.createElement("article");
+          card.className = "target-card" + (target.status === "lost" ? " lost" : "");
+          card.dataset.targetId = target.id;
+
+          const row = document.createElement("div");
+          row.className = "target-row";
+
+          const name = document.createElement("input");
+          name.className = "target-name";
+          name.type = "text";
+          name.value = target.name ?? "";
+          name.placeholder = target.id;
+          name.setAttribute("aria-label", "Target name");
+
+          const confirm = document.createElement("button");
+          confirm.dataset.action = target.confirmed ? "unconfirm" : "confirm";
+          confirm.type = "button";
+          confirm.textContent = target.confirmed ? "Unconfirm" : "Confirm";
+
+          const remove = document.createElement("button");
+          remove.dataset.action = "delete";
+          remove.type = "button";
+          remove.textContent = "Delete";
+
+          row.append(name, confirm, remove);
+
+          const meta = document.createElement("div");
+          meta.className = "target-meta";
+          meta.textContent = formatTargetMeta(target);
+
+          card.append(row, meta);
+          return card;
+        }));
+        renderTargetOverlay();
+      };
+      const loadTargets = async () => {
+        const response = await fetch("/api/targets", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Target refresh failed");
+        }
+
+        const body = await response.json();
+        targets = body.targets ?? [];
+        targetStatus = body.status ?? null;
+        renderTargets();
+      };
+      const requestTargetRename = async (id, name) => {
+        const response = await fetch("/api/targets/" + encodeURIComponent(id), {
+          body: JSON.stringify({ name: name.trim() || null }),
+          headers: { "content-type": "application/json" },
+          method: "PATCH"
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.message ?? "Target rename failed");
+        }
+        await loadTargets();
+      };
+      const requestTargetAction = async (id, action) => {
+        const path = action === "delete"
+          ? "/api/targets/" + encodeURIComponent(id)
+          : "/api/targets/" + encodeURIComponent(id) + "/" + action;
+        const response = await fetch(path, { method: action === "delete" ? "DELETE" : "POST" });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.message ?? "Target update failed");
+        }
+        await loadTargets();
       };
 
       const setControlButtons = (control) => {
@@ -2086,6 +2301,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
             formatRangeControl(status.control?.capabilities?.range, status.control?.tuning?.range)
           );
           await loadReplay();
+          await loadTargets();
           actions.replaceChildren(...(diagnostic.nextActions ?? []).map((action) => {
             const item = document.createElement("li");
             item.textContent = action;
@@ -2100,8 +2316,50 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(phaseSummary, error instanceof Error ? error.message : String(error));
           setControlButtons(undefined);
           setTuningControls(undefined);
+          renderTargets();
         }
       };
+
+      const handleTargetError = (error) => {
+        phase.className = "phase error";
+        setText(phaseName, "target-error");
+        setText(phaseSummary, error instanceof Error ? error.message : String(error));
+      };
+
+      targetOverlayToggle.addEventListener("change", () => {
+        renderTargetOverlay();
+      });
+      refreshTargetsButton.addEventListener("click", () => {
+        void loadTargets().catch(handleTargetError);
+      });
+      targetList.addEventListener("change", (event) => {
+        if (!(event.target instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const card = event.target.closest(".target-card");
+        const id = card?.dataset.targetId;
+        if (id) {
+          void requestTargetRename(id, event.target.value).catch(handleTargetError);
+        }
+      });
+      targetList.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+          event.target.blur();
+        }
+      });
+      targetList.addEventListener("click", (event) => {
+        if (!(event.target instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const card = event.target.closest(".target-card");
+        const id = card?.dataset.targetId;
+        const action = event.target.dataset.action;
+        if (id && action) {
+          void requestTargetAction(id, action).catch(handleTargetError);
+        }
+      });
 
       standbyButton.addEventListener("click", () => {
         void requestControl("standby");
@@ -2177,6 +2435,27 @@ const renderDashboardHtml = (): string => `<!doctype html>
           void requestTuning(button.dataset.setting);
         });
       });
+      const connectRadarStream = () => {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(protocol + "//" + window.location.host + "/api/radar/stream");
+        socket.addEventListener("message", (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.reason === "target") {
+              void loadTargets().catch(handleTargetError);
+            }
+            if (message.reason === "frame" || message.reason === "playback") {
+              updateRadarImage();
+            }
+          } catch {
+            // Ignore malformed stream messages; periodic refresh remains the fallback.
+          }
+        });
+        socket.addEventListener("close", () => {
+          window.setTimeout(connectRadarStream, 2000);
+        });
+      };
+      connectRadarStream();
       void refresh();
       setInterval(refresh, 2000);
     </script>
