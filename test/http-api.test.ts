@@ -398,6 +398,7 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("Radar State");
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
+    expect(dashboardBody).toContain("Clear Screen");
     expect(dashboardBody).toContain("Active Pixels");
     expect(dashboardBody).toContain("Replay Memory");
     expect(dashboardBody).toContain("Heap Used");
@@ -419,6 +420,7 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("range-increase");
     expect(dashboardBody).toContain("Imperial");
     expect(dashboardBody).toContain("Metric");
+    expect(dashboardBody).toContain("/api/radar/clear");
     expect(dashboardBody).toContain("/api/radar/control/settings");
     expect(dashboardBody).toContain("Replay");
     expect(dashboardBody).toContain("replay-slider");
@@ -779,6 +781,11 @@ describe("HTTP API", () => {
     await expect(range.json()).resolves.toMatchObject({ ok: true, setting: "range", supported: true });
     expect(radarControl.requestRange).toHaveBeenCalledWith({ rangeMeters: 926 });
     expect(renderer.clear).toHaveBeenCalledOnce();
+
+    const clear = await fetch(`${baseUrl}/api/radar/clear`, { method: "POST" });
+    expect(clear.status).toBe(200);
+    await expect(clear.json()).resolves.toMatchObject({ ok: true });
+    expect(renderer.clear).toHaveBeenCalledTimes(2);
   });
 
   it("reports unavailable radar control endpoints when no control handler is configured", async () => {

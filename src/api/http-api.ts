@@ -173,6 +173,13 @@ const createBlipWatchHttpServer = ({
           return;
         }
 
+        if (request.method === "POST" && url.pathname === apiPath("/radar/clear")) {
+          renderer.clear();
+          stream.publish({ reason: "control" });
+          sendJson(response, 200, { ok: true });
+          return;
+        }
+
         if (request.method !== "GET") {
           sendJson(response, 405, { error: "method_not_allowed" });
           return;
@@ -1044,7 +1051,13 @@ const renderDashboardHtml = (): string => `<!doctype html>
       .control-actions {
         display: grid;
         gap: 8px;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .control-actions button {
+        min-width: 0;
+        padding-left: 8px;
+        padding-right: 8px;
       }
 
       .tuning-controls {
@@ -1282,6 +1295,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
             <div class="control-actions" aria-label="Radar controls">
               <button id="standby-button" type="button">Standby</button>
               <button id="transmit-button" type="button">Transmit</button>
+              <button id="clear-screen-button" type="button">Clear Screen</button>
             </div>
             <div class="tuning-controls" aria-label="Advanced radar controls">
               <h3>Advanced Controls</h3>
@@ -1419,6 +1433,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       const rawStatus = document.getElementById("raw-status");
       const standbyButton = document.getElementById("standby-button");
       const transmitButton = document.getElementById("transmit-button");
+      const clearScreenButton = document.getElementById("clear-screen-button");
       const liveButton = document.getElementById("live-button");
       const pauseButton = document.getElementById("pause-button");
       const playButton = document.getElementById("play-button");
@@ -1610,6 +1625,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         const visibleState = control?.observedState ?? control?.desiredState;
         standbyButton.disabled = disabled;
         transmitButton.disabled = disabled;
+        clearScreenButton.disabled = controlRequestPending;
         standbyButton.classList.toggle("active", visibleState === "standby");
         transmitButton.classList.toggle("active", visibleState === "transmit");
       };
@@ -1744,6 +1760,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         controlRequestPending = true;
         standbyButton.disabled = true;
         transmitButton.disabled = true;
+        clearScreenButton.disabled = true;
         try {
           const response = await fetch("/api/radar/control/" + desiredState, { method: "POST" });
           if (!response.ok) {
@@ -1755,6 +1772,30 @@ const renderDashboardHtml = (): string => `<!doctype html>
           phase.className = "phase error";
           setText(phaseName, "control-error");
           setText(phaseSummary, error instanceof Error ? error.message : String(error));
+        } finally {
+          controlRequestPending = false;
+        }
+      };
+
+      const requestClearScreen = async () => {
+        controlRequestPending = true;
+        standbyButton.disabled = true;
+        transmitButton.disabled = true;
+        clearScreenButton.disabled = true;
+        setTuningFeedback("Clearing screen...");
+        try {
+          const response = await fetch("/api/radar/clear", { method: "POST" });
+          if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            throw new Error(body.message ?? "Clear screen request failed");
+          }
+          setTuningFeedback("Screen cleared.");
+          await refresh();
+        } catch (error) {
+          phase.className = "phase error";
+          setText(phaseName, "clear-error");
+          setText(phaseSummary, error instanceof Error ? error.message : String(error));
+          setTuningFeedback(error instanceof Error ? error.message : String(error));
         } finally {
           controlRequestPending = false;
         }
@@ -1900,6 +1941,9 @@ const renderDashboardHtml = (): string => `<!doctype html>
       });
       transmitButton.addEventListener("click", () => {
         void requestControl("transmit");
+      });
+      clearScreenButton.addEventListener("click", () => {
+        void requestClearScreen();
       });
       liveButton.addEventListener("click", () => {
         void requestPlayback({ action: "live" });

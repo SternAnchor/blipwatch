@@ -220,7 +220,7 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, tuning capabilities, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
+The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`, plus a local `Clear Screen` action backed by `POST /api/radar/clear`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, tuning capabilities, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
 
 Gain, sea clutter, rain clutter, and range control are available through both the API and dashboard advanced controls when active radar control is enabled. The payloads are based on the published Navico control interface and the GPL-compatible OpenCPN radar_pi Navico implementation, then implemented in BlipWatch as small TypeScript packet builders. Treat them as active hardware commands: confirm the radar can transmit safely, keep another display available, and validate behavior on your specific HALO model before relying on them operationally.
 
@@ -437,11 +437,11 @@ npm start
 
 ### `GET /`
 
-Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, transmit/standby controls, advanced radar control inputs, replay controls, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes status, replay metadata, and imagery automatically.
+Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, transmit/standby controls, clear screen control, advanced radar control inputs, replay controls, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes status, replay metadata, and imagery automatically.
 
 The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
 
-The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled if `RADAR_CONTROL_ENABLED=false` prevents the active command socket from starting. The dashboard range control shows unit and current range side-by-side, then steps through operator-friendly Imperial or Metric preset distances with plus/minus buttons that immediately send `rangeMeters` to the API. Standby, transmit, tuning, and range commands are active hardware commands.
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled if `RADAR_CONTROL_ENABLED=false` prevents the active command socket from starting. The dashboard range control shows unit and current range side-by-side, then steps through operator-friendly Imperial or Metric preset distances with plus/minus buttons that immediately send `rangeMeters` to the API. Standby, transmit, tuning, and range commands are active hardware commands. Clear Screen only resets BlipWatch's local rendered reflections.
 
 ### `GET /api/health`
 
@@ -685,6 +685,14 @@ curl -X POST http://localhost:8080/api/radar/control/settings \
 curl -X POST http://localhost:8080/api/radar/control/settings \
   -H 'content-type: application/json' \
   -d '{"setting":"range","rangeMeters":463}'
+```
+
+### `POST /api/radar/clear`
+
+Clears BlipWatch's current rendered radar image and publishes a stream update so connected dashboards refresh. This does not send a hardware command and does not change radar transmit, standby, gain, clutter, or range state.
+
+```bash
+curl -X POST http://localhost:8080/api/radar/clear
 ```
 
 ### `GET /api/radar/replay`
