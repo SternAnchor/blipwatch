@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { Logger } from "../logging/logger.js";
@@ -53,6 +53,7 @@ export interface RawRecordingStoreStatus {
 
 export interface RawRecordingStore {
   appendSpoke(spoke: RadarSpoke, recordedAt?: Date): Promise<RawRecordingMetadata | null>;
+  deleteRecording(id: string): Promise<boolean>;
   failActiveRecording(error: string, completedAt?: Date): Promise<RawRecordingMetadata | null>;
   getStatus(): RawRecordingStoreStatus;
   inspectRecording(id: string): Promise<RawRecordingInspection>;
@@ -123,6 +124,23 @@ export const createRawRecordingStore = ({ directory, logger }: RawRecordingStore
       totalSpokesWritten += 1;
       await persistMetadata(metadata);
       return metadata;
+    },
+    async deleteRecording(id: string): Promise<boolean> {
+      if (activeMetadata?.id === id) {
+        activeMetadata = null;
+      }
+
+      try {
+        await rm(join(directory, id), { force: false, recursive: true });
+        logger.info(`raw recording deleted id=${id}`);
+        return true;
+      } catch (error) {
+        if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+          return false;
+        }
+
+        throw error;
+      }
     },
     async failActiveRecording(error: string, completedAt = new Date()): Promise<RawRecordingMetadata | null> {
       return completeActiveRecording("failed", completedAt, error);

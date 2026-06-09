@@ -2,6 +2,7 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -9,6 +10,7 @@ import type { BlipWatchConfig } from "../config/config.js";
 import type { CalibrationCaptureStatus } from "../calibration/calibration-capture.js";
 import type { Logger } from "../logging/logger.js";
 import { navicoControlRangeLimits, type RadarControl, type RadarRangeRequest, type RadarTuningSettingRequest } from "../radar/control.js";
+import type { RawRecordingStore } from "../recording/raw-recording-store.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
 import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
@@ -33,6 +35,7 @@ interface HttpApiOptions {
   readonly renderer: RadarImageRenderer;
   readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
+  readonly recordingStore: RawRecordingStore;
   readonly targetManager: RadarTargetManager;
 }
 
@@ -66,6 +69,7 @@ export const createHttpApi = ({
   radarControl,
   renderer,
   radarStatus,
+  recordingStore,
   replayBuffer,
   targetManager
 }: HttpApiOptions): HttpApi => {
@@ -96,6 +100,7 @@ export const createHttpApi = ({
           logger,
           radarControl,
           radarStatus,
+          recordingStore,
           renderer,
           replayBuffer,
           stream,
@@ -147,6 +152,7 @@ const createBlipWatchHttpServer = ({
   logger,
   radarControl,
   radarStatus,
+  recordingStore,
   renderer,
   replayBuffer,
   stream,
@@ -183,6 +189,12 @@ const createBlipWatchHttpServer = ({
           renderer.clear();
           stream.publish({ reason: "control" });
           sendJson(response, 200, { ok: true });
+          return;
+        }
+
+        const recordingRoute = parseRecordingRoute(url);
+        if (recordingRoute) {
+          void handleRecordingRequest(request, response, recordingStore, recordingRoute);
           return;
         }
 
@@ -783,6 +795,123 @@ const parseTargetRenameRequest = (
   }
 
   return { ok: true, value: { name: body.name } };
+};
+
+interface RecordingRoute {
+  readonly action?: "download" | "start" | "status" | "stop";
+  readonly id?: string;
+}
+
+const parseRecordingRoute = (url: URL): RecordingRoute | undefined => {
+  const basePath = apiPath("/recordings");
+  if (url.pathname === basePath) {
+    return {};
+  }
+
+  if (url.pathname === `${basePath}/status`) {
+    return { action: "status" };
+  }
+
+  if (url.pathname === `${basePath}/start`) {
+    return { action: "start" };
+  }
+
+  if (url.pathname === `${basePath}/stop`) {
+    return { action: "stop" };
+  }
+
+  if (!url.pathname.startsWith(`${basePath}/`)) {
+    return undefined;
+  }
+
+  const parts = url.pathname.slice(basePath.length + 1).split("/").filter(Boolean);
+  if (parts.length === 1) {
+    return { id: decodeURIComponent(parts[0] ?? "") };
+  }
+
+  if (parts.length === 2 && parts[1] === "download") {
+    return {
+      action: "download",
+      id: decodeURIComponent(parts[0] ?? "")
+    };
+  }
+
+  return undefined;
+};
+
+const handleRecordingRequest = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  recordingStore: RawRecordingStore,
+  route: RecordingRoute
+): Promise<void> => {
+  try {
+    if (request.method === "GET" && route.action === "status") {
+      sendJson(response, 200, recordingStore.getStatus());
+      return;
+    }
+
+    if (request.method === "GET" && !route.id && !route.action) {
+      sendJson(response, 200, { recordings: await recordingStore.listRecordings() });
+      return;
+    }
+
+    if (request.method === "POST" && route.action === "start") {
+      sendJson(response, 201, { recording: await recordingStore.startRecording() });
+      return;
+    }
+
+    if (request.method === "POST" && route.action === "stop") {
+      const recording = await recordingStore.stopActiveRecording();
+      sendJson(response, recording ? 200 : 409, recording ? { recording } : { error: "no_active_recording" });
+      return;
+    }
+
+    if (request.method === "GET" && route.id && !route.action) {
+      const inspection = await recordingStore.inspectRecording(route.id);
+      sendJson(response, inspection.ok ? 200 : 404, inspection);
+      return;
+    }
+
+    if (request.method === "GET" && route.id && route.action === "download") {
+      await sendRecordingDownload(response, recordingStore, route.id);
+      return;
+    }
+
+    if (request.method === "DELETE" && route.id && !route.action) {
+      const deleted = await recordingStore.deleteRecording(route.id);
+      sendJson(response, deleted ? 200 : 404, deleted ? { deleted: true, id: route.id } : { error: "recording_not_found" });
+      return;
+    }
+
+    sendJson(response, 405, { error: "method_not_allowed" });
+  } catch (error) {
+    sendJson(response, 500, {
+      error: "recording_request_failed",
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
+
+const sendRecordingDownload = async (
+  response: ServerResponse,
+  recordingStore: RawRecordingStore,
+  id: string
+): Promise<void> => {
+  const inspection = await recordingStore.inspectRecording(id);
+  if (!inspection.ok) {
+    sendJson(response, 404, inspection);
+    return;
+  }
+
+  const body = await readFile(inspection.spokesFile);
+  response.writeHead(200, {
+    "cache-control": "no-store",
+    "content-disposition": `attachment; filename="${id}-spokes.ndjson"`,
+    "content-length": body.byteLength.toString(),
+    "content-type": "application/x-ndjson; charset=utf-8"
+  });
+  response.end(body);
 };
 
 type RadarControlSettingsRequest =

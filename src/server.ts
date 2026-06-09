@@ -11,6 +11,7 @@ import { resolveRadarInterface } from "./radar/network-interface.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver, type RadarPacket } from "./radar/receiver.js";
 import type { RadarOperatingState, RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
+import { createRawRecordingStore } from "./recording/raw-recording-store.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
 import { createRadarTargetManager, type RadarTargetLifecycleEvent } from "./targets/target-manager.js";
 
@@ -63,6 +64,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   });
   const decoder = createRadarDecoder({ logger });
   const discovery = createRadarDiscovery({ config, logger });
+  const recordingStore = createRawRecordingStore({ directory: config.rawRecordingDirectory, logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
   const pendingTargetEvents: RadarTargetLifecycleEvent[] = [];
@@ -137,6 +139,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     logger,
     radarControl: control,
     radarStatus: getRadarStatus,
+    recordingStore,
     renderer,
     replayBuffer,
     targetManager
@@ -171,6 +174,10 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
           packetsDecoded += result.spokes.length;
           for (const spoke of result.spokes) {
             lastDecodedSpokeAt = spoke.receivedAt;
+            void recordingStore.appendSpoke(spoke).catch((error) => {
+              logger.error("raw recording append failed", error);
+              void recordingStore.failActiveRecording(error instanceof Error ? error.message : String(error));
+            });
             renderer.applySpoke(spoke);
             const renderedAt = new Date();
             if (shouldCaptureReplayFrame(renderedAt, lastReplayCaptureAt, config.replayFrameIntervalMs)) {
