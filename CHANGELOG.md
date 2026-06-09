@@ -1,3 +1,16 @@
+## [1.1.0-develop.34](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.33...v1.1.0-develop.34) (2026-06-09)
+
+### Features
+
+* add clear screen control ([36d5835](https://github.com/SternAnchor/blipwatch/commit/36d5835ccff7cbc7a2c20686579c3397406d87a7))
+* add radar range stepper ([121e77c](https://github.com/SternAnchor/blipwatch/commit/121e77cc3c82d14fa93a4c6724242143f74b0b24))
+* serve dashboard favicon ([4b34838](https://github.com/SternAnchor/blipwatch/commit/4b34838ec8bb868d4ec2f223365ea5e18c351690))
+
+### Bug Fixes
+
+* clear reflections after tuning changes ([a298b11](https://github.com/SternAnchor/blipwatch/commit/a298b11e4556c3b284b390ec30feb42700789711))
+* disable radar control in e2e runtime tests ([79e1710](https://github.com/SternAnchor/blipwatch/commit/79e1710163cde2c0366984ebad73845eb57da4e9))
+
 ## [1.1.0-develop.33](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.32...v1.1.0-develop.33) (2026-06-08)
 
 ### Features
