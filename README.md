@@ -378,6 +378,46 @@ Local reference run on macOS arm64 with Node.js 25.9.0, source execution, defaul
 - 1499392 replay PNG bytes.
 - RSS delta 39600128 bytes.
 
+## Target Intelligence and Raw Recordings
+
+Phase 4 adds the foundation for target intelligence without claiming certified ARPA/MARPA behavior. Targets are normalized as `RadarTarget` records with `ais`, `blipwatch-detected`, `halo-native`, or `manual` sources, `new`, `tracking`, or `lost` status, confirmation state, name, bearing, range, confidence, and timestamps. Current production target ingestion is intentionally conservative: native HALO/MARPA target packet decoding is not implemented until MARPA-active captures prove the packet shape.
+
+The dashboard includes a `Targets` panel with inline rename, confirm/unconfirm, delete, refresh, and a toggleable radar overlay. Target changes are also streamed over `/api/radar/stream` as `reason: "target"` with a `targetEvent` payload for created, updated, renamed, confirmed, unconfirmed, deleted, and lost events.
+
+Target APIs:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/targets` | List targets with target-manager status counters. |
+| `GET` | `/api/targets/:id` | Inspect one target. |
+| `PATCH` | `/api/targets/:id` | Rename a target with `{"name":"..."}` or clear it with `{"name":null}`. |
+| `POST` | `/api/targets/:id/confirm` | Mark a target confirmed. |
+| `POST` | `/api/targets/:id/unconfirm` | Clear confirmation. |
+| `DELETE` | `/api/targets/:id` | Delete/dismiss a target. |
+
+Raw decoded-spoke recordings use `metadata.json` plus `spokes.ndjson` under `RAW_RECORDING_DIRECTORY` (`captures/recordings` by default). Each spoke line stores bearing, range, sample count, max intensity, timestamps, and base64 intensity samples. Recordings are intended for decoder/render/replay development and should be reviewed before sharing because they can reveal local vessel/marina context.
+
+Recording and replay APIs:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/recordings/status` | Current recording store counters and active recording id. |
+| `POST` | `/api/recordings/start` | Start writing decoded spokes. |
+| `POST` | `/api/recordings/stop` | Stop the active recording. |
+| `GET` | `/api/recordings` | List recording inspections. |
+| `GET` | `/api/recordings/:id` | Inspect metadata and file health. |
+| `GET` | `/api/recordings/:id/download` | Download `spokes.ndjson`. |
+| `DELETE` | `/api/recordings/:id` | Delete a recording directory. |
+| `GET` | `/api/recordings/replay` | Raw recording replay status. |
+| `POST` | `/api/recordings/:id/replay` | Replay a recording through renderer/replay capture. Optional body: `{"speed":2,"loop":false}`. |
+| `POST` | `/api/recordings/replay/playback` | Control raw replay with `{"action":"pause"}`, `resume`, or `stop`. |
+
+`/api/radar/status` includes `targets`, `recording`, and `rawReplay` diagnostics alongside receiver, decoder, renderer, control, process, streaming, and replay status. The dashboard surfaces active recording and raw replay progress in the status grid.
+
+The experimental BlipWatch-side detection scaffold in `src/targets/detection-experiment.ts` can threshold bright spoke samples and form coarse bearing/range clusters for future research. It is not connected to production target management yet, does not estimate motion, and must not be treated as collision-avoidance logic.
+
+For native HALO target work, use the repeatable capture workflow in [HALO Target and MARPA Packet Investigation](docs/halo-target-investigation.md). Capture baseline transmit, MARPA acquire, active tracking, target drop, standby, and transmit-resume windows, then compare `packets.ndjson` summaries with `npm run inspect:packets`.
+
 ## Configuration
 
 BlipWatch is configured through environment variables.
