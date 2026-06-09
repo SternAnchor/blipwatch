@@ -40,6 +40,7 @@ const config: BlipWatchConfig = {
   radarTargetMaxAgeMs: 15000,
   radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
+  rawRecordingDirectory: "captures/recordings",
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300,
   targetLostTimeoutSeconds: 10,

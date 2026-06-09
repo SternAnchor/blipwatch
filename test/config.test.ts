@@ -37,6 +37,7 @@ describe("loadConfig", () => {
       radarTargetMaxAgeMs: 15000,
       radarTargetPersistenceMs: 4000,
       radarUdpPort: 6678,
+      rawRecordingDirectory: "captures/recordings",
       replayFrameIntervalMs: 1000,
       replayRetentionSeconds: 300,
       targetLostTimeoutSeconds: 10,
@@ -93,6 +94,7 @@ describe("loadConfig", () => {
         RADAR_TARGET_MAX_AGE_MS: "12000",
         RADAR_TARGET_PERSISTENCE_MS: "3000",
         RADAR_UDP_PORT: "6679",
+        RAW_RECORDING_DIRECTORY: "tmp/recordings",
         REPLAY_FRAME_INTERVAL_MS: "250",
         REPLAY_RETENTION_SECONDS: "60",
         TARGET_LOST_TIMEOUT_SECONDS: "30",
@@ -131,6 +133,7 @@ describe("loadConfig", () => {
       radarTargetMaxAgeMs: 12000,
       radarTargetPersistenceMs: 3000,
       radarUdpPort: 6679,
+      rawRecordingDirectory: "tmp/recordings",
       replayFrameIntervalMs: 250,
       replayRetentionSeconds: 60,
       targetLostTimeoutSeconds: 30,
@@ -211,6 +214,9 @@ describe("loadConfig", () => {
     );
     expect(() => loadConfig({ OPEN_BROWSER: "maybe" })).toThrow(
       'OPEN_BROWSER must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ RAW_RECORDING_DIRECTORY: "   " })).toThrow(
+      "RAW_RECORDING_DIRECTORY must not be empty"
     );
     expect(() => loadConfig({ PORT_FALLBACK_ENABLED: "maybe" })).toThrow(
       'PORT_FALLBACK_ENABLED must be one of: true, false, 1, 0; received "maybe"'

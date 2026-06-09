@@ -414,6 +414,7 @@ BlipWatch is configured through environment variables.
 | `RADAR_TARGET_FADE_MS` | `8000` | Duration of the linear fade after the persistence window. |
 | `RADAR_TARGET_MAX_AGE_MS` | `15000` | Maximum age for a rendered return before it is removed. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
+| `RAW_RECORDING_DIRECTORY` | `captures/recordings` | Directory where raw decoded-spoke recordings are stored. `RAW_RECORDING_DIR` is also accepted as a shorter alias. |
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
 | `REPLAY_FRAME_INTERVAL_MS` | `1000` | Minimum interval between captured replay frames. |

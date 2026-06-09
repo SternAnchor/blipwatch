@@ -75,6 +75,7 @@ const createProfileConfig = (options: ProfileOptions): BlipWatchConfig => ({
   radarTargetMaxAgeMs: 15000,
   radarTargetPersistenceMs: 4000,
   radarUdpPort: 6678,
+  rawRecordingDirectory: "captures/recordings",
   replayFrameIntervalMs: 1,
   replayRetentionSeconds: 300,
   targetLostTimeoutSeconds: 10,

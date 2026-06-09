@@ -37,6 +37,7 @@ const DEFAULTS = {
   radarTargetMaxAgeMs: 15_000,
   radarTargetPersistenceMs: 4_000,
   radarUdpPort: 6678,
+  rawRecordingDirectory: "captures/recordings",
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300,
   targetLostTimeoutSeconds: 10,
@@ -76,6 +77,7 @@ export interface BlipWatchConfig {
   readonly radarTargetMaxAgeMs: number;
   readonly radarTargetPersistenceMs: number;
   readonly radarUdpPort: number;
+  readonly rawRecordingDirectory: string;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
   readonly targetLostTimeoutSeconds: number;
@@ -186,6 +188,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     DEFAULTS.radarTargetExpansion
   ),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
+  rawRecordingDirectory: parseNonEmptyString(
+    env.RAW_RECORDING_DIRECTORY ?? env.RAW_RECORDING_DIR,
+    "RAW_RECORDING_DIRECTORY",
+    DEFAULTS.rawRecordingDirectory
+  ),
   replayFrameIntervalMs: parsePositiveInteger(
     env.REPLAY_FRAME_INTERVAL_MS,
     "REPLAY_FRAME_INTERVAL_MS",
