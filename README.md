@@ -340,6 +340,15 @@ npm run replay:packets
 
 Use this format for small sanitized fixtures. Keep raw pcaps private until they have been reviewed for vessel, marina, and network details.
 
+Summarize a replay payload file when comparing baseline traffic with MARPA acquisition or active tracking windows:
+
+```bash
+REPLAY_PACKET_FILE=captures/marpa-investigation/<bundle>/packets.ndjson \
+npm run inspect:packets
+```
+
+The packet summary reports classifier counts, payload length counts, first-eight-byte prefix counts, total bytes, delay, and average byte entropy. Use it with the repeatable capture matrix in [HALO Target and MARPA Packet Investigation](docs/halo-target-investigation.md) to identify native target metadata candidates before adding decoder support.
+
 ### Radar Performance Profiling
 
 Use the deterministic radar profiler when checking Raspberry Pi 5 readiness or comparing changes across machines. It renders synthetic spokes, captures replay frames, and prints JSON with elapsed time, spoke throughput, replay bytes, and memory deltas.
