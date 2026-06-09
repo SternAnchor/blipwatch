@@ -1977,6 +1977,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         }
       };
       let controlRequestPending = false;
+      const dirtyTuningSettings = new Set();
       let playbackRequestPending = false;
       let selectedRangeMeters = 463;
       let targets = [];
@@ -2264,10 +2265,10 @@ const renderDashboardHtml = (): string => `<!doctype html>
         for (const setting of ["gain", "rainClutter", "seaClutter"]) {
           const current = tuning[setting];
           const controls = tuningControls[setting];
-          if (current?.mode) {
+          if (!dirtyTuningSettings.has(setting) && current?.mode) {
             controls.mode.value = current.mode;
           }
-          if (typeof current?.value === "number") {
+          if (!dirtyTuningSettings.has(setting) && typeof current?.value === "number") {
             controls.value.value = String(current.value);
           }
           controls.value.disabled = controls.mode.value !== "manual";
@@ -2469,6 +2470,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
             throw new Error(body.message ?? "Radar setting request failed");
           }
           setTuningFeedback("Applied " + setting + ".");
+          dirtyTuningSettings.delete(setting);
           controlRequestPending = false;
           await refresh();
         } catch (error) {
@@ -2653,7 +2655,11 @@ const renderDashboardHtml = (): string => `<!doctype html>
       });
       for (const setting of ["gain", "rainClutter", "seaClutter"]) {
         tuningControls[setting].mode.addEventListener("change", () => {
+          dirtyTuningSettings.add(setting);
           tuningControls[setting].value.disabled = tuningControls[setting].mode.value !== "manual";
+        });
+        tuningControls[setting].value.addEventListener("input", () => {
+          dirtyTuningSettings.add(setting);
         });
       }
       tuningControls.range.unit.addEventListener("change", () => {
