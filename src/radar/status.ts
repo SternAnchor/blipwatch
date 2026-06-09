@@ -1,4 +1,6 @@
 import type { RadarRenderPalette } from "../config/config.js";
+import type { RawRecordingReplayStatus } from "../recording/raw-recording-replay.js";
+import type { RawRecordingStoreStatus } from "../recording/raw-recording-store.js";
 import type { ReplayMetadata } from "../replay/replay-buffer.js";
 import type { RadarTargetManagerStatus } from "../targets/target-manager.js";
 
@@ -163,8 +165,10 @@ export interface RadarStatus {
   readonly discovery: RadarDiscoveryStatus;
   readonly process: ProcessStatus;
   readonly receiver: RadarReceiverStatus;
+  readonly recording: RawRecordingStoreStatus;
   readonly renderer: RadarRendererStatus;
   readonly replay: ReplayMetadata;
+  readonly rawReplay: RawRecordingReplayStatus;
   readonly streaming: RadarStreamingStatus;
   readonly targets: RadarTargetManagerStatus;
 }

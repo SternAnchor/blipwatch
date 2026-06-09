@@ -121,8 +121,10 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       discovery: discoveryStatus,
       process: getProcessStatus(),
       receiver: receiverStatus,
+      recording: recordingStore.getStatus(),
       renderer: rendererStatus,
       replay: replayStatus,
+      rawReplay: recordingReplay.getStatus(),
       streaming: httpApi.getStreamingStats(),
       targets: targetManager.getStatus()
     };

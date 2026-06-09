@@ -1852,6 +1852,8 @@ const renderDashboardHtml = (): string => `<!doctype html>
               <div class="stat"><span>Active Pixels</span><strong id="active-pixels">0</strong></div>
               <div class="stat"><span>Replay Frames</span><strong id="replay-frames">0</strong></div>
               <div class="stat"><span>Replay Memory</span><strong id="replay-memory">0 B</strong></div>
+              <div class="stat"><span>Active Recording</span><strong id="active-recording">-</strong></div>
+              <div class="stat"><span>Raw Replay</span><strong id="raw-replay">idle</strong></div>
               <div class="stat"><span>Heap Used</span><strong id="heap-used">0 B</strong></div>
               <div class="stat"><span>Uptime</span><strong id="uptime">0s</strong></div>
               <div class="stat"><span>Stream Clients</span><strong id="stream-clients">0</strong></div>
@@ -1989,6 +1991,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
       };
       const fields = {
         activePixels: document.getElementById("active-pixels"),
+        activeRecording: document.getElementById("active-recording"),
         commands: document.getElementById("commands"),
         control: document.getElementById("control"),
         decoded: document.getElementById("decoded"),
@@ -2000,6 +2003,7 @@ const renderDashboardHtml = (): string => `<!doctype html>
         radarState: document.getElementById("radar-state"),
         rainClutter: document.getElementById("rain-clutter"),
         rangeControl: document.getElementById("range-control"),
+        rawReplay: document.getElementById("raw-replay"),
         replayFrames: document.getElementById("replay-frames"),
         replayMemory: document.getElementById("replay-memory"),
         rendered: document.getElementById("rendered"),
@@ -2522,6 +2526,13 @@ const renderDashboardHtml = (): string => `<!doctype html>
           setText(fields.activePixels, status.renderer?.activePixelCount);
           setText(fields.replayFrames, status.replay?.frameCount);
           setText(fields.replayMemory, formatBytes(status.replay?.totalBytes));
+          setText(fields.activeRecording, status.recording?.activeRecordingId ?? "none");
+          setText(
+            fields.rawReplay,
+            status.rawReplay
+              ? status.rawReplay.state + " " + status.rawReplay.position + "/" + status.rawReplay.totalSpokes
+              : "idle"
+          );
           setText(fields.heapUsed, formatBytes(status.process?.memory?.heapUsed));
           setText(fields.uptime, formatDuration(status.process?.uptimeSeconds));
           setText(fields.streamClients, status.streaming?.clientsConnected);

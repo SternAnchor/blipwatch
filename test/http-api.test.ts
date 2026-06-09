@@ -310,6 +310,14 @@ const radarStatus = (): RadarStatus => ({
     running: true,
     udpPort: 6678
   },
+  recording: {
+    activeRecordingId: "recording-1",
+    directory: "captures/recordings",
+    recordingsStarted: 1,
+    recordingsStopped: 0,
+    totalBytesWritten: 128,
+    totalSpokesWritten: 2
+  },
   renderer: {
     activePixelCount: 10,
     imageAvailable: true,
@@ -342,6 +350,18 @@ const radarStatus = (): RadarStatus => ({
     playback: playbackState,
     retentionSeconds: 300,
     totalBytes: png.byteLength
+  },
+  rawReplay: {
+    completedAt: null,
+    currentRecordingId: "recording-1",
+    error: null,
+    loop: false,
+    position: 2,
+    speed: 1,
+    startedAt: capturedAt,
+    state: "playing",
+    totalSpokes: 10,
+    updatedAt: capturedAt
   },
   streaming: {
     clientsConnected: 0,
@@ -479,6 +499,8 @@ describe("HTTP API", () => {
     expect(dashboardBody).toContain("/api/targets");
     expect(dashboardBody).toContain("Active Pixels");
     expect(dashboardBody).toContain("Replay Memory");
+    expect(dashboardBody).toContain("Active Recording");
+    expect(dashboardBody).toContain("Raw Replay");
     expect(dashboardBody).toContain("Heap Used");
     expect(dashboardBody).toContain("Stream Clients");
     expect(dashboardBody).toContain("Gain");
@@ -570,10 +592,18 @@ describe("HTTP API", () => {
         running: true,
         udpPort: 6678
       },
+      recording: {
+        activeRecordingId: "recording-1",
+        totalSpokesWritten: 2
+      },
       renderer: {
         imageAvailable: true,
         renderState: "ready",
         spokeCount: 7
+      },
+      rawReplay: {
+        currentRecordingId: "recording-1",
+        state: "playing"
       },
       targets: {
         activeCount: 0,
