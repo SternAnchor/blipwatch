@@ -62,6 +62,7 @@ const config = (directory: string, enabled = true): BlipWatchConfig => ({
 
 const renderer: RadarImageRenderer = {
   applySpoke(): void {},
+  clear(): void {},
   getLatestMetadata() {
     return {
       activePixelCount: 10,

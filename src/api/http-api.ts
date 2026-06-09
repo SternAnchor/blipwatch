@@ -169,7 +169,7 @@ const createBlipWatchHttpServer = ({
         }
 
         if (request.method === "POST" && url.pathname === apiPath("/radar/control/settings")) {
-          void handleRadarControlSettingsRequest(request, response, radarControl, stream);
+          void handleRadarControlSettingsRequest(request, response, radarControl, renderer, stream);
           return;
         }
 
@@ -565,6 +565,7 @@ const handleRadarControlSettingsRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   radarControl: HttpApiOptions["radarControl"],
+  renderer: RadarImageRenderer,
   stream: RadarStream
 ): Promise<void> => {
   if (!radarControl) {
@@ -584,8 +585,8 @@ const handleRadarControlSettingsRequest = async (
     }
 
     const result = await requestRadarControlSetting(radarControl, parsed.value);
-    stream.publish({ reason: "control" });
     if (!result.supported) {
+      stream.publish({ reason: "control" });
       sendJson(response, 501, {
         error: "radar_control_setting_unsupported",
         ...result,
@@ -594,6 +595,8 @@ const handleRadarControlSettingsRequest = async (
       return;
     }
 
+    renderer.clear();
+    stream.publish({ reason: "control" });
     sendJson(response, 200, {
       ...result,
       status: radarControl.getStatus().tuning

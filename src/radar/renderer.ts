@@ -7,6 +7,7 @@ import type { RadarSpoke } from "./decoder.js";
 export interface RadarImageRenderer {
   readonly imageSize: number;
   applySpoke(spoke: RadarSpoke): void;
+  clear(): void;
   getLatestMetadata(): RadarImageMetadata;
   getLatestPng(): Buffer;
 }
@@ -81,6 +82,19 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
       } catch (error) {
         logger.error("failed to render radar spoke", error);
       }
+    },
+    clear(): void {
+      clearImage(image);
+      returnIntensityMap.fill(0);
+      displayIntensityMap.fill(0);
+      updatedAtMap.fill(0);
+      renderState.activePixelCount = 0;
+      lastFrameAt = new Date();
+      lastSpokeAt = undefined;
+      maxIntensity = 0;
+      latestPng = undefined;
+      spokeCount = 0;
+      logger.debug("radar renderer cleared");
     },
     getLatestMetadata(): RadarImageMetadata {
       applyDecay(image, returnIntensityMap, displayIntensityMap, updatedAtMap, renderState, Date.now(), getTargetDecayConfig(config));

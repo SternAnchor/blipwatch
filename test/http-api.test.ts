@@ -116,6 +116,7 @@ let api: HttpApi | undefined;
 
 const createRenderer = (): RadarImageRenderer => ({
   applySpoke(): void {},
+  clear(): void {},
   getLatestMetadata() {
     return {
       activePixelCount: 10,
@@ -660,6 +661,10 @@ describe("HTTP API", () => {
 
   it("exposes explicit radar standby and transmit control endpoints", async () => {
     const { sink } = createMemorySink();
+    const renderer = {
+      ...createRenderer(),
+      clear: vi.fn<() => void>()
+    };
     const radarControl = {
       getStatus: vi.fn<() => RadarStatus["control"]>().mockReturnValue({
         ...radarStatus().control,
@@ -701,7 +706,7 @@ describe("HTTP API", () => {
       logger: createLogger({ level: "debug", sink }),
       radarControl,
       radarStatus,
-      renderer: createRenderer(),
+      renderer,
       replayBuffer: createReplayBuffer()
     });
     await api.start();
@@ -749,6 +754,7 @@ describe("HTTP API", () => {
       supported: false
     });
     expect(radarControl.requestGain).toHaveBeenCalledWith({ mode: "manual", value: 42 });
+    expect(renderer.clear).not.toHaveBeenCalled();
 
     const invalid = await fetch(`${baseUrl}/api/radar/control/settings`, {
       body: JSON.stringify({ mode: "manual", setting: "gain", value: 142 }),
@@ -757,6 +763,22 @@ describe("HTTP API", () => {
     });
     expect(invalid.status).toBe(400);
     await expect(invalid.json()).resolves.toMatchObject({ error: "invalid_value" });
+
+    radarControl.requestRange.mockResolvedValueOnce({
+      message: "HALO tuning command sent.",
+      ok: true,
+      setting: "range",
+      supported: true
+    });
+    const range = await fetch(`${baseUrl}/api/radar/control/settings`, {
+      body: JSON.stringify({ rangeMeters: 926, setting: "range" }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(range.status).toBe(200);
+    await expect(range.json()).resolves.toMatchObject({ ok: true, setting: "range", supported: true });
+    expect(radarControl.requestRange).toHaveBeenCalledWith({ rangeMeters: 926 });
+    expect(renderer.clear).toHaveBeenCalledOnce();
   });
 
   it("reports unavailable radar control endpoints when no control handler is configured", async () => {

@@ -117,6 +117,44 @@ describe("createRadarImageRenderer", () => {
     expect(messages.some((message) => message.includes("radar spoke rendered angle=90"))).toBe(true);
   });
 
+  it("clears rendered reflections and resets image metadata", () => {
+    const { messages, sink } = createMemorySink();
+    const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
+
+    renderer.applySpoke({
+      angleDegrees: 90,
+      intensities: Uint8Array.from([0, 64, 128, 255]),
+      maxIntensity: 255,
+      rangeMeters: 1000,
+      receivedAt: new Date("2026-06-07T00:00:00.000Z"),
+      sampleCount: 4,
+      type: "spoke"
+    });
+
+    const renderedMetadata = renderer.getLatestMetadata();
+    expect(renderedMetadata.activePixelCount).toBeGreaterThan(0);
+    expect(renderedMetadata).toMatchObject({
+      maxIntensity: 255,
+      renderState: "ready",
+      spokeCount: 1
+    });
+
+    vi.setSystemTime(new Date("2026-06-07T00:00:05.000Z"));
+    renderer.clear();
+
+    expect(renderer.getLatestMetadata()).toMatchObject({
+      activePixelCount: 0,
+      lastFrameAt: "2026-06-07T00:00:05.000Z",
+      lastSpokeAt: null,
+      maxIntensity: 0,
+      renderState: "empty",
+      spokeCount: 0
+    });
+    const png = PNG.sync.read(renderer.getLatestPng());
+    expect(readPixel(png, 31, 16)).toEqual([0, 0, 0, 255]);
+    expect(messages.some((message) => message.includes("radar renderer cleared"))).toBe(true);
+  });
+
   it("caches encoded PNG output until the rendered image changes", () => {
     const { sink } = createMemorySink();
     const renderer = createRadarImageRenderer({ config, logger: createLogger({ level: "debug", sink }) });
