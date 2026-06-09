@@ -11,6 +11,7 @@ import { resolveRadarInterface } from "./radar/network-interface.js";
 import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver, type RadarPacket } from "./radar/receiver.js";
 import type { RadarOperatingState, RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
+import { createRawRecordingReplayController } from "./recording/raw-recording-replay.js";
 import { createRawRecordingStore } from "./recording/raw-recording-store.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
 import { createRadarTargetManager, type RadarTargetLifecycleEvent } from "./targets/target-manager.js";
@@ -67,6 +68,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const recordingStore = createRawRecordingStore({ directory: config.rawRecordingDirectory, logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
+  const recordingReplay = createRawRecordingReplayController({ logger, recordingStore, renderer, replayBuffer });
   const pendingTargetEvents: RadarTargetLifecycleEvent[] = [];
   let publishTargetEvent = (targetEvent: RadarTargetLifecycleEvent): void => {
     pendingTargetEvents.push(targetEvent);
@@ -139,6 +141,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     logger,
     radarControl: control,
     radarStatus: getRadarStatus,
+    recordingReplay,
     recordingStore,
     renderer,
     replayBuffer,

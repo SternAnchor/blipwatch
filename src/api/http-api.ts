@@ -10,6 +10,7 @@ import type { BlipWatchConfig } from "../config/config.js";
 import type { CalibrationCaptureStatus } from "../calibration/calibration-capture.js";
 import type { Logger } from "../logging/logger.js";
 import { navicoControlRangeLimits, type RadarControl, type RadarRangeRequest, type RadarTuningSettingRequest } from "../radar/control.js";
+import type { RawRecordingReplayAction, RawRecordingReplayController } from "../recording/raw-recording-replay.js";
 import type { RawRecordingStore } from "../recording/raw-recording-store.js";
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
@@ -35,6 +36,7 @@ interface HttpApiOptions {
   readonly renderer: RadarImageRenderer;
   readonly radarStatus: () => RadarStatus;
   readonly replayBuffer: ReplayBuffer;
+  readonly recordingReplay: RawRecordingReplayController;
   readonly recordingStore: RawRecordingStore;
   readonly targetManager: RadarTargetManager;
 }
@@ -69,6 +71,7 @@ export const createHttpApi = ({
   radarControl,
   renderer,
   radarStatus,
+  recordingReplay,
   recordingStore,
   replayBuffer,
   targetManager
@@ -100,6 +103,7 @@ export const createHttpApi = ({
           logger,
           radarControl,
           radarStatus,
+          recordingReplay,
           recordingStore,
           renderer,
           replayBuffer,
@@ -152,6 +156,7 @@ const createBlipWatchHttpServer = ({
   logger,
   radarControl,
   radarStatus,
+  recordingReplay,
   recordingStore,
   renderer,
   replayBuffer,
@@ -194,7 +199,7 @@ const createBlipWatchHttpServer = ({
 
         const recordingRoute = parseRecordingRoute(url);
         if (recordingRoute) {
-          void handleRecordingRequest(request, response, recordingStore, recordingRoute);
+          void handleRecordingRequest(request, response, recordingStore, recordingReplay, recordingRoute);
           return;
         }
 
@@ -798,7 +803,7 @@ const parseTargetRenameRequest = (
 };
 
 interface RecordingRoute {
-  readonly action?: "download" | "start" | "status" | "stop";
+  readonly action?: "download" | "replay" | "replay-playback" | "start" | "status" | "stop";
   readonly id?: string;
 }
 
@@ -820,6 +825,14 @@ const parseRecordingRoute = (url: URL): RecordingRoute | undefined => {
     return { action: "stop" };
   }
 
+  if (url.pathname === `${basePath}/replay`) {
+    return { action: "replay" };
+  }
+
+  if (url.pathname === `${basePath}/replay/playback`) {
+    return { action: "replay-playback" };
+  }
+
   if (!url.pathname.startsWith(`${basePath}/`)) {
     return undefined;
   }
@@ -829,9 +842,9 @@ const parseRecordingRoute = (url: URL): RecordingRoute | undefined => {
     return { id: decodeURIComponent(parts[0] ?? "") };
   }
 
-  if (parts.length === 2 && parts[1] === "download") {
+  if (parts.length === 2 && (parts[1] === "download" || parts[1] === "replay")) {
     return {
-      action: "download",
+      action: parts[1],
       id: decodeURIComponent(parts[0] ?? "")
     };
   }
@@ -843,11 +856,17 @@ const handleRecordingRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   recordingStore: RawRecordingStore,
+  recordingReplay: RawRecordingReplayController,
   route: RecordingRoute
 ): Promise<void> => {
   try {
     if (request.method === "GET" && route.action === "status") {
       sendJson(response, 200, recordingStore.getStatus());
+      return;
+    }
+
+    if (request.method === "GET" && route.action === "replay") {
+      sendJson(response, 200, recordingReplay.getStatus());
       return;
     }
 
@@ -864,6 +883,23 @@ const handleRecordingRequest = async (
     if (request.method === "POST" && route.action === "stop") {
       const recording = await recordingStore.stopActiveRecording();
       sendJson(response, recording ? 200 : 409, recording ? { recording } : { error: "no_active_recording" });
+      return;
+    }
+
+    if (request.method === "POST" && route.id && route.action === "replay") {
+      const body = await readOptionalJsonBody(request);
+      sendJson(response, 202, {
+        replay: await recordingReplay.play(route.id, parseRawRecordingReplayRequest(body))
+      });
+      return;
+    }
+
+    if (request.method === "POST" && route.action === "replay-playback") {
+      const body = await readJsonBody(request);
+      const action = parseRawRecordingReplayAction(body);
+      sendJson(response, 200, {
+        replay: applyRawRecordingReplayAction(recordingReplay, action)
+      });
       return;
     }
 
@@ -886,10 +922,66 @@ const handleRecordingRequest = async (
 
     sendJson(response, 405, { error: "method_not_allowed" });
   } catch (error) {
+    if (error instanceof RequestBodyError) {
+      sendJson(response, error.statusCode, { error: error.code, message: error.message });
+      return;
+    }
+
     sendJson(response, 500, {
       error: "recording_request_failed",
       message: error instanceof Error ? error.message : String(error)
     });
+  }
+};
+
+const parseRawRecordingReplayRequest = (body: unknown): { readonly loop?: boolean; readonly speed?: number } => {
+  if (body === null || body === undefined) {
+    return {};
+  }
+
+  if (!isObject(body)) {
+    throw new RequestBodyError(400, "invalid_body", "Expected a JSON object body.");
+  }
+
+  const speed = body.speed;
+  const loop = body.loop;
+  if (speed !== undefined && (typeof speed !== "number" || !Number.isFinite(speed) || speed <= 0)) {
+    throw new RequestBodyError(400, "invalid_speed", "Field `speed` must be greater than 0.");
+  }
+
+  if (loop !== undefined && typeof loop !== "boolean") {
+    throw new RequestBodyError(400, "invalid_loop", "Field `loop` must be a boolean.");
+  }
+
+  return {
+    ...(typeof loop === "boolean" ? { loop } : {}),
+    ...(typeof speed === "number" ? { speed } : {})
+  };
+};
+
+const parseRawRecordingReplayAction = (body: unknown): RawRecordingReplayAction => {
+  if (!isObject(body)) {
+    throw new RequestBodyError(400, "invalid_body", "Expected a JSON object body.");
+  }
+
+  if (body.action !== "pause" && body.action !== "resume" && body.action !== "stop") {
+    throw new RequestBodyError(400, "invalid_action", "Field `action` must be one of: pause, resume, stop.");
+  }
+
+  return body.action;
+};
+
+const applyRawRecordingReplayAction = (
+  recordingReplay: RawRecordingReplayController,
+  action: RawRecordingReplayAction
+) => {
+  switch (action) {
+    case "pause":
+      return recordingReplay.pause();
+    case "resume":
+      return recordingReplay.resume();
+    case "stop":
+      return recordingReplay.stop();
   }
 };
 
@@ -1160,6 +1252,32 @@ const parseOptionalReplaySpeed = (
 };
 
 const readJsonBody = async (request: IncomingMessage): Promise<unknown> => {
+  const rawBody = await readRawJsonBody(request);
+  if (!rawBody) {
+    throw new RequestBodyError(400, "missing_body", "Expected a JSON request body.");
+  }
+
+  try {
+    return JSON.parse(rawBody) as unknown;
+  } catch (error) {
+    throw new RequestBodyError(400, "invalid_json", "Request body must be valid JSON.", { cause: error });
+  }
+};
+
+const readOptionalJsonBody = async (request: IncomingMessage): Promise<unknown> => {
+  const rawBody = await readRawJsonBody(request);
+  if (!rawBody) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody) as unknown;
+  } catch (error) {
+    throw new RequestBodyError(400, "invalid_json", "Request body must be valid JSON.", { cause: error });
+  }
+};
+
+const readRawJsonBody = async (request: IncomingMessage): Promise<string> => {
   const chunks: Buffer[] = [];
   let size = 0;
 
@@ -1172,16 +1290,7 @@ const readJsonBody = async (request: IncomingMessage): Promise<unknown> => {
     chunks.push(buffer);
   }
 
-  const rawBody = Buffer.concat(chunks).toString("utf8").trim();
-  if (!rawBody) {
-    throw new RequestBodyError(400, "missing_body", "Expected a JSON request body.");
-  }
-
-  try {
-    return JSON.parse(rawBody) as unknown;
-  } catch (error) {
-    throw new RequestBodyError(400, "invalid_json", "Request body must be valid JSON.", { cause: error });
-  }
+  return Buffer.concat(chunks).toString("utf8").trim();
 };
 
 class RequestBodyError extends Error {

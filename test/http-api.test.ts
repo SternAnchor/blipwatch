@@ -19,6 +19,7 @@ import type { BlipWatchConfig } from "../src/config/config.js";
 import { createLogger } from "../src/logging/logger.js";
 import type { RadarRangeRequest, RadarTuningRequestResult, RadarTuningSettingRequest } from "../src/radar/control.js";
 import type { RadarSpoke } from "../src/radar/decoder.js";
+import { createRawRecordingReplayController, type RawRecordingReplayController } from "../src/recording/raw-recording-replay.js";
 import { createRawRecordingStore, type RawRecordingStore } from "../src/recording/raw-recording-store.js";
 import type { RadarImageRenderer } from "../src/radar/renderer.js";
 import type { RadarStatus } from "../src/radar/status.js";
@@ -217,6 +218,20 @@ const createRecordingStore = (directory = "captures/recordings"): RawRecordingSt
   });
 };
 
+const createRecordingReplay = (
+  recordingStore: RawRecordingStore,
+  renderer = createRenderer(),
+  replayBuffer = createReplayBuffer()
+): RawRecordingReplayController => {
+  const { sink } = createMemorySink();
+  return createRawRecordingReplayController({
+    logger: createLogger({ level: "debug", sink }),
+    recordingStore,
+    renderer,
+    replayBuffer
+  });
+};
+
 const createSpoke = (): RadarSpoke => ({
   angleDegrees: 42,
   intensities: Uint8Array.from([0, 64, 255]),
@@ -360,6 +375,7 @@ const radarStatus = (): RadarStatus => ({
 
 const startApi = async (): Promise<string> => {
   const { sink } = createMemorySink();
+  const recordingStore = createRecordingStore();
   api = createHttpApi({
     calibrationCaptureStatus: () => ({
       directory: "captures/calibration",
@@ -374,7 +390,8 @@ const startApi = async (): Promise<string> => {
     logger: createLogger({ level: "debug", sink }),
     renderer: createRenderer(),
     radarStatus,
-    recordingStore: createRecordingStore(),
+    recordingReplay: createRecordingReplay(recordingStore),
+    recordingStore,
     replayBuffer: createReplayBuffer(),
     targetManager: createTargetManager()
   });
@@ -664,6 +681,7 @@ describe("HTTP API", () => {
 
   it("exposes target list, read, rename, confirm, unconfirm, and delete endpoints", async () => {
     const { sink } = createMemorySink();
+    const recordingStore = createRecordingStore();
     const targetManager = createTargetManager();
     const target = targetManager.upsertTarget({
       bearingDegrees: 42,
@@ -677,7 +695,8 @@ describe("HTTP API", () => {
       config,
       logger: createLogger({ level: "debug", sink }),
       radarStatus,
-      recordingStore: createRecordingStore(),
+      recordingReplay: createRecordingReplay(recordingStore),
+      recordingStore,
       renderer: createRenderer(),
       replayBuffer: createReplayBuffer(),
       targetManager
@@ -783,6 +802,7 @@ describe("HTTP API", () => {
       config,
       logger: createLogger({ level: "debug", sink }),
       radarStatus,
+      recordingReplay: createRecordingReplay(recordingStore),
       recordingStore,
       renderer: createRenderer(),
       replayBuffer: createReplayBuffer(),
@@ -815,6 +835,32 @@ describe("HTTP API", () => {
     expect(download.status).toBe(200);
     expect(download.headers.get("content-disposition")).toContain(`${startBody.recording.id}-spokes.ndjson`);
     await expect(download.text()).resolves.toContain('"type":"spoke"');
+
+    const replayStatus = await fetch(`${baseUrl}/api/recordings/replay`);
+    expect(replayStatus.status).toBe(200);
+    await expect(replayStatus.json()).resolves.toMatchObject({ state: "idle" });
+
+    const replay = await fetch(`${baseUrl}/api/recordings/${startBody.recording.id}/replay`, {
+      body: JSON.stringify({ speed: 10 }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(replay.status).toBe(202);
+    const replayBody = (await replay.json()) as { replay: { currentRecordingId: string; state: string } };
+    expect(replayBody.replay.currentRecordingId).toBe(startBody.recording.id);
+    expect(["completed", "playing"]).toContain(replayBody.replay.state);
+
+    const stopReplay = await fetch(`${baseUrl}/api/recordings/replay/playback`, {
+      body: JSON.stringify({ action: "stop" }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(stopReplay.status).toBe(200);
+    await expect(stopReplay.json()).resolves.toMatchObject({
+      replay: {
+        state: "stopped"
+      }
+    });
 
     const stop = await fetch(`${baseUrl}/api/recordings/stop`, { method: "POST" });
     expect(stop.status).toBe(200);
@@ -866,6 +912,7 @@ describe("HTTP API", () => {
     const blockedPort = await findAdjacentPortPair();
     const blocker = await listenOnPort(blockedPort);
     const { messages, sink } = createMemorySink();
+    const recordingStore = createRecordingStore();
     api = createHttpApi({
       calibrationCaptureStatus: () => ({
         directory: "captures/calibration",
@@ -884,7 +931,8 @@ describe("HTTP API", () => {
       logger: createLogger({ level: "debug", sink }),
       renderer: createRenderer(),
       radarStatus,
-      recordingStore: createRecordingStore(),
+      recordingReplay: createRecordingReplay(recordingStore),
+      recordingStore,
       replayBuffer: createReplayBuffer(),
       targetManager: createTargetManager()
     });
@@ -994,12 +1042,14 @@ describe("HTTP API", () => {
       requestStandby: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       requestTransmit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     };
+    const recordingStore = createRecordingStore();
     api = createHttpApi({
       config,
       logger: createLogger({ level: "debug", sink }),
       radarControl,
       radarStatus,
-      recordingStore: createRecordingStore(),
+      recordingReplay: createRecordingReplay(recordingStore),
+      recordingStore,
       renderer,
       replayBuffer: createReplayBuffer(),
       targetManager: createTargetManager()
