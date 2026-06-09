@@ -3,6 +3,14 @@ import type { Logger } from "../logging/logger.js";
 
 export type RadarTargetSource = "ais" | "blipwatch-detected" | "halo-native" | "manual";
 export type RadarTargetStatus = "lost" | "new" | "tracking";
+export type RadarTargetLifecycleEventType =
+  | "confirmed"
+  | "created"
+  | "deleted"
+  | "lost"
+  | "renamed"
+  | "unconfirmed"
+  | "updated";
 
 export interface RadarTarget {
   readonly bearingDegrees: number;
@@ -26,6 +34,16 @@ export interface RadarTargetObservation {
   readonly rangeMeters: number;
   readonly source: RadarTargetSource;
 }
+
+export interface RadarTargetLifecycleEvent {
+  readonly at: string;
+  readonly previousTarget?: RadarTarget;
+  readonly target?: RadarTarget;
+  readonly targetId: string;
+  readonly type: RadarTargetLifecycleEventType;
+}
+
+export type RadarTargetLifecycleEventHandler = (event: RadarTargetLifecycleEvent) => void;
 
 export interface RadarTargetManager {
   confirmTarget(id: string): RadarTarget | undefined;
@@ -53,12 +71,13 @@ export interface RadarTargetManagerStatus {
 interface RadarTargetManagerOptions {
   readonly config: Pick<BlipWatchConfig, "targetLostTimeoutSeconds" | "targetTrackingEnabled">;
   readonly logger: Logger;
+  readonly onEvent?: RadarTargetLifecycleEventHandler;
 }
 
 const TARGET_SOURCES: readonly RadarTargetSource[] = ["ais", "blipwatch-detected", "halo-native", "manual"];
 const TARGET_STATUSES: readonly RadarTargetStatus[] = ["lost", "new", "tracking"];
 
-export const createRadarTargetManager = ({ config, logger }: RadarTargetManagerOptions): RadarTargetManager => {
+export const createRadarTargetManager = ({ config, logger, onEvent }: RadarTargetManagerOptions): RadarTargetManager => {
   const targets = new Map<string, RadarTarget>();
   let deletedCount = 0;
   let sequence = 0;
@@ -74,9 +93,17 @@ export const createRadarTargetManager = ({ config, logger }: RadarTargetManagerO
 
       const ageMs = now.getTime() - new Date(target.lastSeenAt).getTime();
       if (ageMs > lostAfterMs) {
-        targets.set(target.id, {
+        const updated = {
           ...target,
           status: "lost"
+        } as const;
+        targets.set(target.id, updated);
+        onEvent?.({
+          at: now.toISOString(),
+          previousTarget: target,
+          target: updated,
+          targetId: target.id,
+          type: "lost"
         });
         logger.debug(`radar target marked lost id=${target.id} source=${target.source}`);
       }
@@ -105,12 +132,22 @@ export const createRadarTargetManager = ({ config, logger }: RadarTargetManagerO
       const updated = { ...target, confirmed: true };
       targets.set(id, updated);
       totalUpdated += 1;
+      emitTargetEvent(onEvent, "confirmed", updated, target);
       return updated;
     },
     deleteTarget(id: string): boolean {
+      const target = targets.get(id);
       const deleted = targets.delete(id);
       if (deleted) {
         deletedCount += 1;
+        if (target) {
+          onEvent?.({
+            at: new Date().toISOString(),
+            previousTarget: target,
+            targetId: id,
+            type: "deleted"
+          });
+        }
         logger.debug(`radar target deleted id=${id}`);
       }
 
@@ -151,6 +188,7 @@ export const createRadarTargetManager = ({ config, logger }: RadarTargetManagerO
         : withoutName(target);
       targets.set(id, updated);
       totalUpdated += 1;
+      emitTargetEvent(onEvent, "renamed", updated, target);
       return updated;
     },
     unconfirmTarget(id: string): RadarTarget | undefined {
@@ -162,6 +200,7 @@ export const createRadarTargetManager = ({ config, logger }: RadarTargetManagerO
       const updated = { ...target, confirmed: false };
       targets.set(id, updated);
       totalUpdated += 1;
+      emitTargetEvent(onEvent, "unconfirmed", updated, target);
       return updated;
     },
     upsertTarget(observation: RadarTargetObservation): RadarTarget {
@@ -183,13 +222,30 @@ export const createRadarTargetManager = ({ config, logger }: RadarTargetManagerO
       targets.set(id, target);
       if (existing) {
         totalUpdated += 1;
+        emitTargetEvent(onEvent, "updated", target, existing);
       } else {
         totalCreated += 1;
+        emitTargetEvent(onEvent, "created", target);
       }
 
       return target;
     }
   };
+};
+
+const emitTargetEvent = (
+  onEvent: RadarTargetLifecycleEventHandler | undefined,
+  type: RadarTargetLifecycleEventType,
+  target: RadarTarget,
+  previousTarget?: RadarTarget
+): void => {
+  onEvent?.({
+    at: new Date().toISOString(),
+    ...(previousTarget ? { previousTarget } : {}),
+    target,
+    targetId: target.id,
+    type
+  });
 };
 
 const withoutName = (target: RadarTarget): RadarTarget => {

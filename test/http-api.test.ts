@@ -793,11 +793,34 @@ describe("HTTP API", () => {
       type: "radar.snapshot"
     });
 
-    api?.publishRadarUpdate({ reason: "status" });
+    api?.publishRadarUpdate({
+      reason: "target",
+      targetEvent: {
+        at: capturedAt,
+        target: {
+          bearingDegrees: 42,
+          confidence: 0.75,
+          confirmed: false,
+          firstSeenAt: capturedAt,
+          id: "halo-native-1",
+          lastSeenAt: capturedAt,
+          rangeMeters: 120,
+          source: "halo-native",
+          status: "new"
+        },
+        targetId: "halo-native-1",
+        type: "created"
+      }
+    });
     const update = await readWebSocketMessage(socket);
     expect(update).toMatchObject({
+      reason: "target",
       replay: {
         frameCount: 1
+      },
+      targetEvent: {
+        targetId: "halo-native-1",
+        type: "created"
       },
       type: "radar.update"
     });

@@ -12,7 +12,7 @@ import { createRadarImageRenderer } from "./radar/renderer.js";
 import { createRadarReceiver, type RadarPacket } from "./radar/receiver.js";
 import type { RadarOperatingState, RadarStatus, RadarStatusDiagnostics } from "./radar/status.js";
 import { createReplayBuffer } from "./replay/replay-buffer.js";
-import { createRadarTargetManager } from "./targets/target-manager.js";
+import { createRadarTargetManager, type RadarTargetLifecycleEvent } from "./targets/target-manager.js";
 
 export interface BlipWatchServer {
   readonly logger: Logger;
@@ -65,7 +65,15 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
   const discovery = createRadarDiscovery({ config, logger });
   const renderer = createRadarImageRenderer({ config, logger });
   const replayBuffer = createReplayBuffer({ config, logger });
-  const targetManager = createRadarTargetManager({ config, logger });
+  const pendingTargetEvents: RadarTargetLifecycleEvent[] = [];
+  let publishTargetEvent = (targetEvent: RadarTargetLifecycleEvent): void => {
+    pendingTargetEvents.push(targetEvent);
+  };
+  const targetManager = createRadarTargetManager({
+    config,
+    logger,
+    onEvent: (targetEvent) => publishTargetEvent(targetEvent)
+  });
   const calibrationPackets: CalibrationPacketSnapshot[] = [];
   let capturedFirstDecodedPacket = false;
   let lastReplayCaptureAt: Date | undefined;
@@ -133,6 +141,12 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     replayBuffer,
     targetManager
   });
+  publishTargetEvent = (targetEvent: RadarTargetLifecycleEvent): void => {
+    httpApi.publishRadarUpdate({ reason: "target", targetEvent });
+  };
+  for (const pendingTargetEvent of pendingTargetEvents.splice(0)) {
+    publishTargetEvent(pendingTargetEvent);
+  }
 
   return {
     addresses(): BlipWatchServerAddresses {

@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { createRadarTargetManager } from "../src/targets/target-manager.js";
+import { createRadarTargetManager, type RadarTargetLifecycleEventHandler } from "../src/targets/target-manager.js";
 import { createLogger } from "../src/logging/logger.js";
 import { createMemorySink } from "./support/logger.js";
 
-const createManager = (options: { enabled?: boolean; lostTimeoutSeconds?: number } = {}) =>
+const createManager = (options: { enabled?: boolean; lostTimeoutSeconds?: number; onEvent?: RadarTargetLifecycleEventHandler } = {}) =>
   createRadarTargetManager({
     config: {
       targetLostTimeoutSeconds: options.lostTimeoutSeconds ?? 10,
       targetTrackingEnabled: options.enabled ?? true
     },
-    logger: createLogger({ level: "debug", sink: createMemorySink().sink })
+    logger: createLogger({ level: "debug", sink: createMemorySink().sink }),
+    onEvent: options.onEvent
   });
 
 describe("createRadarTargetManager", () => {
@@ -96,6 +97,95 @@ describe("createRadarTargetManager", () => {
       activeCount: 0,
       deletedCount: 1
     });
+  });
+
+  it("emits lifecycle events for target changes", () => {
+    const events: unknown[] = [];
+    const manager = createManager({
+      lostTimeoutSeconds: 1,
+      onEvent: (event) => events.push(event)
+    });
+    manager.upsertTarget({
+      bearingDegrees: 42,
+      confidence: 0.5,
+      id: "manual-1",
+      observedAt: new Date("2026-06-09T00:00:00.000Z"),
+      rangeMeters: 50,
+      source: "manual"
+    });
+    manager.upsertTarget({
+      bearingDegrees: 43,
+      confidence: 0.6,
+      id: "manual-1",
+      observedAt: new Date("2026-06-09T00:00:01.000Z"),
+      rangeMeters: 60,
+      source: "manual"
+    });
+    manager.renameTarget("manual-1", "Ferry");
+    manager.confirmTarget("manual-1");
+    manager.unconfirmTarget("manual-1");
+    manager.getStatus(new Date("2026-06-09T00:00:03.000Z"));
+    manager.deleteTarget("manual-1");
+
+    expect(events).toMatchObject([
+      {
+        target: {
+          id: "manual-1",
+          status: "new"
+        },
+        targetId: "manual-1",
+        type: "created"
+      },
+      {
+        previousTarget: {
+          status: "new"
+        },
+        target: {
+          rangeMeters: 60,
+          status: "tracking"
+        },
+        targetId: "manual-1",
+        type: "updated"
+      },
+      {
+        target: {
+          name: "Ferry"
+        },
+        targetId: "manual-1",
+        type: "renamed"
+      },
+      {
+        target: {
+          confirmed: true
+        },
+        targetId: "manual-1",
+        type: "confirmed"
+      },
+      {
+        target: {
+          confirmed: false
+        },
+        targetId: "manual-1",
+        type: "unconfirmed"
+      },
+      {
+        previousTarget: {
+          status: "tracking"
+        },
+        target: {
+          status: "lost"
+        },
+        targetId: "manual-1",
+        type: "lost"
+      },
+      {
+        previousTarget: {
+          id: "manual-1"
+        },
+        targetId: "manual-1",
+        type: "deleted"
+      }
+    ]);
   });
 
   it("marks stale targets lost after the configured timeout", () => {

@@ -12,7 +12,7 @@ import { navicoControlRangeLimits, type RadarControl, type RadarRangeRequest, ty
 import type { RadarImageRenderer } from "../radar/renderer.js";
 import type { RadarStatus, RadarStreamingStatus } from "../radar/status.js";
 import type { ReplayBuffer, ReplayPlaybackAction, ReplayPlaybackSpeed } from "../replay/replay-buffer.js";
-import type { RadarTargetManager } from "../targets/target-manager.js";
+import type { RadarTargetLifecycleEvent, RadarTargetManager } from "../targets/target-manager.js";
 
 export interface HttpApi {
   address(): AddressInfo | undefined;
@@ -37,8 +37,9 @@ interface HttpApiOptions {
 }
 
 export interface RadarStreamUpdate {
-  readonly reason: "control" | "frame" | "playback" | "status";
+  readonly reason: "control" | "frame" | "playback" | "status" | "target";
   readonly replayFrameAt?: string;
+  readonly targetEvent?: RadarTargetLifecycleEvent;
 }
 
 export const HTTP_SERVER_LIMITS = {
@@ -478,6 +479,7 @@ const createStreamMessage = (
   replay: replayBuffer.getMetadata(),
   renderer: renderer.getLatestMetadata(),
   status: radarStatus(),
+  targetEvent: update.targetEvent ?? null,
   timestamp: new Date().toISOString(),
   type
 });
