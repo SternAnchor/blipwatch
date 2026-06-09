@@ -2,16 +2,22 @@ import { isIP } from "node:net";
 
 export type LogVerbosity = "debug" | "info";
 export type RadarControlMode = "wake" | "transmit";
+export type RadarRenderPalette = "chartplotter" | "grayscale" | "green";
 
 const DEFAULTS = {
   calibrationCaptureDirectory: "captures/calibration",
   calibrationCaptureEnabled: false,
   calibrationCaptureIntervalMs: 10_000,
   calibrationCapturePacketLimit: 250,
+  headless: false,
   imageSize: 1024,
   logLevel: "info",
+  openBrowser: true,
   port: 8080,
-  radarControlEnabled: false,
+  portFallbackEnabled: true,
+  portFallbackMaxAttempts: 5,
+  radarBrightnessScale: 100,
+  radarControlEnabled: true,
   radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "auto",
   radarControlMode: "wake",
@@ -25,6 +31,11 @@ const DEFAULTS = {
   radarMulticastGroups: ["236.6.7.8"],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 6878,
+  radarRenderPalette: "chartplotter",
+  radarTargetFadeMs: 8_000,
+  radarTargetExpansion: 100,
+  radarTargetMaxAgeMs: 15_000,
+  radarTargetPersistenceMs: 4_000,
   radarUdpPort: 6678,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -35,9 +46,14 @@ export interface BlipWatchConfig {
   readonly calibrationCaptureEnabled: boolean;
   readonly calibrationCaptureIntervalMs: number;
   readonly calibrationCapturePacketLimit: number;
+  readonly headless: boolean;
   readonly imageSize: number;
   readonly logLevel: LogVerbosity;
+  readonly openBrowser: boolean;
   readonly port: number;
+  readonly portFallbackEnabled: boolean;
+  readonly portFallbackMaxAttempts: number;
+  readonly radarBrightnessScale: number;
   readonly radarControlEnabled: boolean;
   readonly radarControlFallbackHost: string;
   readonly radarControlHost: string;
@@ -52,6 +68,11 @@ export interface BlipWatchConfig {
   readonly radarMulticastGroups: readonly string[];
   readonly radarReportMulticastGroup: string;
   readonly radarReportUdpPort: number;
+  readonly radarRenderPalette: RadarRenderPalette;
+  readonly radarTargetFadeMs: number;
+  readonly radarTargetExpansion: number;
+  readonly radarTargetMaxAgeMs: number;
+  readonly radarTargetPersistenceMs: number;
   readonly radarUdpPort: number;
   readonly replayFrameIntervalMs: number;
   readonly replayRetentionSeconds: number;
@@ -85,9 +106,26 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     "CALIBRATION_CAPTURE_PACKET_LIMIT",
     DEFAULTS.calibrationCapturePacketLimit
   ),
+  headless: parseBoolean(env.HEADLESS ?? env.BLIPWATCH_HEADLESS, "HEADLESS", DEFAULTS.headless),
   imageSize: parsePositiveInteger(env.IMAGE_SIZE, "IMAGE_SIZE", DEFAULTS.imageSize),
   logLevel: parseLogLevel(env.LOG_LEVEL),
+  openBrowser: parseOpenBrowser(env.OPEN_BROWSER ?? env.BLIPWATCH_OPEN_BROWSER, env.HEADLESS ?? env.BLIPWATCH_HEADLESS),
   port: parsePort(env.PORT, "PORT", DEFAULTS.port),
+  portFallbackEnabled: parseBoolean(
+    env.PORT_FALLBACK_ENABLED ?? env.BLIPWATCH_PORT_FALLBACK_ENABLED,
+    "PORT_FALLBACK_ENABLED",
+    DEFAULTS.portFallbackEnabled
+  ),
+  portFallbackMaxAttempts: parsePositiveInteger(
+    env.PORT_FALLBACK_MAX_ATTEMPTS ?? env.BLIPWATCH_PORT_FALLBACK_MAX_ATTEMPTS,
+    "PORT_FALLBACK_MAX_ATTEMPTS",
+    DEFAULTS.portFallbackMaxAttempts
+  ),
+  radarBrightnessScale: parsePositiveInteger(
+    env.RADAR_BRIGHTNESS_SCALE,
+    "RADAR_BRIGHTNESS_SCALE",
+    DEFAULTS.radarBrightnessScale
+  ),
   radarControlEnabled: parseBoolean(env.RADAR_CONTROL_ENABLED, "RADAR_CONTROL_ENABLED", DEFAULTS.radarControlEnabled),
   radarControlFallbackHost: parseIpv4Address(
     env.RADAR_CONTROL_FALLBACK_HOST,
@@ -122,6 +160,27 @@ export const loadConfig = (env: NodeJS.ProcessEnv): BlipWatchConfig => ({
     DEFAULTS.radarReportMulticastGroup
   ),
   radarReportUdpPort: parsePort(env.RADAR_REPORT_UDP_PORT, "RADAR_REPORT_UDP_PORT", DEFAULTS.radarReportUdpPort),
+  radarRenderPalette: parseRadarRenderPalette(env.RADAR_RENDER_PALETTE),
+  radarTargetFadeMs: parsePositiveInteger(
+    env.RADAR_TARGET_FADE_MS,
+    "RADAR_TARGET_FADE_MS",
+    DEFAULTS.radarTargetFadeMs
+  ),
+  radarTargetMaxAgeMs: parsePositiveInteger(
+    env.RADAR_TARGET_MAX_AGE_MS,
+    "RADAR_TARGET_MAX_AGE_MS",
+    DEFAULTS.radarTargetMaxAgeMs
+  ),
+  radarTargetPersistenceMs: parseNonNegativeInteger(
+    env.RADAR_TARGET_PERSISTENCE_MS,
+    "RADAR_TARGET_PERSISTENCE_MS",
+    DEFAULTS.radarTargetPersistenceMs
+  ),
+  radarTargetExpansion: parsePositiveInteger(
+    env.RADAR_TARGET_EXPANSION,
+    "RADAR_TARGET_EXPANSION",
+    DEFAULTS.radarTargetExpansion
+  ),
   radarUdpPort: parsePort(env.RADAR_UDP_PORT, "RADAR_UDP_PORT", DEFAULTS.radarUdpPort),
   replayFrameIntervalMs: parsePositiveInteger(
     env.REPLAY_FRAME_INTERVAL_MS,
@@ -149,6 +208,15 @@ const parseBoolean = (value: string | undefined, name: string, defaultValue: boo
   }
 
   throw new ConfigurationError(`${name} must be one of: true, false, 1, 0; received "${value}"`);
+};
+
+const parseOpenBrowser = (value: string | undefined, headlessValue: string | undefined): boolean => {
+  if (value !== undefined && value !== "") {
+    return parseBoolean(value, "OPEN_BROWSER", DEFAULTS.openBrowser);
+  }
+
+  const headless = parseBoolean(headlessValue, "HEADLESS", DEFAULTS.headless);
+  return headless ? false : DEFAULTS.openBrowser;
 };
 
 const parsePositiveInteger = (value: string | undefined, name: string, defaultValue: number): number => {
@@ -228,6 +296,20 @@ const parseRadarControlMode = (value: string | undefined): RadarControlMode => {
   }
 
   throw new ConfigurationError(`RADAR_CONTROL_MODE must be one of: wake, transmit; received "${value}"`);
+};
+
+const parseRadarRenderPalette = (value: string | undefined): RadarRenderPalette => {
+  if (value === undefined || value === "") {
+    return DEFAULTS.radarRenderPalette;
+  }
+
+  if (value === "chartplotter" || value === "grayscale" || value === "green") {
+    return value;
+  }
+
+  throw new ConfigurationError(
+    `RADAR_RENDER_PALETTE must be one of: chartplotter, grayscale, green; received "${value}"`
+  );
 };
 
 const parseRadarControlHost = (value: string | undefined): string => {

@@ -1,9 +1,87 @@
-## [1.1.0](https://github.com/SternAnchor/blipwatch/compare/v1.0.0...v1.1.0) (2026-06-08)
+## [1.1.0-develop.34](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.33...v1.1.0-develop.34) (2026-06-09)
 
 ### Features
 
-* final cleanups for phase 1 ([#43](https://github.com/SternAnchor/blipwatch/issues/43)) ([9411bf2](https://github.com/SternAnchor/blipwatch/commit/9411bf28c9acc75f131c1db4c6e051ec827cff49)), closes [#33](https://github.com/SternAnchor/blipwatch/issues/33) [#34](https://github.com/SternAnchor/blipwatch/issues/34) [#35](https://github.com/SternAnchor/blipwatch/issues/35) [#36](https://github.com/SternAnchor/blipwatch/issues/36) [#37](https://github.com/SternAnchor/blipwatch/issues/37) [#38](https://github.com/SternAnchor/blipwatch/issues/38) [#39](https://github.com/SternAnchor/blipwatch/issues/39) [#40](https://github.com/SternAnchor/blipwatch/issues/40) [#41](https://github.com/SternAnchor/blipwatch/issues/41) [#42](https://github.com/SternAnchor/blipwatch/issues/42) [#44](https://github.com/SternAnchor/blipwatch/issues/44)
-* phase 2 with functional imagery and basic controls ([#71](https://github.com/SternAnchor/blipwatch/issues/71)) ([0a96963](https://github.com/SternAnchor/blipwatch/commit/0a96963e24b704300d9d93282173e47b856e32a2)), closes [#33](https://github.com/SternAnchor/blipwatch/issues/33) [#34](https://github.com/SternAnchor/blipwatch/issues/34) [#35](https://github.com/SternAnchor/blipwatch/issues/35) [#36](https://github.com/SternAnchor/blipwatch/issues/36) [#37](https://github.com/SternAnchor/blipwatch/issues/37) [#38](https://github.com/SternAnchor/blipwatch/issues/38) [#39](https://github.com/SternAnchor/blipwatch/issues/39) [#40](https://github.com/SternAnchor/blipwatch/issues/40) [#41](https://github.com/SternAnchor/blipwatch/issues/41) [#42](https://github.com/SternAnchor/blipwatch/issues/42) [#44](https://github.com/SternAnchor/blipwatch/issues/44) [#46](https://github.com/SternAnchor/blipwatch/issues/46) [#47](https://github.com/SternAnchor/blipwatch/issues/47) [#48](https://github.com/SternAnchor/blipwatch/issues/48) [#49](https://github.com/SternAnchor/blipwatch/issues/49) [#50](https://github.com/SternAnchor/blipwatch/issues/50) [#51](https://github.com/SternAnchor/blipwatch/issues/51) [#52](https://github.com/SternAnchor/blipwatch/issues/52) [#54](https://github.com/SternAnchor/blipwatch/issues/54) [#53](https://github.com/SternAnchor/blipwatch/issues/53) [#55](https://github.com/SternAnchor/blipwatch/issues/55) [#56](https://github.com/SternAnchor/blipwatch/issues/56) [#57](https://github.com/SternAnchor/blipwatch/issues/57) [#58](https://github.com/SternAnchor/blipwatch/issues/58) [#59](https://github.com/SternAnchor/blipwatch/issues/59) [#60](https://github.com/SternAnchor/blipwatch/issues/60) [#61](https://github.com/SternAnchor/blipwatch/issues/61) [#62](https://github.com/SternAnchor/blipwatch/issues/62) [#63](https://github.com/SternAnchor/blipwatch/issues/63) [#64](https://github.com/SternAnchor/blipwatch/issues/64) [#65](https://github.com/SternAnchor/blipwatch/issues/65) [#66](https://github.com/SternAnchor/blipwatch/issues/66) [#67](https://github.com/SternAnchor/blipwatch/issues/67)
+* add clear screen control ([36d5835](https://github.com/SternAnchor/blipwatch/commit/36d5835ccff7cbc7a2c20686579c3397406d87a7))
+* add radar range stepper ([121e77c](https://github.com/SternAnchor/blipwatch/commit/121e77cc3c82d14fa93a4c6724242143f74b0b24))
+* serve dashboard favicon ([4b34838](https://github.com/SternAnchor/blipwatch/commit/4b34838ec8bb868d4ec2f223365ea5e18c351690))
+
+### Bug Fixes
+
+* clear reflections after tuning changes ([a298b11](https://github.com/SternAnchor/blipwatch/commit/a298b11e4556c3b284b390ec30feb42700789711))
+* disable radar control in e2e runtime tests ([79e1710](https://github.com/SternAnchor/blipwatch/commit/79e1710163cde2c0366984ebad73845eb57da4e9))
+
+## [1.1.0-develop.33](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.32...v1.1.0-develop.33) (2026-06-08)
+
+### Features
+
+* add friendly radar range presets ([3a7a807](https://github.com/SternAnchor/blipwatch/commit/3a7a807fa9cd04cdbc1e1a1e0cdafdbb44589ffa))
+
+## [1.1.0-develop.32](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.31...v1.1.0-develop.32) (2026-06-08)
+
+### Bug Fixes
+
+* keep transmit alive during inferred standby ([c81eeb4](https://github.com/SternAnchor/blipwatch/commit/c81eeb4b21399ac2d4f8c6a72da2781ba3c047d3))
+
+## [1.1.0-develop.31](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.30...v1.1.0-develop.31) (2026-06-08)
+
+### Bug Fixes
+
+* stabilize radar decay and viewer layout ([5ccc387](https://github.com/SternAnchor/blipwatch/commit/5ccc387ace98c61d34969ffc1a3266e874f578d0))
+
+## [1.1.0-develop.30](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.29...v1.1.0-develop.30) (2026-06-08)
+
+### Features
+
+* add HALO tuning controls and startup fallback ([18f6eb8](https://github.com/SternAnchor/blipwatch/commit/18f6eb8de2d6fc89c9a4b794097ffa24e0d9a62f))
+
+## [1.1.0-develop.29](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.28...v1.1.0-develop.29) (2026-06-08)
+
+### Bug Fixes
+
+* expose phase 3 advanced controls ([ffca95a](https://github.com/SternAnchor/blipwatch/commit/ffca95add79813547ac3c83a40e56ba7e8dedfb9))
+
+## [1.1.0-develop.28](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.27...v1.1.0-develop.28) (2026-06-08)
+
+### Features
+
+* expand runtime diagnostics ([951136a](https://github.com/SternAnchor/blipwatch/commit/951136a8f8add324f76e54115d955970238d6f41))
+
+## [1.1.0-develop.27](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.26...v1.1.0-develop.27) (2026-06-08)
+
+### Features
+
+* expose radar tuning control model ([8e37035](https://github.com/SternAnchor/blipwatch/commit/8e370351ee414130a6af00e8f7c0cb8a9c06c141))
+
+## [1.1.0-develop.26](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.25...v1.1.0-develop.26) (2026-06-08)
+
+### Features
+
+* add radar WebSocket streaming ([9fb222c](https://github.com/SternAnchor/blipwatch/commit/9fb222c450103f2d48e8b8bf2ab2038b77235145))
+
+## [1.1.0-develop.25](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.24...v1.1.0-develop.25) (2026-06-08)
+
+### Features
+
+* add replay controls to dashboard ([ce910e3](https://github.com/SternAnchor/blipwatch/commit/ce910e357a88dbf8dc07c13ec816b25641f23656))
+
+## [1.1.0-develop.24](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.23...v1.1.0-develop.24) (2026-06-08)
+
+### Features
+
+* add replay playback API ([dd06425](https://github.com/SternAnchor/blipwatch/commit/dd064259ac6d0885bfbceeb6c03a06648323cc8b))
+
+## [1.1.0-develop.23](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.22...v1.1.0-develop.23) (2026-06-08)
+
+### Features
+
+* add configurable radar rendering controls ([08c3a9c](https://github.com/SternAnchor/blipwatch/commit/08c3a9c8467a5cc20f6835274c2ae510022da0ce))
+
+## [1.1.0-develop.22](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.21...v1.1.0-develop.22) (2026-06-08)
+
+### Features
+
+* add radar target aging and decay ([e57fea8](https://github.com/SternAnchor/blipwatch/commit/e57fea883b0ad9b06e8082951450c7bd4b7d94b6))
 
 ## [1.1.0-develop.21](https://github.com/SternAnchor/blipwatch/compare/v1.1.0-develop.20...v1.1.0-develop.21) (2026-06-08)
 

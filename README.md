@@ -2,7 +2,7 @@
 
 BlipWatch is an open-source Node.js server for receiving radar data from a Navico/B&G/Simrad HALO radar on a local Ethernet network and exposing live radar imagery through standard HTTP endpoints.
 
-The 1.0.0 implementation provides the first end-to-end server path: UDP packet reception, placeholder packet decoding for hardware-free development, image rendering, in-memory replay, HTTP APIs, Docker packaging, and release automation scaffolding.
+The 1.1.0 development line adds the first real HALO hardware path plus platform-maturity features: target aging/decay, configurable rendering, replay APIs and dashboard controls, WebSocket streaming, expanded diagnostics, package validation, and Raspberry Pi profiling tools.
 
 ## Safety Notice
 
@@ -18,10 +18,21 @@ Current limitations:
 
 - Real HALO/Navico packet decoding is implemented for the currently modeled Navico frame envelope, but still needs confirmation with real captures from supported hardware.
 - The committed `BWS1` packet format is a deterministic placeholder used by tests and the simulator.
-- Passive Navico report discovery is implemented. Active wake/transmit control is available as an explicit opt-in diagnostic path and is disabled by default.
+- Passive Navico report discovery is implemented. Active wake control is enabled by default; transmit still requires `RADAR_CONTROL_MODE=transmit` or an explicit dashboard/API request.
+- Gain, sea clutter, rain clutter, and range controls send documented Navico/HALO UDP command payloads while active control is enabled; validate these carefully against your hardware.
 - Replay storage is in memory only and is lost on restart.
+- WebSocket streaming sends live notifications and image URLs, not binary image frames.
 - The HTTP API is intentionally minimal and unauthenticated.
 - Docker and npm publishing are configured through GitHub Actions using Actions secret `NPM_TOKEN`.
+
+Phase 3 adds the operator-facing tools needed for broader testing:
+
+- Target persistence/fade and render tuning controls.
+- Replay listing, timestamp lookup, playback state, and dashboard replay controls.
+- WebSocket notifications at `/api/radar/stream`.
+- Runtime diagnostics for renderer, replay, control, streaming, process memory, and uptime.
+- Cross-platform CI validation and npm package dry-run checks.
+- A deterministic radar profiler for Raspberry Pi 5 readiness checks.
 
 ## Phase 2 Validation Status
 
@@ -72,13 +83,23 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm pack --dry-run
 ```
+
+GitHub Actions runs validation on Ubuntu, macOS, and Windows for pull requests and commits to `develop` and `main`. Docker build validation runs on Ubuntu, and release jobs build multi-architecture Docker images for `linux/amd64` and `linux/arm64` when publishing is enabled.
 
 Run the compiled server:
 
 ```bash
 npm run build
 npm start
+```
+
+Run from an npm install:
+
+```bash
+npm install -g blipwatch
+blipwatch
 ```
 
 Run in development mode:
@@ -173,14 +194,13 @@ npm run dev
 
 Debug logs should help identify UDP bind status, discovery report bind/join status, source addresses, packet counts, decode failures, render updates, replay capture, and HTTP image requests. Avoid sharing logs publicly if they contain vessel, marina, or network details.
 
-### Optional HALO Wake/Transmit Control
+### HALO Wake/Transmit Control
 
-Active control is disabled by default because it can change radar operating state. Only enable it when the radar can transmit safely and you have confirmed the vessel/test area is appropriate.
+Active control is enabled by default so BlipWatch can wake the HALO and expose dashboard/API controls without extra setup. The default mode is `wake`; startup transmit still requires `RADAR_CONTROL_MODE=transmit`, or an explicit dashboard/API transmit request. Set `RADAR_CONTROL_ENABLED=false` to run receive-only without active Navico/HALO commands.
 
 Wake the radar without requesting transmit:
 
 ```bash
-RADAR_CONTROL_ENABLED=true \
 RADAR_CONTROL_MODE=wake \
 RADAR_INTERFACE=auto \
 npm run dev
@@ -200,7 +220,9 @@ RADAR_INTERFACE=auto \
 npm run dev
 ```
 
-The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
+The control sequence sends the documented Navico wake command to `RADAR_CONTROL_WAKE_HOST:RADAR_CONTROL_WAKE_PORT`, then sends transmit-on once for the active command target and follows with periodic stay-alive commands while the desired state is `transmit`. If discovery later reports a different command endpoint, BlipWatch sends transmit-on once to that new target before resuming stay-alive commands. The root dashboard also exposes `Standby` and `Transmit` buttons backed by `POST /api/radar/control/standby` and `POST /api/radar/control/transmit`, plus a local `Clear Screen` action backed by `POST /api/radar/clear`. With `RADAR_CONTROL_HOST=auto`, BlipWatch uses a command endpoint extracted from discovery reports when available, otherwise it falls back to `RADAR_CONTROL_FALLBACK_HOST:RADAR_CONTROL_PORT`. Control state, desired state, observed radar state, command counts, last command, target source, tuning capabilities, and any socket errors are exposed through `/api/radar/status` and the root dashboard. If another device moves the radar to standby, BlipWatch updates observed state and pauses transmit stay-alive after the current request grace window.
+
+Gain, sea clutter, rain clutter, and range control are available through both the API and dashboard advanced controls when active radar control is enabled. The payloads are based on the published Navico control interface and the GPL-compatible OpenCPN radar_pi Navico implementation, then implemented in BlipWatch as small TypeScript packet builders. Treat them as active hardware commands: confirm the radar can transmit safely, keep another display available, and validate behavior on your specific HALO model before relying on them operationally.
 
 ### Capture Radar Traffic
 
@@ -231,7 +253,7 @@ Current protocol notes:
 - `RADAR_INTERFACE=auto` selects a likely non-virtual IPv4 interface before joining multicast groups. Set it to a concrete local address if auto-selection picks the wrong network.
 - `RADAR_MULTICAST_GROUPS=236.6.7.8` joins the commonly documented Navico image multicast stream by default.
 - Passive Navico discovery is enabled by default with `RADAR_DISCOVERY_ENABLED=true`, `RADAR_REPORT_MULTICAST_GROUP=236.6.7.5`, and `RADAR_REPORT_UDP_PORT=6878`.
-- Passive discovery listens for report packets and exposes detected radar metadata through `/api/radar/status`; active wake/transmit commands require `RADAR_CONTROL_ENABLED=true`.
+- Passive discovery listens for report packets and exposes detected radar metadata through `/api/radar/status`; set `RADAR_CONTROL_ENABLED=false` to disable active wake/transmit commands.
 - Real HALO control ports and exact report payload fields can vary by radar. Keep `RADAR_CONTROL_HOST=auto` to prefer discovered command endpoints, or set `RADAR_CONTROL_HOST` and `RADAR_CONTROL_PORT` explicitly if packet capture shows a different command endpoint.
 - Observed HALO location report `01b2` maps primary data to `236.6.7.8:6678`, primary command control to `236.6.7.10:6680`, and primary report/status traffic to `236.6.7.9:6679` for serial `129265451`.
 - The `BWS1` simulator packet format is not a real HALO packet format.
@@ -263,7 +285,15 @@ Troubleshooting decode failures or blank images:
 - If `receiver.packetsReceived` increases but `decoder.packetsRejected` also increases, save a short sanitized replay payload for decoder work.
 - If `decoder.packetsDecoded` increases but `renderer.imageAvailable` remains false, capture `/api/radar/status` and `/api/radar/latest.json` from the same test window.
 - If `/api/radar/latest.png` is empty while packets decode, note range, angle, packet sizes, and whether the radar was in standby or transmit.
-- If the radar remains in standby, try the opt-in wake mode first, then transmit mode only when it is safe for the radar to radiate.
+- If the radar remains in standby, try wake mode first, then transmit mode only when it is safe for the radar to radiate.
+
+Troubleshooting Phase 3 features:
+
+- If replay is empty, confirm `renderer.imageAvailable=true`, `replay.frameCount`, and `REPLAY_FRAME_INTERVAL_MS`. Replay frames are captured only after rendered spokes exist.
+- If the dashboard stays in replay mode, click `Live` or call `POST /api/radar/replay/playback` with `{"action":"live"}`.
+- If WebSocket clients do not update, check `/api/radar/status.streaming.clientsConnected`, `messagesSent`, and `updatesDropped`.
+- If control settings return `radar_control_setting_failed`, confirm `RADAR_CONTROL_ENABLED=true`, the control socket is running, and the discovered or configured command endpoint matches the radar.
+- If CPU or memory pressure is high, compare `/api/radar/status.process`, `/api/radar/status.replay.totalBytes`, and `npm run profile:radar` output before reducing image size or replay retention.
 
 ### Calibration Capture
 
@@ -275,10 +305,13 @@ CALIBRATION_CAPTURE_DIRECTORY=captures/calibration \
 CALIBRATION_CAPTURE_INTERVAL_MS=10000 \
 CALIBRATION_CAPTURE_PACKET_LIMIT=250 \
 RADAR_DISPLAY_RANGE_METERS=463 \
+RADAR_RENDER_PALETTE=chartplotter \
+RADAR_BRIGHTNESS_SCALE=100 \
+RADAR_TARGET_EXPANSION=100 \
 npm start
 ```
 
-The `packets.ndjson` file uses the same `payloadHex` line format accepted by `npm run replay:packets`, with receive timing and source metadata included for calibration. Set `RADAR_DISPLAY_RANGE_METERS` to the chartplotter range when comparing screenshots, for example `463` for 1/4 NM. Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
+The `packets.ndjson` file uses the same `payloadHex` line format accepted by `npm run replay:packets`, with receive timing and source metadata included for calibration. Set `RADAR_DISPLAY_RANGE_METERS` to the chartplotter range when comparing screenshots, for example `463` for 1/4 NM. Use `RADAR_RENDER_PALETTE`, `RADAR_BRIGHTNESS_SCALE`, and `RADAR_TARGET_EXPANSION` when tuning the rendered view against the chartplotter. Calibration bundles are ignored by git under `captures/` because they can reveal vessel location, marina/network details, and radar imagery. Review and sanitize before sharing.
 
 ### Replay Saved UDP Payloads
 
@@ -307,6 +340,35 @@ npm run replay:packets
 
 Use this format for small sanitized fixtures. Keep raw pcaps private until they have been reviewed for vessel, marina, and network details.
 
+### Radar Performance Profiling
+
+Use the deterministic radar profiler when checking Raspberry Pi 5 readiness or comparing changes across machines. It renders synthetic spokes, captures replay frames, and prints JSON with elapsed time, spoke throughput, replay bytes, and memory deltas.
+
+```bash
+npm run profile:radar
+```
+
+Optional workload controls:
+
+```bash
+PROFILE_IMAGE_SIZE=1024 \
+PROFILE_SPOKES=4096 \
+PROFILE_SAMPLE_COUNT=512 \
+PROFILE_CAPTURE_EVERY=16 \
+PROFILE_RANGE_METERS=2000 \
+npm run profile:radar
+```
+
+Record the JSON output with the device, OS, Node.js version, and whether the process is running from source, npm, Docker, or systemd. For Raspberry Pi-style deployments, start with lower `IMAGE_SIZE`, shorter replay retention, or a larger `REPLAY_FRAME_INTERVAL_MS` if heap, RSS, or replay bytes grow too quickly.
+
+Local reference run on macOS arm64 with Node.js 25.9.0, source execution, defaults above:
+
+- 4096 spokes rendered in 13405 ms.
+- 306 spokes per second.
+- 256 replay frames captured.
+- 1499392 replay PNG bytes.
+- RSS delta 39600128 bytes.
+
 ## Configuration
 
 BlipWatch is configured through environment variables.
@@ -317,10 +379,16 @@ BlipWatch is configured through environment variables.
 | `CALIBRATION_CAPTURE_DIRECTORY` | `captures/calibration` | Directory where timestamped calibration bundles are written. `CALIBRATION_CAPTURE_DIR` is also accepted as a shorter alias. |
 | `CALIBRATION_CAPTURE_INTERVAL_MS` | `10000` | Interval between calibration bundle captures when enabled. |
 | `CALIBRATION_CAPTURE_PACKET_LIMIT` | `250` | Maximum number of recent raw UDP payloads to include in each calibration bundle. Set to `0` to disable packet payload capture. |
+| `HEADLESS` | `false` | Disables desktop browser launch when `true`. `BLIPWATCH_HEADLESS` is also accepted. Docker sets this to `true` by default. |
+| `OPEN_BROWSER` | `true` unless headless | Opens the dashboard in the local desktop browser after startup. `BLIPWATCH_OPEN_BROWSER` is also accepted. |
 | `PORT` | `8080` | HTTP API port. |
+| `PORT_FALLBACK_ENABLED` | `true` | When the configured HTTP port is busy, try sequential fallback ports. `BLIPWATCH_PORT_FALLBACK_ENABLED` is also accepted. |
+| `PORT_FALLBACK_MAX_ATTEMPTS` | `5` | Number of sequential HTTP ports to try, so the default probes `8080` through `8084`. `BLIPWATCH_PORT_FALLBACK_MAX_ATTEMPTS` is also accepted. |
 | `RADAR_DISCOVERY_ENABLED` | `true` | Enables passive Navico/HALO report listening. |
+| `RADAR_BRIGHTNESS_SCALE` | `100` | Percentage multiplier applied to radar return intensity before rendering. Increase for dim targets or decrease for saturated returns. |
 | `RADAR_DISPLAY_RANGE_METERS` | `auto` | Render display range in meters. `auto` uses the decoded packet sweep range; set a value such as `463` to match a 1/4 NM chartplotter view. |
-| `RADAR_CONTROL_ENABLED` | `false` | Enables opt-in active Navico/HALO wake or transmit commands. |
+| `RADAR_RENDER_PALETTE` | `chartplotter` | Render color palette. Supported values are `chartplotter`, `grayscale`, and `green`. |
+| `RADAR_CONTROL_ENABLED` | `true` | Enables active Navico/HALO wake or transmit commands. Set to `false` for receive-only operation. |
 | `RADAR_CONTROL_MODE` | `wake` | Active control mode. Use `wake` to wake only or `transmit` to request transmit plus stay-alive. |
 | `RADAR_CONTROL_WAKE_HOST` | `236.6.7.5` | IPv4 destination for the Navico wake command. |
 | `RADAR_CONTROL_WAKE_PORT` | `6878` | UDP destination port for the Navico wake command. |
@@ -332,6 +400,10 @@ BlipWatch is configured through environment variables.
 | `RADAR_MULTICAST_GROUPS` | `236.6.7.8` | Comma-separated IPv4 multicast groups for radar image/spoke reception. |
 | `RADAR_REPORT_MULTICAST_GROUP` | `236.6.7.5` | IPv4 multicast group used for passive Navico/HALO report discovery. |
 | `RADAR_REPORT_UDP_PORT` | `6878` | UDP port used for passive Navico/HALO report discovery. |
+| `RADAR_TARGET_EXPANSION` | `100` | Percentage multiplier for rendered target footprint size. Increase to make returns easier to see on high-resolution displays. |
+| `RADAR_TARGET_PERSISTENCE_MS` | `4000` | Time a radar return stays at full rendered intensity before fading begins. |
+| `RADAR_TARGET_FADE_MS` | `8000` | Duration of the linear fade after the persistence window. |
+| `RADAR_TARGET_MAX_AGE_MS` | `15000` | Maximum age for a rendered return before it is removed. |
 | `RADAR_UDP_PORT` | `6678` | UDP port used for radar packet reception. |
 | `IMAGE_SIZE` | `1024` | Width and height, in pixels, of the rendered radar image. |
 | `REPLAY_RETENTION_SECONDS` | `300` | In-memory replay retention window. |
@@ -347,6 +419,12 @@ RADAR_INTERFACE=auto \
 RADAR_MULTICAST_GROUPS=236.6.7.8 \
 RADAR_REPORT_MULTICAST_GROUP=236.6.7.5 \
 RADAR_REPORT_UDP_PORT=6878 \
+RADAR_RENDER_PALETTE=chartplotter \
+RADAR_BRIGHTNESS_SCALE=100 \
+RADAR_TARGET_EXPANSION=100 \
+RADAR_TARGET_PERSISTENCE_MS=4000 \
+RADAR_TARGET_FADE_MS=8000 \
+RADAR_TARGET_MAX_AGE_MS=15000 \
 RADAR_UDP_PORT=6678 \
 IMAGE_SIZE=1024 \
 REPLAY_RETENTION_SECONDS=300 \
@@ -359,7 +437,11 @@ npm start
 
 ### `GET /`
 
-Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes the status and image automatically.
+Returns the browser dashboard with the current radar image, live diagnostics, packet counters, multicast groups, transmit/standby controls, clear screen control, advanced radar control inputs, replay controls, next actions, and raw `/api/radar/status` JSON. The dashboard refreshes status, replay metadata, and imagery automatically.
+
+The replay panel supports returning to live mode, pausing on the newest replay frame, resuming replay playback state, scrubbing recent frames with the timeline, jumping to a timestamp, and selecting 1x, 2x, 5x, or 10x playback speed. In replay mode the main image uses `/api/radar/replay/frame`; in live mode it returns to `/api/radar/latest.png`.
+
+The advanced controls panel exposes gain, sea clutter, rain clutter, and range controls through the same `/api/radar/control/settings` endpoint used by API clients. These controls are disabled if `RADAR_CONTROL_ENABLED=false` prevents the active command socket from starting. The dashboard range control shows unit and current range side-by-side, then steps through operator-friendly Imperial or Metric preset distances with plus/minus buttons that immediately send `rangeMeters` to the API. Standby, transmit, tuning, and range commands are active hardware commands. Clear Screen only resets BlipWatch's local rendered reflections.
 
 ### `GET /api/health`
 
@@ -452,12 +534,44 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
     "lastDecodedSpokeAt": "2026-06-07T00:00:00.000Z"
   },
   "renderer": {
+    "activePixelCount": 128,
     "imageAvailable": true,
     "imageSize": 1024,
     "lastRenderedImageAt": "2026-06-07T00:00:00.000Z",
     "lastSpokeAt": "2026-06-07T00:00:00.000Z",
+    "maxIntensity": 255,
+    "radarBrightnessScale": 100,
+    "radarRenderPalette": "chartplotter",
     "renderState": "ready",
-    "spokeCount": 1
+    "spokeCount": 1,
+    "targetExpansion": 100,
+    "targetMaxAgeMs": 15000
+  },
+  "replay": {
+    "frameCount": 10,
+    "frameIntervalMs": 1000,
+    "newestFrameAt": "2026-06-07T00:00:00.000Z",
+    "oldestFrameAt": "2026-06-07T00:00:00.000Z",
+    "retentionSeconds": 300,
+    "totalBytes": 40960
+  },
+  "process": {
+    "uptimeSeconds": 120,
+    "memory": {
+      "rss": 67108864,
+      "heapTotal": 18874368,
+      "heapUsed": 10485760,
+      "external": 2097152,
+      "arrayBuffers": 1048576
+    }
+  },
+  "streaming": {
+    "clientsConnected": 1,
+    "lastClientConnectedAt": "2026-06-07T00:00:00.000Z",
+    "lastMessageAt": "2026-06-07T00:00:01.000Z",
+    "messagesSent": 10,
+    "totalClientsConnected": 2,
+    "updatesDropped": 1
   },
   "control": {
     "enabled": true,
@@ -482,6 +596,105 @@ Returns hardware-focused discovery, receiver, decoder, and renderer diagnostics.
 
 This endpoint is intended for Phase 2 hardware testing and troubleshooting. It helps confirm whether BlipWatch is receiving UDP packets, decoding radar spokes, and rendering current imagery.
 
+### `GET /api/radar/stream`
+
+Opens a WebSocket stream for live radar notifications. The server sends an initial `radar.snapshot` message when a client connects, then throttled `radar.update` messages when a replay frame is captured or control/replay state changes.
+
+Messages include current status, renderer metadata, replay metadata, and image URLs:
+
+```json
+{
+  "type": "radar.update",
+  "timestamp": "2026-06-07T00:00:01.000Z",
+  "reason": "frame",
+  "image": {
+    "latestUrl": "/api/radar/latest.png",
+    "replayFrameAt": "2026-06-07T00:00:01.000Z",
+    "replayFrameUrl": "/api/radar/replay/frame?at=2026-06-07T00%3A00%3A01.000Z"
+  },
+  "renderer": {
+    "imageSize": 1024,
+    "renderState": "ready"
+  },
+  "replay": {
+    "frameCount": 10
+  },
+  "status": {
+    "diagnostics": {
+      "phase": "receiving-and-rendering"
+    }
+  }
+}
+```
+
+The stream applies lightweight throttling and skips clients with excessive buffered data. Connection counts, messages sent, and dropped update counts are exposed through `/api/radar/status.streaming`.
+
+### `GET /api/radar/control/settings`
+
+Returns radar tuning capabilities and the latest requested tuning state.
+
+```json
+{
+  "capabilities": {
+    "gain": {
+      "supported": true,
+      "reason": null
+    },
+    "seaClutter": {
+      "supported": true,
+      "reason": null
+    },
+    "rainClutter": {
+      "supported": true,
+      "reason": null
+    },
+    "range": {
+      "supported": true,
+      "reason": null
+    }
+  },
+  "tuning": {
+    "gain": {
+      "mode": "auto",
+      "value": null,
+      "lastRequestAt": null,
+      "lastError": null
+    },
+    "range": {
+      "rangeMeters": null,
+      "lastRequestAt": null,
+      "lastError": null
+    }
+  }
+}
+```
+
+### `POST /api/radar/control/settings`
+
+Validates, sends, and records a requested tuning control change from the API or dashboard advanced controls panel. Radar control must be enabled and running. Range values must be between `50` and `72704` meters. The dashboard may display range presets in feet/nautical miles or meters/kilometers, but API clients should continue sending integer `rangeMeters`.
+
+Successful responses return `200` with the updated tuning status. If the control socket is unavailable or a UDP send fails, the endpoint returns `500` with `radar_control_setting_failed`.
+
+Examples:
+
+```bash
+curl -X POST http://localhost:8080/api/radar/control/settings \
+  -H 'content-type: application/json' \
+  -d '{"setting":"gain","mode":"manual","value":42}'
+
+curl -X POST http://localhost:8080/api/radar/control/settings \
+  -H 'content-type: application/json' \
+  -d '{"setting":"range","rangeMeters":463}'
+```
+
+### `POST /api/radar/clear`
+
+Clears BlipWatch's current rendered radar image and publishes a stream update so connected dashboards refresh. This does not send a hardware command and does not change radar transmit, standby, gain, clutter, or range state.
+
+```bash
+curl -X POST http://localhost:8080/api/radar/clear
+```
+
 ### `GET /api/radar/replay`
 
 Returns replay buffer metadata.
@@ -492,6 +705,14 @@ Returns replay buffer metadata.
   "frameIntervalMs": 1000,
   "newestFrameAt": "2026-06-07T00:00:00.000Z",
   "oldestFrameAt": "2026-06-07T00:00:00.000Z",
+  "playback": {
+    "currentFrameAt": null,
+    "mode": "live",
+    "requestedAt": null,
+    "speed": 1,
+    "status": "live",
+    "updatedAt": "2026-06-07T00:00:00.000Z"
+  },
   "retentionSeconds": 300
 }
 ```
@@ -499,6 +720,12 @@ Returns replay buffer metadata.
 ### `GET /api/radar/replay/frames`
 
 Returns available replay frame metadata.
+
+Optional query parameters:
+
+- `from`: ISO-8601 timestamp for the earliest frame to include.
+- `to`: ISO-8601 timestamp for the latest frame to include.
+- `limit`: positive integer limiting the response to the newest matching frames.
 
 ```json
 {
@@ -528,6 +755,39 @@ Error responses:
 - `400` when `at` is missing
 - `404` when no replay frame is available
 
+### `GET /api/radar/replay/playback`
+
+Returns the current replay playback state.
+
+```json
+{
+  "currentFrameAt": "2026-06-07T00:00:00.000Z",
+  "mode": "replay",
+  "requestedAt": "2026-06-07T00:00:00.000Z",
+  "speed": 5,
+  "status": "paused",
+  "updatedAt": "2026-06-07T00:00:01.000Z"
+}
+```
+
+### `POST /api/radar/replay/playback`
+
+Updates replay playback state for clients that need pause, resume, jump, scrub, and return-to-live behavior.
+
+Supported JSON fields:
+
+- `action`: one of `pause`, `resume`, `jump`, `scrub`, or `live`.
+- `at`: ISO-8601 timestamp. Required for `jump` and `scrub`.
+- `speed`: optional playback speed, one of `1`, `2`, `5`, or `10`.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/api/radar/replay/playback \
+  -H 'content-type: application/json' \
+  -d '{"action":"jump","at":"2026-06-07T00:00:00.000Z","speed":5}'
+```
+
 ## Docker
 
 Build the local image:
@@ -544,6 +804,7 @@ docker run --rm \
   -p 6878:6878/udp \
   -p 6678:6678/udp \
   -e PORT=8080 \
+  -e HEADLESS=true \
   -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=auto \
   -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
@@ -558,6 +819,7 @@ For onboard hardware directly connected to a radar Ethernet network, host networ
 ```bash
 docker run --rm --network host \
   -e PORT=8080 \
+  -e HEADLESS=true \
   -e RADAR_DISCOVERY_ENABLED=true \
   -e RADAR_INTERFACE=auto \
   -e RADAR_MULTICAST_GROUPS=236.6.7.8 \
@@ -609,6 +871,15 @@ docker run -d --name blipwatch --restart unless-stopped --network host \
 ```
 
 Use `LOG_LEVEL=debug` during installation or troubleshooting to inspect UDP packet reception, decode failures, render updates, and replay capture.
+
+Suggested Raspberry Pi tuning order:
+
+1. Start with `IMAGE_SIZE=1024`, `REPLAY_FRAME_INTERVAL_MS=1000`, and `REPLAY_RETENTION_SECONDS=300`.
+2. If `/api/radar/status.process.memory.rss` grows too quickly, reduce replay retention or increase `REPLAY_FRAME_INTERVAL_MS`.
+3. If rendering lags, lower `IMAGE_SIZE` to `768` or `512`, then compare `activePixelCount`, `spokeCount`, and profiler output.
+4. Use `npm run profile:radar` on the target host before and after tuning so changes have a repeatable baseline.
+
+For systemd-style installs, run BlipWatch with a dedicated service user, set environment variables in an environment file, and prefer a wired interface on the radar network with VPNs disabled.
 
 ## Release Process
 

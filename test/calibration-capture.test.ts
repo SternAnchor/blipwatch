@@ -13,6 +13,14 @@ import type { ReplayBuffer } from "../src/replay/replay-buffer.js";
 import { createMemorySink } from "./support/logger.js";
 
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const playbackState = {
+  currentFrameAt: null,
+  mode: "live" as const,
+  requestedAt: null,
+  speed: 1 as const,
+  status: "live" as const,
+  updatedAt: "2026-06-07T00:00:00.000Z"
+};
 let temporaryDirectories: string[] = [];
 
 const config = (directory: string, enabled = true): BlipWatchConfig => ({
@@ -20,9 +28,14 @@ const config = (directory: string, enabled = true): BlipWatchConfig => ({
   calibrationCaptureEnabled: enabled,
   calibrationCaptureIntervalMs: 10000,
   calibrationCapturePacketLimit: 250,
+  headless: true,
   imageSize: 32,
   logLevel: "debug",
+  openBrowser: false,
   port: 0,
+  portFallbackEnabled: true,
+  portFallbackMaxAttempts: 5,
+  radarBrightnessScale: 100,
   radarControlEnabled: false,
   radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "236.6.8.36",
@@ -37,6 +50,11 @@ const config = (directory: string, enabled = true): BlipWatchConfig => ({
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarRenderPalette: "chartplotter",
+  radarTargetFadeMs: 8000,
+  radarTargetExpansion: 100,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1000,
   replayRetentionSeconds: 300
@@ -44,14 +62,22 @@ const config = (directory: string, enabled = true): BlipWatchConfig => ({
 
 const renderer: RadarImageRenderer = {
   applySpoke(): void {},
+  clear(): void {},
   getLatestMetadata() {
     return {
+      activePixelCount: 10,
       imageSize: 32,
       lastFrameAt: "2026-06-07T00:00:00.000Z",
       lastSpokeAt: "2026-06-07T00:00:00.000Z",
       maxIntensity: 255,
+      radarBrightnessScale: 100,
+      radarRenderPalette: "chartplotter",
       renderState: "ready",
-      spokeCount: 12
+      spokeCount: 12,
+      targetFadeMs: 8000,
+      targetExpansion: 100,
+      targetMaxAgeMs: 15000,
+      targetPersistenceMs: 4000
     };
   },
   getLatestPng() {
@@ -74,8 +100,13 @@ const replayBuffer: ReplayBuffer = {
       frameIntervalMs: 1000,
       newestFrameAt: "2026-06-07T00:00:00.000Z",
       oldestFrameAt: "2026-06-07T00:00:00.000Z",
-      retentionSeconds: 300
+      playback: playbackState,
+      retentionSeconds: 300,
+      totalBytes: png.byteLength
     };
+  },
+  getPlaybackState() {
+    return playbackState;
   },
   listFrames() {
     return [
@@ -86,7 +117,10 @@ const replayBuffer: ReplayBuffer = {
       }
     ];
   },
-  retentionSeconds: 300
+  retentionSeconds: 300,
+  updatePlayback() {
+    return playbackState;
+  }
 };
 
 const radarStatus = (): RadarStatus =>

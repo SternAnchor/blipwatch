@@ -9,10 +9,15 @@ describe("loadConfig", () => {
       calibrationCaptureEnabled: false,
       calibrationCaptureIntervalMs: 10000,
       calibrationCapturePacketLimit: 250,
+      headless: false,
       imageSize: 1024,
       logLevel: "info",
+      openBrowser: true,
       port: 8080,
-      radarControlEnabled: false,
+      portFallbackEnabled: true,
+      portFallbackMaxAttempts: 5,
+      radarBrightnessScale: 100,
+      radarControlEnabled: true,
       radarControlFallbackHost: "236.6.8.36",
       radarControlHost: "auto",
       radarControlMode: "wake",
@@ -26,6 +31,11 @@ describe("loadConfig", () => {
       radarMulticastGroups: ["236.6.7.8"],
       radarReportMulticastGroup: "236.6.7.5",
       radarReportUdpPort: 6878,
+      radarRenderPalette: "chartplotter",
+      radarTargetFadeMs: 8000,
+      radarTargetExpansion: 100,
+      radarTargetMaxAgeMs: 15000,
+      radarTargetPersistenceMs: 4000,
       radarUdpPort: 6678,
       replayFrameIntervalMs: 1000,
       replayRetentionSeconds: 300
@@ -53,10 +63,15 @@ describe("loadConfig", () => {
         CALIBRATION_CAPTURE_ENABLED: "true",
         CALIBRATION_CAPTURE_INTERVAL_MS: "5000",
         CALIBRATION_CAPTURE_PACKET_LIMIT: "42",
+        HEADLESS: "true",
         IMAGE_SIZE: "512",
         LOG_LEVEL: "debug",
+        OPEN_BROWSER: "true",
         PORT: "9090",
-        RADAR_CONTROL_ENABLED: "true",
+        PORT_FALLBACK_ENABLED: "false",
+        PORT_FALLBACK_MAX_ATTEMPTS: "2",
+        RADAR_BRIGHTNESS_SCALE: "125",
+        RADAR_CONTROL_ENABLED: "false",
         RADAR_CONTROL_FALLBACK_HOST: "236.6.8.37",
         RADAR_CONTROL_HOST: "236.6.8.36",
         RADAR_CONTROL_MODE: "transmit",
@@ -70,6 +85,11 @@ describe("loadConfig", () => {
         RADAR_MULTICAST_GROUPS: "239.2.1.1, 239.2.1.2",
         RADAR_REPORT_MULTICAST_GROUP: "236.6.7.9",
         RADAR_REPORT_UDP_PORT: "6879",
+        RADAR_RENDER_PALETTE: "green",
+        RADAR_TARGET_FADE_MS: "7000",
+        RADAR_TARGET_EXPANSION: "150",
+        RADAR_TARGET_MAX_AGE_MS: "12000",
+        RADAR_TARGET_PERSISTENCE_MS: "3000",
         RADAR_UDP_PORT: "6679",
         REPLAY_FRAME_INTERVAL_MS: "250",
         REPLAY_RETENTION_SECONDS: "60"
@@ -79,10 +99,15 @@ describe("loadConfig", () => {
       calibrationCaptureEnabled: true,
       calibrationCaptureIntervalMs: 5000,
       calibrationCapturePacketLimit: 42,
+      headless: true,
       imageSize: 512,
       logLevel: "debug",
+      openBrowser: true,
       port: 9090,
-      radarControlEnabled: true,
+      portFallbackEnabled: false,
+      portFallbackMaxAttempts: 2,
+      radarBrightnessScale: 125,
+      radarControlEnabled: false,
       radarControlFallbackHost: "236.6.8.37",
       radarControlHost: "236.6.8.36",
       radarControlMode: "transmit",
@@ -96,9 +121,29 @@ describe("loadConfig", () => {
       radarMulticastGroups: ["239.2.1.1", "239.2.1.2"],
       radarReportMulticastGroup: "236.6.7.9",
       radarReportUdpPort: 6879,
+      radarRenderPalette: "green",
+      radarTargetFadeMs: 7000,
+      radarTargetExpansion: 150,
+      radarTargetMaxAgeMs: 12000,
+      radarTargetPersistenceMs: 3000,
       radarUdpPort: 6679,
       replayFrameIntervalMs: 250,
       replayRetentionSeconds: 60
+    });
+  });
+
+  it("disables browser launch automatically in headless mode", () => {
+    expect(loadConfig({ HEADLESS: "true" })).toMatchObject({
+      headless: true,
+      openBrowser: false
+    });
+    expect(loadConfig({ BLIPWATCH_HEADLESS: "1" })).toMatchObject({
+      headless: true,
+      openBrowser: false
+    });
+    expect(loadConfig({ HEADLESS: "true", OPEN_BROWSER: "true" })).toMatchObject({
+      headless: true,
+      openBrowser: true
     });
   });
 
@@ -125,6 +170,18 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ RADAR_DISPLAY_RANGE_METERS: "0" })).toThrow(
       "RADAR_DISPLAY_RANGE_METERS must be greater than 0"
     );
+    expect(() => loadConfig({ RADAR_BRIGHTNESS_SCALE: "0" })).toThrow("RADAR_BRIGHTNESS_SCALE must be greater than 0");
+    expect(() => loadConfig({ RADAR_RENDER_PALETTE: "purple" })).toThrow(
+      'RADAR_RENDER_PALETTE must be one of: chartplotter, grayscale, green; received "purple"'
+    );
+    expect(() => loadConfig({ RADAR_TARGET_EXPANSION: "0" })).toThrow("RADAR_TARGET_EXPANSION must be greater than 0");
+    expect(() => loadConfig({ RADAR_TARGET_FADE_MS: "0" })).toThrow("RADAR_TARGET_FADE_MS must be greater than 0");
+    expect(() => loadConfig({ RADAR_TARGET_MAX_AGE_MS: "0" })).toThrow(
+      "RADAR_TARGET_MAX_AGE_MS must be greater than 0"
+    );
+    expect(() => loadConfig({ RADAR_TARGET_PERSISTENCE_MS: "-1" })).toThrow(
+      'RADAR_TARGET_PERSISTENCE_MS must be an integer; received "-1"'
+    );
     expect(() => loadConfig({ RADAR_CONTROL_ENABLED: "maybe" })).toThrow(
       'RADAR_CONTROL_ENABLED must be one of: true, false, 1, 0; received "maybe"'
     );
@@ -142,6 +199,18 @@ describe("loadConfig", () => {
     );
     expect(() => loadConfig({ RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS: "0" })).toThrow(
       "RADAR_CONTROL_STAY_ALIVE_INTERVAL_MS must be greater than 0"
+    );
+    expect(() => loadConfig({ HEADLESS: "maybe" })).toThrow(
+      'HEADLESS must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ OPEN_BROWSER: "maybe" })).toThrow(
+      'OPEN_BROWSER must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ PORT_FALLBACK_ENABLED: "maybe" })).toThrow(
+      'PORT_FALLBACK_ENABLED must be one of: true, false, 1, 0; received "maybe"'
+    );
+    expect(() => loadConfig({ PORT_FALLBACK_MAX_ATTEMPTS: "0" })).toThrow(
+      "PORT_FALLBACK_MAX_ATTEMPTS must be greater than 0"
     );
     expect(() => loadConfig({ LOG_LEVEL: "trace" })).toThrow('LOG_LEVEL must be one of: debug, info; received "trace"');
     expect(() => loadConfig({ RADAR_INTERFACE: "   " })).toThrow("RADAR_INTERFACE must not be empty");

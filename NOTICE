@@ -1,0 +1,105 @@
+SAFETY AND LIABILITY NOTICE — BlipWatch
+========================================
+
+IMPORTANT: READ BEFORE USE
+
+BlipWatch is EXPERIMENTAL situational-awareness software. It is provided
+under the GNU General Public License v3.0 with the following additional
+notices pursuant to Section 7 of that license.
+
+
+1. NOT A CERTIFIED NAVIGATION OR SAFETY SYSTEM
+
+   BlipWatch is NOT certified, approved, type-approved, or endorsed by any
+   maritime authority, classification society, or standards body including
+   but not limited to the International Maritime Organization (IMO),
+   United States Coast Guard (USCG), Maritime and Coastguard Agency (MCA),
+   or any national maritime administration.
+
+   BlipWatch does NOT meet the requirements of:
+   - IMO Resolution MSC.192(79) (Radar performance standards)
+   - IEC 62388 (Maritime radar equipment)
+   - COLREGS Rule 5 (Proper lookout)
+   - COLREGS Rule 7 (Risk of collision)
+   - Any SOLAS chapter V regulation
+
+2. NOT A SUBSTITUTE FOR PROPER WATCHKEEPING
+
+   International maritime law (COLREGS Rule 5) requires every vessel to
+   maintain a proper lookout by sight and hearing as well as by all
+   available means appropriate in the prevailing circumstances so as to
+   make a full appraisal of the situation and the risk of collision.
+
+   BlipWatch is NOT an "available means" as contemplated by the COLREGS.
+   Do NOT use BlipWatch as the sole, primary, or backup source of
+   navigational information, collision avoidance data, or watchkeeping
+   input.
+
+3. DISCLAIMER OF FITNESS FOR MARINE USE
+
+   IN ADDITION TO THE WARRANTY DISCLAIMERS IN THE GNU GENERAL PUBLIC
+   LICENSE v3.0, THE AUTHORS AND COPYRIGHT HOLDERS EXPLICITLY DISCLAIM
+   ANY AND ALL REPRESENTATIONS OR WARRANTIES THAT THIS SOFTWARE IS FIT
+   FOR USE IN:
+
+   - Navigation of any vessel
+   - Collision avoidance
+   - Watchkeeping or lookout duties
+   - Any safety-of-life application
+   - Any application where failure or inaccuracy could result in death,
+     personal injury, property damage, or environmental damage
+
+   THIS SOFTWARE MAY PRODUCE INACCURATE, INCOMPLETE, DELAYED, OR
+   ENTIRELY ABSENT RADAR IMAGERY. IT MAY FAIL WITHOUT WARNING. IT HAS
+   NOT BEEN TESTED OR VALIDATED AGAINST REAL-WORLD MARINE HAZARDS.
+
+4. LIMITATION OF LIABILITY FOR MARITIME INCIDENTS
+
+   IN NO EVENT SHALL THE AUTHORS, COPYRIGHT HOLDERS, CONTRIBUTORS, OR
+   DISTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY
+   ARISING FROM OR RELATED TO:
+
+   - Collision, grounding, allision, or any other maritime casualty
+   - Loss of life, personal injury, or illness
+   - Loss of or damage to vessels, cargo, or property
+   - Environmental damage or pollution
+   - Salvage, wreck removal, or cleanup costs
+   - Business interruption or loss of revenue
+   - Any fines, penalties, or regulatory actions
+
+   WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT
+   LIABILITY, ADMIRALTY, OR OTHERWISE, EVEN IF ADVISED OF THE POSSIBILITY
+   OF SUCH DAMAGES.
+
+5. USER RESPONSIBILITIES
+
+   By using this software, you acknowledge and agree that:
+
+   a. You are solely responsible for the safe navigation of your vessel.
+   b. You will maintain a proper visual and auditory lookout at all times.
+   c. You will use certified, type-approved marine electronics as your
+      primary source of navigational information.
+   d. You will not rely on this software for any safety-critical decision.
+   e. You understand that radar data processing by this software may be
+      incomplete, inaccurate, or entirely non-functional.
+   f. You accept all risk associated with the use of this software.
+
+6. REDISTRIBUTION NOTICE
+
+   If you redistribute this software, whether modified or unmodified,
+   you MUST include this NOTICE file in its entirety, unmodified, in a
+   prominent location. This requirement is an additional term under
+   Section 7(b) of the GNU General Public License v3.0.
+
+7. GOVERNING LAW
+
+   To the extent not governed by the GNU General Public License v3.0,
+   this notice shall be interpreted under general principles of maritime
+   law and the domestic law of the jurisdiction in which any dispute arises.
+
+========================================
+This notice supplements but does not replace the GNU General Public
+License v3.0 under which BlipWatch is distributed. In the event of any
+conflict between this notice and the GPL-3.0, the provision offering
+the greater limitation of liability and disclaimer of warranty shall
+control to the maximum extent permitted by applicable law.

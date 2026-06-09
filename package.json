@@ -1,6 +1,6 @@
 {
   "name": "blipwatch",
-  "version": "1.1.0",
+  "version": "1.1.0-develop.34",
   "description": "Server-based interface for HALO-based radars.",
   "license": "GPL-3.0-only",
   "repository": {
@@ -10,7 +10,11 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "blipwatch": "dist/index.js"
+  },
   "files": [
+    "docs/favicon.ico",
     "dist",
     "README.md",
     "LICENSE"
@@ -23,6 +27,7 @@
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
     "release": "semantic-release",
+    "profile:radar": "tsx src/sim/performance-profile-cli.ts",
     "replay:packets": "tsx src/sim/packet-replay-cli.ts",
     "simulate:radar": "tsx src/sim/radar-simulator.ts",
     "start": "node dist/index.js",
@@ -36,7 +41,8 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
@@ -50,6 +56,7 @@
     "@semantic-release/release-notes-generator": "^14.1.1",
     "@types/node": "^24.10.1",
     "@types/pngjs": "^6.0.5",
+    "@types/ws": "^8.18.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "eslint": "^9.39.1",
     "semantic-release": "^25.0.3",

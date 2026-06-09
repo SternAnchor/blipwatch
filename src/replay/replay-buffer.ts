@@ -8,7 +8,9 @@ export interface ReplayBuffer {
   captureFrame(frame: ReplayFrameInput): ReplayFrame | undefined;
   getFrameAt(timestamp: Date | string): ReplayFrame | undefined;
   getMetadata(): ReplayMetadata;
-  listFrames(): ReplayFrameMetadata[];
+  getPlaybackState(): ReplayPlaybackState;
+  listFrames(options?: ReplayFrameListOptions): ReplayFrameMetadata[];
+  updatePlayback(command: ReplayPlaybackCommand): ReplayPlaybackState;
 }
 
 interface ReplayBufferOptions {
@@ -39,12 +41,47 @@ export interface ReplayMetadata {
   readonly frameIntervalMs: number;
   readonly newestFrameAt: string | null;
   readonly oldestFrameAt: string | null;
+  readonly playback: ReplayPlaybackState;
   readonly retentionSeconds: number;
+  readonly totalBytes: number;
+}
+
+export interface ReplayFrameListOptions {
+  readonly from?: Date | string;
+  readonly limit?: number;
+  readonly to?: Date | string;
+}
+
+export type ReplayPlaybackAction = "jump" | "live" | "pause" | "resume" | "scrub";
+export type ReplayPlaybackMode = "live" | "replay";
+export type ReplayPlaybackSpeed = 1 | 2 | 5 | 10;
+export type ReplayPlaybackStatus = "live" | "paused" | "playing";
+
+export interface ReplayPlaybackCommand {
+  readonly action: ReplayPlaybackAction;
+  readonly at?: Date | string;
+  readonly speed?: ReplayPlaybackSpeed;
+}
+
+export interface ReplayPlaybackState {
+  readonly currentFrameAt: string | null;
+  readonly mode: ReplayPlaybackMode;
+  readonly requestedAt: string | null;
+  readonly speed: ReplayPlaybackSpeed;
+  readonly status: ReplayPlaybackStatus;
+  readonly updatedAt: string;
 }
 
 export const createReplayBuffer = ({ config, logger }: ReplayBufferOptions): ReplayBuffer => {
   const frames: ReplayFrame[] = [];
   let lastCapturedAt: Date | undefined;
+  let playbackState: ReplayPlaybackState = createPlaybackState({
+    currentFrameAt: null,
+    mode: "live",
+    requestedAt: null,
+    speed: 1,
+    status: "live"
+  });
 
   logger.debug(
     `replay buffer initialized for ${config.replayRetentionSeconds}s at ${config.replayFrameIntervalMs}ms intervals`
@@ -81,11 +118,7 @@ export const createReplayBuffer = ({ config, logger }: ReplayBufferOptions): Rep
         return undefined;
       }
 
-      return frames.reduce((closest, candidate) => {
-        const closestDistance = Math.abs(closest.capturedAt.getTime() - target.getTime());
-        const candidateDistance = Math.abs(candidate.capturedAt.getTime() - target.getTime());
-        return candidateDistance < closestDistance ? candidate : closest;
-      });
+      return getClosestFrame(frames, target);
     },
     getMetadata(): ReplayMetadata {
       return {
@@ -93,19 +126,118 @@ export const createReplayBuffer = ({ config, logger }: ReplayBufferOptions): Rep
         frameIntervalMs: config.replayFrameIntervalMs,
         newestFrameAt: frames.at(-1)?.capturedAt.toISOString() ?? null,
         oldestFrameAt: frames[0]?.capturedAt.toISOString() ?? null,
-        retentionSeconds: config.replayRetentionSeconds
+        playback: playbackState,
+        retentionSeconds: config.replayRetentionSeconds,
+        totalBytes: getTotalFrameBytes(frames)
       };
     },
-    listFrames(): ReplayFrameMetadata[] {
-      return frames.map((frame) => ({
+    getPlaybackState(): ReplayPlaybackState {
+      return playbackState;
+    },
+    listFrames(options: ReplayFrameListOptions = {}): ReplayFrameMetadata[] {
+      const from = parseOptionalTimestamp(options.from);
+      const to = parseOptionalTimestamp(options.to);
+      const limit = options.limit && options.limit > 0 ? options.limit : undefined;
+      const matchingFrames = frames.filter((frame) => {
+        const capturedAt = frame.capturedAt.getTime();
+        return (!from || capturedAt >= from.getTime()) && (!to || capturedAt <= to.getTime());
+      });
+
+      return matchingFrames.slice(limit ? Math.max(matchingFrames.length - limit, 0) : 0).map((frame) => ({
         capturedAt: frame.capturedAt.toISOString(),
         metadata: frame.metadata,
         sizeBytes: frame.png.byteLength
       }));
     },
-    retentionSeconds: config.replayRetentionSeconds
+    retentionSeconds: config.replayRetentionSeconds,
+    updatePlayback(command: ReplayPlaybackCommand): ReplayPlaybackState {
+      playbackState = getNextPlaybackState(command, frames, playbackState);
+      logger.debug(
+        `replay playback updated action=${command.action} status=${playbackState.status} currentFrameAt=${playbackState.currentFrameAt ?? "none"} speed=${playbackState.speed}x`
+      );
+      return playbackState;
+    }
   };
 };
+
+const createPlaybackState = (
+  state: Omit<ReplayPlaybackState, "updatedAt">,
+  updatedAt: Date = new Date()
+): ReplayPlaybackState => ({
+  ...state,
+  updatedAt: updatedAt.toISOString()
+});
+
+const getNextPlaybackState = (
+  command: ReplayPlaybackCommand,
+  frames: readonly ReplayFrame[],
+  currentState: ReplayPlaybackState
+): ReplayPlaybackState => {
+  if (command.action === "live") {
+    return createPlaybackState({
+      currentFrameAt: null,
+      mode: "live",
+      requestedAt: null,
+      speed: command.speed ?? currentState.speed,
+      status: "live"
+    });
+  }
+
+  const requestedAt = normalizeRequestedAt(command.at);
+  const selectedFrame = requestedAt ? getClosestFrame(frames, requestedAt) : frames.at(-1);
+  const currentFrameAt = selectedFrame?.capturedAt.toISOString() ?? currentState.currentFrameAt;
+  const speed = command.speed ?? currentState.speed;
+
+  if (command.action === "resume") {
+    return createPlaybackState({
+      currentFrameAt,
+      mode: "replay",
+      requestedAt: requestedAt?.toISOString() ?? null,
+      speed,
+      status: "playing"
+    });
+  }
+
+  return createPlaybackState({
+    currentFrameAt,
+    mode: "replay",
+    requestedAt: requestedAt?.toISOString() ?? null,
+    speed,
+    status: "paused"
+  });
+};
+
+const normalizeRequestedAt = (timestamp: Date | string | undefined): Date | undefined => {
+  if (timestamp === undefined) {
+    return undefined;
+  }
+
+  const parsed = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const parseOptionalTimestamp = (timestamp: Date | string | undefined): Date | undefined => {
+  if (timestamp === undefined) {
+    return undefined;
+  }
+
+  const parsed = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const getClosestFrame = (frames: readonly ReplayFrame[], target: Date): ReplayFrame | undefined =>
+  frames.reduce<ReplayFrame | undefined>((closest, candidate) => {
+    if (!closest) {
+      return candidate;
+    }
+
+    const closestDistance = Math.abs(closest.capturedAt.getTime() - target.getTime());
+    const candidateDistance = Math.abs(candidate.capturedAt.getTime() - target.getTime());
+    return candidateDistance < closestDistance ? candidate : closest;
+  }, undefined);
+
+const getTotalFrameBytes = (frames: readonly ReplayFrame[]): number =>
+  frames.reduce((total, frame) => total + frame.png.byteLength, 0);
 
 const trimFrames = (frames: ReplayFrame[], now: Date, retentionSeconds: number): void => {
   const oldestAllowed = now.getTime() - retentionSeconds * 1000;

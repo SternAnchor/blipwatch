@@ -1,12 +1,13 @@
 import { PNG } from "pngjs";
 
-import type { BlipWatchConfig } from "../config/config.js";
+import type { BlipWatchConfig, RadarRenderPalette } from "../config/config.js";
 import type { Logger } from "../logging/logger.js";
 import type { RadarSpoke } from "./decoder.js";
 
 export interface RadarImageRenderer {
   readonly imageSize: number;
   applySpoke(spoke: RadarSpoke): void;
+  clear(): void;
   getLatestMetadata(): RadarImageMetadata;
   getLatestPng(): Buffer;
 }
@@ -17,12 +18,19 @@ interface RadarImageRendererOptions {
 }
 
 export interface RadarImageMetadata {
+  readonly activePixelCount: number;
   readonly imageSize: number;
   readonly lastFrameAt: string | null;
   readonly lastSpokeAt: string | null;
   readonly maxIntensity: number;
+  readonly radarBrightnessScale: number;
+  readonly radarRenderPalette: RadarRenderPalette;
   readonly renderState: "empty" | "ready";
   readonly spokeCount: number;
+  readonly targetFadeMs: number;
+  readonly targetExpansion: number;
+  readonly targetMaxAgeMs: number;
+  readonly targetPersistenceMs: number;
 }
 
 export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererOptions): RadarImageRenderer => {
@@ -33,7 +41,12 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
     inputHasAlpha: true,
     width: config.imageSize
   });
-  const intensityMap = new Uint8Array(config.imageSize * config.imageSize);
+  const returnIntensityMap = new Uint8Array(config.imageSize * config.imageSize);
+  const displayIntensityMap = new Uint8Array(config.imageSize * config.imageSize);
+  const updatedAtMap = new Float64Array(config.imageSize * config.imageSize);
+  const renderState = {
+    activePixelCount: 0
+  };
   clearImage(image);
   let lastFrameAt: Date | undefined;
   let lastSpokeAt: Date | undefined;
@@ -46,10 +59,21 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
   return {
     applySpoke(spoke: RadarSpoke): void {
       try {
-        drawSpoke(image, intensityMap, spoke, getDisplayRangeMeters(config.radarDisplayRangeMeters, spoke));
+        const renderedAt = spoke.receivedAt ?? new Date();
+        drawSpoke(
+          image,
+          returnIntensityMap,
+          displayIntensityMap,
+          updatedAtMap,
+          renderState,
+          spoke,
+          getDisplayRangeMeters(config.radarDisplayRangeMeters, spoke),
+          renderedAt.getTime(),
+          getTargetDecayConfig(config)
+        );
         spokeCount += 1;
         maxIntensity = Math.max(maxIntensity, spoke.maxIntensity);
-        lastSpokeAt = spoke.receivedAt ?? new Date();
+        lastSpokeAt = renderedAt;
         lastFrameAt = new Date();
         latestPng = undefined;
         logger.debug(
@@ -59,23 +83,61 @@ export const createRadarImageRenderer = ({ config, logger }: RadarImageRendererO
         logger.error("failed to render radar spoke", error);
       }
     },
+    clear(): void {
+      clearImage(image);
+      returnIntensityMap.fill(0);
+      displayIntensityMap.fill(0);
+      updatedAtMap.fill(0);
+      renderState.activePixelCount = 0;
+      lastFrameAt = new Date();
+      lastSpokeAt = undefined;
+      maxIntensity = 0;
+      latestPng = undefined;
+      spokeCount = 0;
+      logger.debug("radar renderer cleared");
+    },
     getLatestMetadata(): RadarImageMetadata {
+      applyDecay(image, returnIntensityMap, displayIntensityMap, updatedAtMap, renderState, Date.now(), getTargetDecayConfig(config));
       return {
+        activePixelCount: renderState.activePixelCount,
         imageSize: config.imageSize,
         lastFrameAt: lastFrameAt?.toISOString() ?? null,
         lastSpokeAt: lastSpokeAt?.toISOString() ?? null,
         maxIntensity,
+        radarBrightnessScale: config.radarBrightnessScale,
+        radarRenderPalette: config.radarRenderPalette,
         renderState: spokeCount === 0 ? "empty" : "ready",
-        spokeCount
+        spokeCount,
+        targetFadeMs: config.radarTargetFadeMs,
+        targetExpansion: config.radarTargetExpansion,
+        targetMaxAgeMs: config.radarTargetMaxAgeMs,
+        targetPersistenceMs: config.radarTargetPersistenceMs
       };
     },
     getLatestPng(): Buffer {
+      if (applyDecay(image, returnIntensityMap, displayIntensityMap, updatedAtMap, renderState, Date.now(), getTargetDecayConfig(config))) {
+        latestPng = undefined;
+        lastFrameAt = new Date();
+      }
       latestPng ??= PNG.sync.write(image);
       return latestPng;
     },
     imageSize: config.imageSize
   };
 };
+
+interface RenderState {
+  activePixelCount: number;
+}
+
+interface TargetDecayConfig {
+  readonly brightnessScale: number;
+  readonly fadeMs: number;
+  readonly maxAgeMs: number;
+  readonly palette: RadarRenderPalette;
+  readonly persistenceMs: number;
+  readonly targetExpansion: number;
+}
 
 const clearImage = (image: PNG): void => {
   for (let index = 0; index < image.data.length; index += 4) {
@@ -94,13 +156,32 @@ const getDisplayRangeMeters = (configuredRange: number | "auto", spoke: RadarSpo
   return configuredRange;
 };
 
-const drawSpoke = (image: PNG, intensityMap: Uint8Array, spoke: RadarSpoke, displayRangeMeters: number): void => {
+const getTargetDecayConfig = (config: BlipWatchConfig): TargetDecayConfig => ({
+  brightnessScale: config.radarBrightnessScale,
+  fadeMs: config.radarTargetFadeMs,
+  maxAgeMs: config.radarTargetMaxAgeMs,
+  palette: config.radarRenderPalette,
+  persistenceMs: config.radarTargetPersistenceMs,
+  targetExpansion: config.radarTargetExpansion
+});
+
+const drawSpoke = (
+  image: PNG,
+  returnIntensityMap: Uint8Array,
+  displayIntensityMap: Uint8Array,
+  updatedAtMap: Float64Array,
+  renderState: RenderState,
+  spoke: RadarSpoke,
+  displayRangeMeters: number,
+  renderedAtMs: number,
+  decayConfig: TargetDecayConfig
+): void => {
   const center = Math.floor(image.width / 2);
   const maxRadius = Math.max(Math.floor(image.width / 2) - 1, 1);
   const angleRadians = (spoke.angleDegrees * Math.PI) / 180;
   const sampleDenominator = Math.max(spoke.intensities.length - 1, 1);
   const metersPerSample = spoke.rangeMeters / sampleDenominator;
-  const footprintRadius = getFootprintRadius(image.width);
+  const footprintRadius = getFootprintRadius(image.width, decayConfig.targetExpansion);
 
   for (const [sampleIndex, intensity] of spoke.intensities.entries()) {
     if (intensity === 0) {
@@ -115,19 +196,40 @@ const drawSpoke = (image: PNG, intensityMap: Uint8Array, spoke: RadarSpoke, disp
     const radius = (sampleRangeMeters / displayRangeMeters) * maxRadius;
     const x = Math.round(center + Math.sin(angleRadians) * radius);
     const y = Math.round(center - Math.cos(angleRadians) * radius);
-    drawReturn(image, intensityMap, x, y, intensity, footprintRadius);
+    drawReturn(
+      image,
+      returnIntensityMap,
+      displayIntensityMap,
+      updatedAtMap,
+      renderState,
+      x,
+      y,
+      scaleIntensity(intensity, decayConfig.brightnessScale),
+      footprintRadius,
+      renderedAtMs,
+      decayConfig
+    );
   }
 };
 
-const getFootprintRadius = (imageSize: number): number => Math.max(1, Math.round(imageSize / 256));
+const getFootprintRadius = (imageSize: number, targetExpansion: number): number =>
+  Math.max(1, Math.round((imageSize / 256) * (targetExpansion / 100)));
+
+const scaleIntensity = (intensity: number, brightnessScale: number): number =>
+  Math.min(255, Math.max(0, Math.round(intensity * (brightnessScale / 100))));
 
 const drawReturn = (
   image: PNG,
-  intensityMap: Uint8Array,
+  returnIntensityMap: Uint8Array,
+  displayIntensityMap: Uint8Array,
+  updatedAtMap: Float64Array,
+  renderState: RenderState,
   centerX: number,
   centerY: number,
   intensity: number,
-  footprintRadius: number
+  footprintRadius: number,
+  renderedAtMs: number,
+  decayConfig: TargetDecayConfig
 ): void => {
   const radius = intensity >= 192 ? footprintRadius * 2 : footprintRadius;
   for (let y = centerY - radius; y <= centerY + radius; y += 1) {
@@ -138,32 +240,187 @@ const drawReturn = (
       }
 
       const falloff = radius > 1 ? 1 - Math.sqrt(distanceSquared) / (radius + 1) : 1;
-      setPixel(image, intensityMap, x, y, Math.max(1, Math.round(intensity * falloff)));
+      setPixel(
+        image,
+        returnIntensityMap,
+        displayIntensityMap,
+        updatedAtMap,
+        renderState,
+        x,
+        y,
+        Math.max(1, Math.round(intensity * falloff)),
+        renderedAtMs,
+        decayConfig
+      );
     }
   }
 };
 
-const setPixel = (image: PNG, intensityMap: Uint8Array, x: number, y: number, intensity: number): void => {
+const setPixel = (
+  image: PNG,
+  returnIntensityMap: Uint8Array,
+  displayIntensityMap: Uint8Array,
+  updatedAtMap: Float64Array,
+  renderState: RenderState,
+  x: number,
+  y: number,
+  intensity: number,
+  renderedAtMs: number,
+  decayConfig: TargetDecayConfig
+): void => {
   if (x < 0 || x >= image.width || y < 0 || y >= image.height) {
     return;
   }
 
   const pixelIndex = y * image.width + x;
-  const currentIntensity = intensityMap[pixelIndex] ?? 0;
-  if (intensity <= currentIntensity) {
+  const currentIntensity = returnIntensityMap[pixelIndex] ?? 0;
+  const currentDisplayIntensity = displayIntensityMap[pixelIndex] ?? 0;
+  const agedIntensity = getAgedIntensity(currentIntensity, renderedAtMs - (updatedAtMap[pixelIndex] ?? 0), decayConfig);
+  if (agedIntensity !== currentDisplayIntensity) {
+    updateDisplayPixel(image, displayIntensityMap, renderState, pixelIndex, x, y, agedIntensity, decayConfig.palette);
+  }
+
+  if (intensity <= agedIntensity) {
     return;
   }
 
-  intensityMap[pixelIndex] = intensity;
+  updateReturnPixel(
+    image,
+    returnIntensityMap,
+    displayIntensityMap,
+    updatedAtMap,
+    renderState,
+    pixelIndex,
+    x,
+    y,
+    intensity,
+    renderedAtMs,
+    decayConfig.palette
+  );
+};
+
+const applyDecay = (
+  image: PNG,
+  returnIntensityMap: Uint8Array,
+  displayIntensityMap: Uint8Array,
+  updatedAtMap: Float64Array,
+  renderState: RenderState,
+  renderedAtMs: number,
+  decayConfig: TargetDecayConfig
+): boolean => {
+  let changed = false;
+  for (let pixelIndex = 0; pixelIndex < returnIntensityMap.length; pixelIndex += 1) {
+    const currentIntensity = returnIntensityMap[pixelIndex] ?? 0;
+    if (currentIntensity === 0) {
+      continue;
+    }
+
+    const agedIntensity = getAgedIntensity(currentIntensity, renderedAtMs - (updatedAtMap[pixelIndex] ?? 0), decayConfig);
+    if (agedIntensity === (displayIntensityMap[pixelIndex] ?? 0)) {
+      continue;
+    }
+
+    updateDisplayPixel(
+      image,
+      displayIntensityMap,
+      renderState,
+      pixelIndex,
+      pixelIndex % image.width,
+      Math.floor(pixelIndex / image.width),
+      agedIntensity,
+      decayConfig.palette
+    );
+    if (agedIntensity === 0) {
+      returnIntensityMap[pixelIndex] = 0;
+      updatedAtMap[pixelIndex] = 0;
+    }
+    changed = true;
+  }
+
+  return changed;
+};
+
+const updateReturnPixel = (
+  image: PNG,
+  returnIntensityMap: Uint8Array,
+  displayIntensityMap: Uint8Array,
+  updatedAtMap: Float64Array,
+  renderState: RenderState,
+  pixelIndex: number,
+  x: number,
+  y: number,
+  intensity: number,
+  renderedAtMs: number,
+  palette: RadarRenderPalette
+): void => {
+  returnIntensityMap[pixelIndex] = intensity;
+  updatedAtMap[pixelIndex] = intensity > 0 ? renderedAtMs : 0;
+  updateDisplayPixel(image, displayIntensityMap, renderState, pixelIndex, x, y, intensity, palette);
+};
+
+const updateDisplayPixel = (
+  image: PNG,
+  displayIntensityMap: Uint8Array,
+  renderState: RenderState,
+  pixelIndex: number,
+  x: number,
+  y: number,
+  intensity: number,
+  palette: RadarRenderPalette
+): void => {
+  const previousIntensity = displayIntensityMap[pixelIndex] ?? 0;
+  if (previousIntensity === 0 && intensity > 0) {
+    renderState.activePixelCount += 1;
+  } else if (previousIntensity > 0 && intensity === 0) {
+    renderState.activePixelCount -= 1;
+  }
+
+  displayIntensityMap[pixelIndex] = intensity;
   const offset = (y * image.width + x) * 4;
-  const color = colorizeIntensity(intensity);
+  if (intensity === 0) {
+    image.data[offset] = 0;
+    image.data[offset + 1] = 0;
+    image.data[offset + 2] = 0;
+    image.data[offset + 3] = 255;
+    return;
+  }
+
+  const color = colorizeIntensity(intensity, palette);
   image.data[offset] = color.red;
   image.data[offset + 1] = color.green;
   image.data[offset + 2] = color.blue;
   image.data[offset + 3] = 255;
 };
 
-const colorizeIntensity = (intensity: number): { readonly blue: number; readonly green: number; readonly red: number } => {
+const getAgedIntensity = (intensity: number, ageMs: number, config: TargetDecayConfig): number => {
+  if (intensity === 0 || ageMs <= config.persistenceMs) {
+    return intensity;
+  }
+
+  if (ageMs >= config.maxAgeMs) {
+    return 0;
+  }
+
+  const fadeAgeMs = ageMs - config.persistenceMs;
+  if (fadeAgeMs >= config.fadeMs) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round(intensity * (1 - fadeAgeMs / config.fadeMs)));
+};
+
+const colorizeIntensity = (
+  intensity: number,
+  palette: RadarRenderPalette
+): { readonly blue: number; readonly green: number; readonly red: number } => {
+  if (palette === "green") {
+    return { blue: 0, green: intensity, red: 0 };
+  }
+
+  if (palette === "grayscale") {
+    return { blue: intensity, green: intensity, red: intensity };
+  }
+
   if (intensity >= 192) {
     return { blue: 48, green: 96, red: 255 };
   }

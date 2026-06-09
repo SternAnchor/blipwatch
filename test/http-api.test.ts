@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { WebSocket } from "ws";
 
 import {
   closeHttpServer,
@@ -14,6 +15,7 @@ import {
 } from "../src/api/http-api.js";
 import type { BlipWatchConfig } from "../src/config/config.js";
 import { createLogger } from "../src/logging/logger.js";
+import type { RadarRangeRequest, RadarTuningRequestResult, RadarTuningSettingRequest } from "../src/radar/control.js";
 import type { RadarImageRenderer } from "../src/radar/renderer.js";
 import type { RadarStatus } from "../src/radar/status.js";
 import type { ReplayBuffer } from "../src/replay/replay-buffer.js";
@@ -24,9 +26,14 @@ const config: BlipWatchConfig = {
   calibrationCaptureEnabled: false,
   calibrationCaptureIntervalMs: 10000,
   calibrationCapturePacketLimit: 250,
+  headless: true,
   imageSize: 32,
   logLevel: "debug",
+  openBrowser: false,
   port: 0,
+  portFallbackEnabled: true,
+  portFallbackMaxAttempts: 5,
+  radarBrightnessScale: 100,
   radarControlEnabled: false,
   radarControlFallbackHost: "236.6.8.36",
   radarControlHost: "236.6.8.36",
@@ -41,26 +48,90 @@ const config: BlipWatchConfig = {
   radarMulticastGroups: [],
   radarReportMulticastGroup: "236.6.7.5",
   radarReportUdpPort: 0,
+  radarRenderPalette: "chartplotter",
+  radarTargetFadeMs: 8000,
+  radarTargetExpansion: 100,
+  radarTargetMaxAgeMs: 15000,
+  radarTargetPersistenceMs: 4000,
   radarUdpPort: 0,
   replayFrameIntervalMs: 1,
   replayRetentionSeconds: 300
 };
 
 const capturedAt = "2026-06-07T00:00:00.000Z";
+const playbackState = {
+  currentFrameAt: null,
+  mode: "live" as const,
+  requestedAt: null,
+  speed: 1 as const,
+  status: "live" as const,
+  updatedAt: capturedAt
+};
+const controlCapabilities = {
+  gain: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  },
+  rainClutter: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  },
+  range: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  },
+  seaClutter: {
+    reason: "HALO tuning command payloads are not implemented.",
+    supported: false
+  }
+};
+const controlTuning = {
+  gain: {
+    lastError: null,
+    lastRequestAt: null,
+    mode: "auto" as const,
+    value: null
+  },
+  rainClutter: {
+    lastError: null,
+    lastRequestAt: null,
+    mode: "auto" as const,
+    value: null
+  },
+  range: {
+    lastError: null,
+    lastRequestAt: null,
+    rangeMeters: null
+  },
+  seaClutter: {
+    lastError: null,
+    lastRequestAt: null,
+    mode: "auto" as const,
+    value: null
+  }
+};
 const png = PNG.sync.write(new PNG({ height: 32, width: 32 }));
 
 let api: HttpApi | undefined;
 
 const createRenderer = (): RadarImageRenderer => ({
   applySpoke(): void {},
+  clear(): void {},
   getLatestMetadata() {
     return {
+      activePixelCount: 10,
       imageSize: 32,
       lastFrameAt: capturedAt,
       lastSpokeAt: capturedAt,
       maxIntensity: 255,
+      radarBrightnessScale: 100,
+      radarRenderPalette: "chartplotter",
       renderState: "ready",
-      spokeCount: 1
+      spokeCount: 1,
+      targetFadeMs: 8000,
+      targetExpansion: 100,
+      targetMaxAgeMs: 15000,
+      targetPersistenceMs: 4000
     };
   },
   getLatestPng() {
@@ -92,8 +163,13 @@ const createReplayBuffer = (): ReplayBuffer => ({
       frameIntervalMs: 1,
       newestFrameAt: capturedAt,
       oldestFrameAt: capturedAt,
-      retentionSeconds: 300
+      playback: playbackState,
+      retentionSeconds: 300,
+      totalBytes: png.byteLength
     };
+  },
+  getPlaybackState() {
+    return playbackState;
   },
   listFrames() {
     return [
@@ -104,11 +180,22 @@ const createReplayBuffer = (): ReplayBuffer => ({
       }
     ];
   },
-  retentionSeconds: 300
+  retentionSeconds: 300,
+  updatePlayback(command) {
+    return {
+      currentFrameAt: capturedAt,
+      mode: command.action === "live" ? "live" : "replay",
+      requestedAt: command.at ? new Date(command.at).toISOString() : null,
+      speed: command.speed ?? 1,
+      status: command.action === "resume" ? "playing" : command.action === "live" ? "live" : "paused",
+      updatedAt: capturedAt
+    };
+  }
 });
 
 const radarStatus = (): RadarStatus => ({
   control: {
+    capabilities: controlCapabilities,
     commandTarget: "236.6.8.36:6516",
     commandTargetSource: "configured",
     commandsSent: 3,
@@ -124,6 +211,7 @@ const radarStatus = (): RadarStatus => ({
     observedStateSource: "report",
     running: true,
     stayAliveIntervalMs: 1000,
+    tuning: controlTuning,
     wakeTarget: "236.6.7.5:6878"
   },
   decoder: {
@@ -174,12 +262,45 @@ const radarStatus = (): RadarStatus => ({
     udpPort: 6678
   },
   renderer: {
+    activePixelCount: 10,
     imageAvailable: true,
     imageSize: 32,
     lastRenderedImageAt: capturedAt,
     lastSpokeAt: capturedAt,
+    maxIntensity: 255,
+    radarBrightnessScale: 100,
+    radarRenderPalette: "chartplotter",
     renderState: "ready",
-    spokeCount: 7
+    spokeCount: 7,
+    targetExpansion: 100,
+    targetMaxAgeMs: 15000
+  },
+  process: {
+    memory: {
+      arrayBuffers: 4,
+      external: 5,
+      heapTotal: 2,
+      heapUsed: 1,
+      rss: 3
+    },
+    uptimeSeconds: 12
+  },
+  replay: {
+    frameCount: 1,
+    frameIntervalMs: 1,
+    newestFrameAt: capturedAt,
+    oldestFrameAt: capturedAt,
+    playback: playbackState,
+    retentionSeconds: 300,
+    totalBytes: png.byteLength
+  },
+  streaming: {
+    clientsConnected: 0,
+    lastClientConnectedAt: null,
+    lastMessageAt: null,
+    messagesSent: 0,
+    totalClientsConnected: 0,
+    updatesDropped: 0
   }
 });
 
@@ -211,6 +332,51 @@ const startApi = async (): Promise<string> => {
   return `http://127.0.0.1:${port}`;
 };
 
+const readWebSocketMessage = async (socket: WebSocket): Promise<Record<string, unknown>> =>
+  new Promise((resolve, reject) => {
+    socket.once("error", reject);
+    socket.once("message", (data) => {
+      const text =
+        typeof data === "string"
+          ? data
+          : Buffer.concat(Array.isArray(data) ? data : [toBuffer(data)]).toString("utf8");
+      resolve(JSON.parse(text) as Record<string, unknown>);
+    });
+  });
+
+const toBuffer = (data: ArrayBuffer | Buffer): Buffer =>
+  Buffer.isBuffer(data) ? data : Buffer.from(new Uint8Array(data));
+
+const listenOnPort = async (port: number): Promise<ReturnType<typeof createServer>> => {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  return server;
+};
+
+const findAdjacentPortPair = async (): Promise<number> => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const server = await listenOnPort(0);
+    const port = (server.address() as AddressInfo).port;
+    try {
+      const nextServer = await listenOnPort(port + 1);
+      await closeHttpServer(nextServer, 1);
+      return port;
+    } catch {
+      // Try another random base port.
+    } finally {
+      await closeHttpServer(server, 1);
+    }
+  }
+
+  throw new Error("could not find adjacent free ports for fallback test");
+};
+
 describe("HTTP API", () => {
   afterEach(async () => {
     await api?.stop();
@@ -225,12 +391,46 @@ describe("HTTP API", () => {
     expect(dashboard.headers.get("content-type")).toContain("text/html");
     await expect(dashboard.text()).resolves.toContain("BlipWatch");
     const dashboardBody = await fetch(`${baseUrl}/`).then((response) => response.text());
+    expect(dashboardBody).toContain('<link rel="icon" href="/favicon.ico"');
     expect(dashboardBody).toContain("/api/radar/latest.png");
     expect(dashboardBody).toContain("Interface");
     expect(dashboardBody).toContain("Control");
     expect(dashboardBody).toContain("Radar State");
     expect(dashboardBody).toContain("Standby");
     expect(dashboardBody).toContain("Transmit");
+    expect(dashboardBody).toContain("Clear Screen");
+    expect(dashboardBody).toContain("Active Pixels");
+    expect(dashboardBody).toContain("Replay Memory");
+    expect(dashboardBody).toContain("Heap Used");
+    expect(dashboardBody).toContain("Stream Clients");
+    expect(dashboardBody).toContain("Gain");
+    expect(dashboardBody).toContain("Sea Clutter");
+    expect(dashboardBody).toContain("Rain Clutter");
+    expect(dashboardBody).toContain("Range Control");
+    expect(dashboardBody).toContain("Advanced Controls");
+    expect(dashboardBody).toContain("gain-mode");
+    expect(dashboardBody).toContain("gain-value");
+    expect(dashboardBody).toContain("sea-clutter-mode");
+    expect(dashboardBody).toContain("sea-clutter-value");
+    expect(dashboardBody).toContain("rain-clutter-mode");
+    expect(dashboardBody).toContain("rain-clutter-value");
+    expect(dashboardBody).toContain("range-unit");
+    expect(dashboardBody).toContain("range-value");
+    expect(dashboardBody).toContain("range-decrease");
+    expect(dashboardBody).toContain("range-increase");
+    expect(dashboardBody).toContain("Imperial");
+    expect(dashboardBody).toContain("Metric");
+    expect(dashboardBody).toContain("/api/radar/clear");
+    expect(dashboardBody).toContain("/api/radar/control/settings");
+    expect(dashboardBody).toContain("Replay");
+    expect(dashboardBody).toContain("replay-slider");
+    expect(dashboardBody).toContain("/api/radar/replay/playback");
+    expect(dashboardBody).toContain("/api/radar/replay/frame");
+
+    const favicon = await fetch(`${baseUrl}/favicon.ico`);
+    expect(favicon.status).toBe(200);
+    expect(favicon.headers.get("content-type")).toContain("image/x-icon");
+    expect(Buffer.from(await favicon.arrayBuffer()).subarray(0, 4)).toEqual(Buffer.from([0, 0, 1, 0]));
 
     const health = await fetch(`${baseUrl}/api/health`);
     expect(health.status).toBe(200);
@@ -309,12 +509,43 @@ describe("HTTP API", () => {
     expect(latestImage.height).toBe(32);
 
     const replay = await fetch(`${baseUrl}/api/radar/replay`);
-    await expect(replay.json()).resolves.toMatchObject({ frameCount: 1, frameIntervalMs: 1, retentionSeconds: 300 });
+    await expect(replay.json()).resolves.toMatchObject({
+      frameCount: 1,
+      frameIntervalMs: 1,
+      playback: {
+        mode: "live",
+        speed: 1,
+        status: "live"
+      },
+      retentionSeconds: 300
+    });
 
-    const frames = await fetch(`${baseUrl}/api/radar/replay/frames`);
+    const frames = await fetch(
+      `${baseUrl}/api/radar/replay/frames?from=${encodeURIComponent(capturedAt)}&to=${encodeURIComponent(capturedAt)}&limit=1`
+    );
     const framesBody = (await frames.json()) as { frames: Array<{ capturedAt: string; sizeBytes: number }> };
     expect(framesBody.frames).toHaveLength(1);
     expect(framesBody.frames[0]?.sizeBytes).toBeGreaterThan(0);
+
+    const playback = await fetch(`${baseUrl}/api/radar/replay/playback`);
+    await expect(playback.json()).resolves.toMatchObject({
+      mode: "live",
+      speed: 1,
+      status: "live"
+    });
+
+    const jump = await fetch(`${baseUrl}/api/radar/replay/playback`, {
+      body: JSON.stringify({ action: "jump", at: capturedAt, speed: 5 }),
+      method: "POST"
+    });
+    expect(jump.status).toBe(200);
+    await expect(jump.json()).resolves.toMatchObject({
+      currentFrameAt: capturedAt,
+      mode: "replay",
+      requestedAt: capturedAt,
+      speed: 5,
+      status: "paused"
+    });
 
     const replayFrame = await fetch(`${baseUrl}/api/radar/replay/frame?at=${encodeURIComponent(capturedAt)}`);
     expect(replayFrame.status).toBe(200);
@@ -345,11 +576,130 @@ describe("HTTP API", () => {
     const unavailable = await fetch(`${baseUrl}/api/radar/replay/frame?at=2026-06-07T00%3A00%3A01.000Z`);
     expect(unavailable.status).toBe(404);
     await expect(unavailable.json()).resolves.toMatchObject({ error: "frame_not_found" });
+
+    const invalidFrames = await fetch(`${baseUrl}/api/radar/replay/frames?from=not-a-date`);
+    expect(invalidFrames.status).toBe(400);
+    await expect(invalidFrames.json()).resolves.toMatchObject({ error: "invalid_timestamp" });
+
+    const invalidPlayback = await fetch(`${baseUrl}/api/radar/replay/playback`, {
+      body: JSON.stringify({ action: "scrub" }),
+      method: "POST"
+    });
+    expect(invalidPlayback.status).toBe(400);
+    await expect(invalidPlayback.json()).resolves.toMatchObject({ error: "missing_at" });
+
+    const invalidSpeed = await fetch(`${baseUrl}/api/radar/replay/playback`, {
+      body: JSON.stringify({ action: "resume", speed: 3 }),
+      method: "POST"
+    });
+    expect(invalidSpeed.status).toBe(400);
+    await expect(invalidSpeed.json()).resolves.toMatchObject({ error: "invalid_speed" });
+  });
+
+  it("falls back to the next HTTP port when the configured port is already in use", async () => {
+    const blockedPort = await findAdjacentPortPair();
+    const blocker = await listenOnPort(blockedPort);
+    const { messages, sink } = createMemorySink();
+    api = createHttpApi({
+      calibrationCaptureStatus: () => ({
+        directory: "captures/calibration",
+        enabled: false,
+        intervalMs: 10000,
+        lastCaptureAt: null,
+        lastCaptureDirectory: null,
+        resolvedDirectory: resolve("captures/calibration"),
+        running: false
+      }),
+      config: {
+        ...config,
+        port: blockedPort,
+        portFallbackMaxAttempts: 2
+      },
+      logger: createLogger({ level: "debug", sink }),
+      renderer: createRenderer(),
+      radarStatus,
+      replayBuffer: createReplayBuffer()
+    });
+
+    try {
+      await api.start();
+      expect(api.address()?.port).toBe(blockedPort + 1);
+      expect(messages.some((message) => message.includes(`using fallback port ${blockedPort + 1}`))).toBe(true);
+    } finally {
+      await closeHttpServer(blocker, 1);
+    }
+  });
+
+  it("streams radar snapshots and updates over WebSockets", async () => {
+    const baseUrl = await startApi();
+    const socket = new WebSocket(baseUrl.replace("http://", "ws://") + "/api/radar/stream");
+
+    const snapshot = await readWebSocketMessage(socket);
+    expect(snapshot).toMatchObject({
+      image: {
+        latestUrl: "/api/radar/latest.png"
+      },
+      reason: "status",
+      type: "radar.snapshot"
+    });
+
+    api?.publishRadarUpdate({ reason: "status" });
+    const update = await readWebSocketMessage(socket);
+    expect(update).toMatchObject({
+      replay: {
+        frameCount: 1
+      },
+      type: "radar.update"
+    });
+
+    expect(api?.getStreamingStats()).toMatchObject({
+      clientsConnected: 1,
+      messagesSent: 1,
+      totalClientsConnected: 1
+    });
+
+    socket.close();
   });
 
   it("exposes explicit radar standby and transmit control endpoints", async () => {
     const { sink } = createMemorySink();
+    const renderer = {
+      ...createRenderer(),
+      clear: vi.fn<() => void>()
+    };
     const radarControl = {
+      getStatus: vi.fn<() => RadarStatus["control"]>().mockReturnValue({
+        ...radarStatus().control,
+        tuning: controlTuning
+      }),
+      requestGain: vi.fn<(request: RadarTuningSettingRequest) => Promise<RadarTuningRequestResult>>().mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "gain",
+        supported: false
+      }),
+      requestRainClutter: vi
+        .fn<(request: RadarTuningSettingRequest) => Promise<RadarTuningRequestResult>>()
+        .mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "rainClutter",
+        supported: false
+      }),
+      requestRange: vi.fn<(request: RadarRangeRequest) => Promise<RadarTuningRequestResult>>().mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "range",
+        supported: false
+      }),
+      requestSeaClutter: vi
+        .fn<(request: RadarTuningSettingRequest) => Promise<RadarTuningRequestResult>>()
+        .mockResolvedValue({
+        message: "HALO tuning command payloads are not implemented.",
+        ok: false,
+        setting: "seaClutter",
+        supported: false
+      }),
       requestStandby: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
       requestTransmit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     };
@@ -358,7 +708,7 @@ describe("HTTP API", () => {
       logger: createLogger({ level: "debug", sink }),
       radarControl,
       radarStatus,
-      renderer: createRenderer(),
+      renderer,
       replayBuffer: createReplayBuffer()
     });
     await api.start();
@@ -378,6 +728,64 @@ describe("HTTP API", () => {
     expect(standby.status).toBe(200);
     await expect(standby.json()).resolves.toMatchObject({ desiredState: "standby", ok: true });
     expect(radarControl.requestStandby).toHaveBeenCalledOnce();
+
+    const settings = await fetch(`${baseUrl}/api/radar/control/settings`);
+    expect(settings.status).toBe(200);
+    await expect(settings.json()).resolves.toMatchObject({
+      capabilities: {
+        gain: {
+          supported: false
+        }
+      },
+      tuning: {
+        gain: {
+          mode: "auto"
+        }
+      }
+    });
+
+    const gain = await fetch(`${baseUrl}/api/radar/control/settings`, {
+      body: JSON.stringify({ mode: "manual", setting: "gain", value: 42 }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(gain.status).toBe(501);
+    await expect(gain.json()).resolves.toMatchObject({
+      error: "radar_control_setting_unsupported",
+      setting: "gain",
+      supported: false
+    });
+    expect(radarControl.requestGain).toHaveBeenCalledWith({ mode: "manual", value: 42 });
+    expect(renderer.clear).not.toHaveBeenCalled();
+
+    const invalid = await fetch(`${baseUrl}/api/radar/control/settings`, {
+      body: JSON.stringify({ mode: "manual", setting: "gain", value: 142 }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(invalid.status).toBe(400);
+    await expect(invalid.json()).resolves.toMatchObject({ error: "invalid_value" });
+
+    radarControl.requestRange.mockResolvedValueOnce({
+      message: "HALO tuning command sent.",
+      ok: true,
+      setting: "range",
+      supported: true
+    });
+    const range = await fetch(`${baseUrl}/api/radar/control/settings`, {
+      body: JSON.stringify({ rangeMeters: 926, setting: "range" }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(range.status).toBe(200);
+    await expect(range.json()).resolves.toMatchObject({ ok: true, setting: "range", supported: true });
+    expect(radarControl.requestRange).toHaveBeenCalledWith({ rangeMeters: 926 });
+    expect(renderer.clear).toHaveBeenCalledOnce();
+
+    const clear = await fetch(`${baseUrl}/api/radar/clear`, { method: "POST" });
+    expect(clear.status).toBe(200);
+    await expect(clear.json()).resolves.toMatchObject({ ok: true });
+    expect(renderer.clear).toHaveBeenCalledTimes(2);
   });
 
   it("reports unavailable radar control endpoints when no control handler is configured", async () => {

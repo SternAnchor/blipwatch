@@ -1,3 +1,6 @@
+import type { RadarRenderPalette } from "../config/config.js";
+import type { ReplayMetadata } from "../replay/replay-buffer.js";
+
 export type RadarOperatingState = "standby" | "transmit" | "unknown" | "waking-up";
 export type RadarOperatingStateSource = "inferred" | "report" | "traffic";
 
@@ -19,6 +22,7 @@ export interface RadarDecoderStatus {
 }
 
 export interface RadarControlStatus {
+  readonly capabilities: RadarControlCapabilities;
   readonly commandTarget: string;
   readonly commandTargetSource: string;
   readonly commandsSent: number;
@@ -34,7 +38,42 @@ export interface RadarControlStatus {
   readonly observedStateSource: RadarOperatingStateSource | null;
   readonly running: boolean;
   readonly stayAliveIntervalMs: number;
+  readonly tuning: RadarControlTuningStatus;
   readonly wakeTarget: string;
+}
+
+export interface RadarControlCapability {
+  readonly reason: string | null;
+  readonly supported: boolean;
+}
+
+export interface RadarControlCapabilities {
+  readonly gain: RadarControlCapability;
+  readonly rainClutter: RadarControlCapability;
+  readonly range: RadarControlCapability;
+  readonly seaClutter: RadarControlCapability;
+}
+
+export type RadarControlTuningMode = "auto" | "manual";
+
+export interface RadarControlTuningSettingStatus {
+  readonly lastError: string | null;
+  readonly lastRequestAt: string | null;
+  readonly mode: RadarControlTuningMode;
+  readonly value: number | null;
+}
+
+export interface RadarControlTuningRangeStatus {
+  readonly lastError: string | null;
+  readonly lastRequestAt: string | null;
+  readonly rangeMeters: number | null;
+}
+
+export interface RadarControlTuningStatus {
+  readonly gain: RadarControlTuningSettingStatus;
+  readonly rainClutter: RadarControlTuningSettingStatus;
+  readonly range: RadarControlTuningRangeStatus;
+  readonly seaClutter: RadarControlTuningSettingStatus;
 }
 
 export interface RadarDiscoveryRadar {
@@ -68,12 +107,18 @@ export interface RadarDiscoveryStatus {
 }
 
 export interface RadarRendererStatus {
+  readonly activePixelCount: number;
   readonly imageAvailable: boolean;
   readonly imageSize: number;
   readonly lastRenderedImageAt: string | null;
   readonly lastSpokeAt: string | null;
+  readonly maxIntensity: number;
+  readonly radarBrightnessScale: number;
+  readonly radarRenderPalette: RadarRenderPalette;
   readonly renderState: "empty" | "ready";
   readonly spokeCount: number;
+  readonly targetExpansion: number;
+  readonly targetMaxAgeMs: number;
 }
 
 export type RadarStatusPhase =
@@ -90,11 +135,34 @@ export interface RadarStatusDiagnostics {
   readonly nextActions: readonly string[];
 }
 
+export interface RadarStreamingStatus {
+  readonly clientsConnected: number;
+  readonly lastClientConnectedAt: string | null;
+  readonly lastMessageAt: string | null;
+  readonly messagesSent: number;
+  readonly totalClientsConnected: number;
+  readonly updatesDropped: number;
+}
+
+export interface ProcessStatus {
+  readonly memory: {
+    readonly arrayBuffers: number;
+    readonly external: number;
+    readonly heapTotal: number;
+    readonly heapUsed: number;
+    readonly rss: number;
+  };
+  readonly uptimeSeconds: number;
+}
+
 export interface RadarStatus {
   readonly control: RadarControlStatus;
   readonly decoder: RadarDecoderStatus;
   readonly diagnostics: RadarStatusDiagnostics;
   readonly discovery: RadarDiscoveryStatus;
+  readonly process: ProcessStatus;
   readonly receiver: RadarReceiverStatus;
   readonly renderer: RadarRendererStatus;
+  readonly replay: ReplayMetadata;
+  readonly streaming: RadarStreamingStatus;
 }

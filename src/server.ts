@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+
 import { createCalibrationCapture } from "./calibration/calibration-capture.js";
 import { createHttpApi } from "./api/http-api.js";
 import { ConfigurationError, loadConfig } from "./config/config.js";
@@ -78,13 +80,20 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     const discoveryStatus = discovery.getStatus();
     const receiverStatus = receiver.getStatus();
     const rendererStatus = {
+      activePixelCount: rendererMetadata.activePixelCount,
       imageAvailable: rendererMetadata.renderState === "ready",
       imageSize: rendererMetadata.imageSize,
       lastRenderedImageAt: rendererMetadata.lastFrameAt,
       lastSpokeAt: rendererMetadata.lastSpokeAt,
+      maxIntensity: rendererMetadata.maxIntensity,
+      radarBrightnessScale: rendererMetadata.radarBrightnessScale,
+      radarRenderPalette: rendererMetadata.radarRenderPalette,
       renderState: rendererMetadata.renderState,
-      spokeCount: rendererMetadata.spokeCount
+      spokeCount: rendererMetadata.spokeCount,
+      targetExpansion: rendererMetadata.targetExpansion,
+      targetMaxAgeMs: rendererMetadata.targetMaxAgeMs
     } as const;
+    const replayStatus = replayBuffer.getMetadata();
 
     return {
       control: control.getStatus(),
@@ -96,8 +105,11 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
         renderer: rendererStatus
       }),
       discovery: discoveryStatus,
+      process: getProcessStatus(),
       receiver: receiverStatus,
-      renderer: rendererStatus
+      renderer: rendererStatus,
+      replay: replayStatus,
+      streaming: httpApi.getStreamingStats()
     };
   };
   const calibrationCapture = createCalibrationCapture({
@@ -127,6 +139,7 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
     },
     logger,
     async start(): Promise<void> {
+      logger.warn("SAFETY: BlipWatch is NOT a certified navigation or safety system. Do NOT rely on it for watchkeeping, collision avoidance, or any safety-of-life purpose. Maintain proper lookout per COLREGS Rule 5.");
       logger.debug(`loaded config: ${JSON.stringify(redactConfig(config))}`);
       logger.info(`starting BlipWatch on port ${config.port}`);
       await httpApi.start();
@@ -148,6 +161,12 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
                 metadata: renderer.getLatestMetadata(),
                 png: renderer.getLatestPng()
               });
+              if (replayFrame) {
+                httpApi.publishRadarUpdate({
+                  reason: "frame",
+                  replayFrameAt: replayFrame.capturedAt.toISOString()
+                });
+              }
               lastReplayCaptureAt = replayFrame?.capturedAt ?? lastReplayCaptureAt;
             }
           }
@@ -166,6 +185,11 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.debug(`decoder ready: ${decoder.name}`);
       logger.debug(`renderer ready: ${renderer.imageSize}px`);
       logger.debug(`replay buffer ready: ${replayBuffer.retentionSeconds}s interval=${replayBuffer.frameIntervalMs}ms`);
+      const dashboardUrl = getDashboardUrl(httpApi.address()?.port);
+      if (dashboardUrl) {
+        logger.info(`BlipWatch dashboard available at ${dashboardUrl}`);
+        openDashboardInBrowser(dashboardUrl, config, logger);
+      }
     },
     async stop(): Promise<void> {
       calibrationCapture.stop();
@@ -176,6 +200,36 @@ export const createBlipWatchServer = (env: NodeJS.ProcessEnv = process.env): Bli
       logger.info("BlipWatch stopped");
     }
   };
+};
+
+const getDashboardUrl = (port: number | undefined): string | undefined => (port ? `http://127.0.0.1:${port}/` : undefined);
+
+const openDashboardInBrowser = (url: string, config: ReturnType<typeof loadConfig>, logger: Logger): void => {
+  if (config.headless || !config.openBrowser) {
+    logger.debug(`browser launch skipped headless=${config.headless} openBrowser=${config.openBrowser}`);
+    return;
+  }
+
+  const command = getBrowserOpenCommand(url);
+  const child = spawn(command.command, command.args, {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.on("error", (error) => {
+    logger.warn(`failed to open dashboard browser: ${error.message}`);
+  });
+  child.unref();
+};
+
+const getBrowserOpenCommand = (url: string): { readonly args: readonly string[]; readonly command: string } => {
+  switch (process.platform) {
+    case "darwin":
+      return { args: [url], command: "open" };
+    case "win32":
+      return { args: ["/c", "start", "", url], command: "cmd" };
+    default:
+      return { args: [url], command: "xdg-open" };
+  }
 };
 
 const RADAR_TRAFFIC_ACTIVE_WINDOW_MS = 3_000;
@@ -219,6 +273,20 @@ const getObservedRadarOperatingState = (
     observedAt: null,
     source: null,
     state: null
+  };
+};
+
+const getProcessStatus = (): RadarStatus["process"] => {
+  const memory = process.memoryUsage();
+  return {
+    memory: {
+      arrayBuffers: memory.arrayBuffers,
+      external: memory.external,
+      heapTotal: memory.heapTotal,
+      heapUsed: memory.heapUsed,
+      rss: memory.rss
+    },
+    uptimeSeconds: Math.round(process.uptime())
   };
 };
 
@@ -287,11 +355,17 @@ const redactConfig = (config: ReturnType<typeof loadConfig>): Record<string, num
   radarControlWakeHost: config.radarControlWakeHost,
   radarControlWakePort: config.radarControlWakePort,
   radarDiscoveryEnabled: String(config.radarDiscoveryEnabled),
+  radarBrightnessScale: config.radarBrightnessScale,
   radarDisplayRangeMeters: String(config.radarDisplayRangeMeters),
   radarInterface: config.radarInterface,
   radarMulticastGroups: config.radarMulticastGroups.join(","),
+  radarRenderPalette: config.radarRenderPalette,
   radarReportMulticastGroup: config.radarReportMulticastGroup,
   radarReportUdpPort: config.radarReportUdpPort,
+  radarTargetExpansion: config.radarTargetExpansion,
+  radarTargetFadeMs: config.radarTargetFadeMs,
+  radarTargetMaxAgeMs: config.radarTargetMaxAgeMs,
+  radarTargetPersistenceMs: config.radarTargetPersistenceMs,
   radarUdpPort: config.radarUdpPort,
   replayFrameIntervalMs: config.replayFrameIntervalMs,
   replayRetentionSeconds: config.replayRetentionSeconds
@@ -342,7 +416,7 @@ const getRadarStatusDiagnostics = ({
     return {
       nextActions: [
         "Compare the discovered data endpoint with RADAR_UDP_PORT and RADAR_MULTICAST_GROUPS.",
-        "If the radar remains in standby, later work may need an explicit opt-in wake/transmit command."
+        "If the radar remains in standby, confirm radar control is enabled and request transmit only when it is safe for the radar to radiate."
       ],
       phase: "discovery-only",
       summary: "Navico discovery reports are arriving, but no spoke packets have reached the image receiver."

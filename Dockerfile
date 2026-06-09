@@ -16,7 +16,8 @@ RUN npm prune --omit=dev
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 WORKDIR /app
 
-ENV IMAGE_SIZE=1024 \
+ENV HEADLESS=true \
+    IMAGE_SIZE=1024 \
     LOG_LEVEL=info \
     NODE_ENV=production \
     PORT=8080 \
